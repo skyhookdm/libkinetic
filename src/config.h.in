@@ -1,0 +1,9 @@
+// Some project-wide configuration (following the CMake Tutorial)
+
+#ifndef __KineticPrototype_H
+#define __KineticPrototype_H
+
+#define KineticPrototype_VERSION_MAJOR @KineticPrototype_VERSION_MAJOR@
+#define KineticPrototype_VERSION_MINOR @KineticPrototype_VERSION_MINOR@
+
+#endif // __KineticPrototype_H
