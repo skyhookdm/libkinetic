@@ -6,7 +6,7 @@
 #define PROTOBUF_C__NO_DEPRECATED
 #endif
 
-#include "kinetic/protocol/kinetic.pb-c.h"
+#include "kinetic.pb-c.h"
 void   com__seagate__kinetic__proto__local__init
                      (Com__Seagate__Kinetic__Proto__Local         *message)
 {

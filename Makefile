@@ -7,7 +7,7 @@ TOOLBOX_DIR=toolbox
 
 # protocol-related sources
 LIBPROTOBUF_SRC=${HOME}/code/protobuf-c/protobuf-c/protobuf-c.c
-KINETIC_PROTO_SRC=protocol/kinetic.pb-c.c
+KINETIC_PROTO_SRC=src/protocol/kinetic.pb-c.c
 
 # sources containing main functions (entrypoints)
 READ_UTIL=${TOOLBOX_DIR}/read_request.c

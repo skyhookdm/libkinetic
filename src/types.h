@@ -18,7 +18,7 @@
 #define __KINETIC_TYPES_H
 
 
-#include "../protocol/kinetic.pb-c.h"
+#include "protocol/kinetic.pb-c.h"
 
 /**
  * This header defines structs for the kinetic library, and functions for the structs defined.

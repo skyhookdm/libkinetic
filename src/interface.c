@@ -14,7 +14,9 @@
  *
  */
 
-#include "kinetic/types.h"
+#include <stdio.h>
+#include "types.h"
+#include "kinetic.h"
 
 /**
  * This file holds the highest-level of the implementation of an interface to the protocol. We want
@@ -101,7 +103,7 @@ enum BuilderStatus kinfo_create_request(KInfo *const info_msg,
     info_msg->n_types = info_types.len;
     info_msg->types   = (Com__Seagate__Kinetic__Proto__Command__GetLog__Type *) info_types.data;
 
-    if (device_name->len > 0 && device_name->data != NULL) {
+    if (device_name != NULL && device_name->len > 0 && device_name->data != NULL) {
         com__seagate__kinetic__proto__command__get_log__device__init(info_msg->device);
 
         info_msg->device->has_name = 1;
@@ -111,26 +113,29 @@ enum BuilderStatus kinfo_create_request(KInfo *const info_msg,
     return SUCCESS;
 }
 
-struct CommandResult kinfo_serialize_request(KCommand *const command_msg,
-                                             KHeader  *const msg_header,
-                                             KInfo    *const info_msg) {
+struct KineticRequest kinfo_serialize_request(KHeader *const msg_header, KInfo *const info_msg) {
+    // Structs to use
+    KCommand command_msg;
+    KBody    command_body;
 
-    // initialize the Command struct
-    com__seagate__kinetic__proto__command__init(command_msg);
+    // initialize the structs
+    com__seagate__kinetic__proto__command__init(&command_msg);
+    com__seagate__kinetic__proto__command__body__init(&command_body);
 
     // update the header for the GetLog Message Body
     msg_header->messagetype  = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__GETLOG;
 
     // stitch the Command together
-    command_msg->header       = msg_header;
-    command_msg->body->getlog = info_msg;
+    command_msg.header  = msg_header;
+    command_msg.body    = &command_body;
+    command_body.getlog = info_msg;
 
     // Get size for command and allocate buffer
-    size_t  command_size    = com__seagate__kinetic__proto__command__get_packed_size((const KCommand *) command_msg);
+    size_t   command_size   = com__seagate__kinetic__proto__command__get_packed_size(&command_msg);
     uint8_t *command_buffer = (uint8_t *) malloc(sizeof(uint8_t) * command_size);
 
     if (command_buffer == NULL) {
-        return (struct CommandResult) {
+        return (struct KineticRequest) {
             .status = FAILURE,
             .command_bytes = (ProtobufCBinaryData) {
                 .len  = 0,
@@ -139,12 +144,26 @@ struct CommandResult kinfo_serialize_request(KCommand *const command_msg,
         };
     }
 
-    size_t packed_bytes = com__seagate__kinetic__proto__message__pack(
-        (const KMessage *) command_msg,
-        command_buffer
-    );
+    size_t packed_bytes = com__seagate__kinetic__proto__command__pack(&command_msg, command_buffer);
 
-    return (struct CommandResult) {
+    if (packed_bytes != command_size) {
+        fprintf(
+            stderr,
+            "Unexpected amount of bytes packed. %ld bytes packed, expected %ld\n",
+            packed_bytes,
+            command_size
+        );
+
+        return (struct KineticRequest) {
+            .status = FAILURE,
+            .command_bytes = (ProtobufCBinaryData) {
+                .len  = 0,
+                .data = NULL
+            }
+        };
+    }
+
+    return (struct KineticRequest) {
         .status        = SUCCESS,
         .command_bytes = (ProtobufCBinaryData) {
             .len  = command_size,
@@ -152,6 +171,75 @@ struct CommandResult kinfo_serialize_request(KCommand *const command_msg,
         }
     };
 }
+
+struct KineticResponse kinfo_deserialize_response(ProtobufCBinaryData serialized_msg) {
+    KCommand *command_response = com__seagate__kinetic__proto__command__unpack(
+        NULL,
+        serialized_msg.len,
+        serialized_msg.data
+    );
+
+    KInfo *info_response = command_response->body->getlog;
+
+    if (info_response == NULL) {
+        return (struct KineticResponse) {
+            .status           = FAILURE,
+            .command_response = NULL
+        };
+    }
+
+    return (struct KineticResponse) {
+        .status           = SUCCESS,
+        .command_response = command_response
+    };
+}
+
+/*
+ *
+    KineticResponse * response = KineticAllocator_NewKineticResponse(si->header.valueLength);
+
+    if (response == NULL) {
+        bus_unpack_cb_res_t res = {
+            .ok = false,
+            .u.error.opaque_error_id = UNPACK_ERROR_PAYLOAD_MALLOC_FAIL,
+        };
+        return res;
+    } else {
+        response->header = si->header;
+
+        response->proto = KineticPDU_unpack_message(NULL, si->header.protobufLength, si->buf);
+
+        if (response->header.valueLength > 0)
+        {
+            memcpy(response->value, &si->buf[si->header.protobufLength], si->header.valueLength);
+        }
+
+        int64_t seq_id = BUS_NO_SEQ_ID;
+        if (response->command != NULL &&
+            response->command->header != NULL)
+        {
+            if (response->proto->has_authtype &&
+                response->proto->authtype == COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__UNSOLICITEDSTATUS
+                && KineticSession_GetConnectionID(session) == 0)
+            {
+                // Ignore the unsolicited status message on connect.
+                seq_id = BUS_NO_SEQ_ID;
+            } else {
+                seq_id = response->command->header->acksequence;
+            }
+            log_response_seq_id(session->socket, seq_id);
+        }
+
+        bus_unpack_cb_res_t res = {
+            .ok = true,
+            .u.success = {
+                .seq_id = seq_id,
+                .msg = response,
+            },
+        };
+        return res;
+    }
+*/
 
 /*
  *

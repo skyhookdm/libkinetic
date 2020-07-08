@@ -18,7 +18,7 @@
 #define __KINETIC_H
 
 #include <stdlib.h>
-#include "../protocol/kinetic.pb-c.h"
+#include "protocol/kinetic.pb-c.h"
 
 /* ------------------------------
  * Function prototypes

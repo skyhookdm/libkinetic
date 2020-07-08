@@ -1,17 +1,15 @@
 #include <stdio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-// #include "KineticPrototype.h"
-#include "config.h"
-#include "kinetic/types.h"
+#include "../src/types.h"
+#include "../src/kinetic.h"
 
 
 int main(int argc, char **argv) {
-    fprintf(
-        stdout,
-        "KineticPrototype Version: %d.%d\n",
-        KineticPrototype_VERSION_MAJOR,
-        KineticPrototype_VERSION_MINOR
-    );
+    fprintf(stdout, "KineticPrototype Version: 0.1\n");
 
     /* connection options */
     KHeader  default_header;
@@ -19,19 +17,18 @@ int main(int argc, char **argv) {
     uint64_t timeout = 500;
     uint32_t batchid = 1;
 
-    enum BuilderStatus init_status = kheader_initialize(
-        &default_header,
-        (struct KHeaderOptionalFields) {
-            .clusterversion = &version,
-            .connectionid   = &connectionid,
-            .timeout        = &timeout,
-            .batchid        = &batchid,
+    struct KHeaderOptionalFields header_options = {
+        .clusterversion = &version,
+        .connectionid   = &connectionid,
+        .timeout        = &timeout,
+        .batchid        = &batchid,
 
-            .sequence   = NULL,
-            .priority   = NULL,
-            .timequanta = NULL
-        }
-    );
+        .sequence   = NULL,
+        .priority   = NULL,
+        .timequanta = NULL
+    };
+
+    enum BuilderStatus init_status = kheader_initialize(&default_header, header_options);
 
     if (init_status == FAILURE)  {
         fprintf(stderr, "Unable to initialize Header for kinetic Command\n");
@@ -49,6 +46,7 @@ int main(int argc, char **argv) {
         }
     };
 
+    com__seagate__kinetic__proto__command__get_log__init(&request_for_info);
     enum BuilderStatus create_status = kinfo_create_request(&request_for_info, info_types, NULL);
 
     if (create_status == FAILURE) {
@@ -57,16 +55,32 @@ int main(int argc, char **argv) {
     }
 
     /* construct message */
-    KCommand kinetic_rpc;
-
-    struct CommandResult marshal_result = kinfo_serialize_request(&kinetic_rpc, &default_header, &request_for_info);
+    struct KineticRequest marshal_result = kinfo_serialize_request(&default_header, &request_for_info);
 
     if (marshal_result.status == FAILURE) {
         fprintf(stderr, "Unable to pack Kinetic RPC\n");
         return EXIT_FAILURE;
     }
 
+    int output_fd = open("request.kinetic", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+    ssize_t bytes_written = write(
+        output_fd,
+        marshal_result.command_bytes.data,
+        marshal_result.command_bytes.len
+    );
+
+    if (bytes_written < 0) {
+        fprintf(stderr, "Unable to write marshalled bytes to file: 'request.kinetic'\n");
+        return EXIT_FAILURE;
+    }
+
+    if (close(output_fd) < 0) {
+        fprintf(stderr, "Unable to close file: 'request.kinetic'\n");
+        return EXIT_FAILURE;
+    }
+
     fprintf(stdout, "Marshalled %ld bytes into a kinetic RPC\n", marshal_result.command_bytes.len);
+
 
     return EXIT_SUCCESS;
 }
