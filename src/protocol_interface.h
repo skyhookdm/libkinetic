@@ -33,7 +33,7 @@ struct kresult_message create_info_request(struct kbuffer  info_types,
                                            struct kbuffer *device_name);
 
 struct kresult_buffer  pack_info_request(kproto_header *const msg_header, kproto_getlog *const info_msg);
-struct kresult_message unpack_info_response(struct kbuffer response_buffer);
+struct kresult_message unpack_response(struct kbuffer response_buffer);
 
 
 #endif //__KINETIC_H

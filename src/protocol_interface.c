@@ -192,7 +192,7 @@ struct kresult_buffer pack_info_request(kproto_header *const msg_header, kproto_
     };
 }
 
-struct kresult_message unpack_info_response(struct kbuffer response_buffer) {
+struct kresult_message unpack_response(struct kbuffer response_buffer) {
     kproto_command *response_command = com__seagate__kinetic__proto__command__unpack(
         NULL,
         response_buffer.len,
