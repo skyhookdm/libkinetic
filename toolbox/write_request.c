@@ -4,70 +4,58 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "../src/types.h"
-#include "../src/kinetic.h"
+#include "../src/protocol_types.h"
+#include "../src/protocol_interface.h"
 
 
 int main(int argc, char **argv) {
     fprintf(stdout, "KineticPrototype Version: 0.1\n");
 
     /* connection options */
-    KHeader  default_header;
-    int64_t  version = 2, connectionid = 10;
-    uint64_t timeout = 500;
-    uint32_t batchid = 1;
+    uint8_t header_field_bitmap   = CLUST_VER | CONN_ID | TIMEOUT | BATCH_ID;
+    struct kresult_message header_result = create_header(
+        header_field_bitmap,
+        (int64_t)    2,
+        (int64_t)   10,
+        (uint64_t) 500,
+        (uint32_t)   1
+    );
 
-    struct KHeaderOptionalFields header_options = {
-        .clusterversion = &version,
-        .connectionid   = &connectionid,
-        .timeout        = &timeout,
-        .batchid        = &batchid,
-
-        .sequence   = NULL,
-        .priority   = NULL,
-        .timequanta = NULL
-    };
-
-    enum BuilderStatus init_status = kheader_initialize(&default_header, header_options);
-
-    if (init_status == FAILURE)  {
-        fprintf(stderr, "Unable to initialize Header for kinetic Command\n");
+    if (header_result.result_code == FAILURE)  {
+        fprintf(stderr, "Unable to create Header for kinetic Command\n");
         return EXIT_FAILURE;
     }
 
     /* create actual request */
-    KInfo request_for_info;
-    ProtobufCBinaryData info_types = {
+    struct kbuffer info_types_buffer = {
         .len  = 3,
-        .data = (uint8_t []) {
-            COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__UTILIZATIONS,
-            COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__CAPACITIES  ,
-            COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__LIMITS 
+        .base = (kproto_getlog_type []) {
+            UTIL_INFO_TYPE         ,
+            CAPACITY_INFO_TYPE     ,
+            DEVICE_LIMITS_INFO_TYPE,
         }
     };
 
-    com__seagate__kinetic__proto__command__get_log__init(&request_for_info);
-    enum BuilderStatus create_status = kinfo_create_request(&request_for_info, info_types, NULL);
-
-    if (create_status == FAILURE) {
+    struct kresult_message getlog_result = create_info_request(info_types_buffer, NULL);
+    if (getlog_result.result_code == FAILURE) {
         fprintf(stderr, "Unable to create GetLog request\n");
         return EXIT_FAILURE;
     }
 
-    /* construct message */
-    struct KineticRequest marshal_result = kinfo_serialize_request(&default_header, &request_for_info);
+    /* construct command buffer */
+    struct kresult_buffer pack_result = pack_info_request(
+        (kproto_header *const) header_result.result_message,
+        (kproto_getlog *const) getlog_result.result_message
+    );
 
-    if (marshal_result.status == FAILURE) {
+    if (pack_result.result_code == FAILURE) {
         fprintf(stderr, "Unable to pack Kinetic RPC\n");
         return EXIT_FAILURE;
     }
 
-    int output_fd = open("request.kinetic", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
-    ssize_t bytes_written = write(
-        output_fd,
-        marshal_result.command_bytes.data,
-        marshal_result.command_bytes.len
-    );
+    /* Write packed bytes to file for now */
+    int     output_fd     = open("request.kinetic", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+    ssize_t bytes_written = write(output_fd, pack_result.base, pack_result.len);
 
     if (bytes_written < 0) {
         fprintf(stderr, "Unable to write marshalled bytes to file: 'request.kinetic'\n");
@@ -79,7 +67,7 @@ int main(int argc, char **argv) {
         return EXIT_FAILURE;
     }
 
-    fprintf(stdout, "Marshalled %ld bytes into a kinetic RPC\n", marshal_result.command_bytes.len);
+    fprintf(stdout, "Packed %ld bytes into a kinetic RPC\n", pack_result.len);
 
 
     return EXIT_SUCCESS;
