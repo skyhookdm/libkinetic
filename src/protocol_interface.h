@@ -17,23 +17,23 @@
 #ifndef __KINETIC_H
 #define __KINETIC_H
 
+#include <stdarg.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include "protocol/kinetic.pb-c.h"
+
 
 /* ------------------------------
  * Function prototypes
  */
 
-enum BuilderStatus kheader_initialize(KHeader *const msg_header,
-                                      struct KHeaderOptionalFields options);
+struct kresult_message create_header(uint8_t header_fields_bitmap, ...);
 
-enum BuilderStatus kinfo_create_request(KInfo *const info_msg,
-                                        ProtobufCBinaryData  info_types,
-                                        ProtobufCBinaryData *device_name);
+struct kresult_message create_info_request(struct kbuffer  info_types,
+                                           struct kbuffer *device_name);
 
-struct KineticRequest kinfo_serialize_request(KHeader *const msg_header, KInfo *const info_msg);
-struct KineticResponse kinfo_deserialize_response(ProtobufCBinaryData serialized_msg);
-
+struct kresult_buffer  pack_info_request(kproto_header *const msg_header, kproto_getlog *const info_msg);
+struct kresult_message unpack_info_response(struct kbuffer response_buffer);
 
 
 #endif //__KINETIC_H
