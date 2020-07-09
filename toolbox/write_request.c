@@ -29,7 +29,7 @@ int main(int argc, char **argv) {
     /* create actual request */
     struct kbuffer info_types_buffer = {
         .len  = 3,
-        .base = (kproto_getlog_type []) {
+        .base = (uint8_t []) {
             UTIL_INFO_TYPE         ,
             CAPACITY_INFO_TYPE     ,
             DEVICE_LIMITS_INFO_TYPE,

@@ -40,7 +40,7 @@ int main(int argc, char **argv) {
     };
 
     /* deserialize message */
-    struct kresult_message unpack_result = unpack_info_response(response_data);
+    struct kresult_message unpack_result = unpack_response(response_data);
 
     if (unpack_result.result_code == FAILURE) {
         fprintf(stderr, "Unable to read Kinetic RPC\n");
@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
 
     fprintf(stdout, "Types in info request are:\n\t");
     for (int info_type_ndx = 0; info_type_ndx < requested_info_types.len; info_type_ndx++) {
-        kproto_getlog_type info_type_choice = ((kproto_getlog_type *) requested_info_types.base)[info_type_ndx];
+        uint8_t info_type_choice = ((uint8_t *) requested_info_types.base)[info_type_ndx];
 
         switch (info_type_choice) {
             case UTIL_INFO_TYPE:
