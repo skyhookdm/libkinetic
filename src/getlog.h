@@ -19,17 +19,17 @@ typedef enum kgltype {
 
 
 typedef struct kutilization {
-	char *ku_name;
-	float ku_value;
+	char *ku_name;		/* Name of the resource, null terminated */
+	float ku_value;		/* Percent the resource is utilized  */
 } kutilization_t;
 
-typedef struct ktempratures {
+typedef struct ktemprature {
 	char * kt_name;		/* Descriptive name, "HDA" "Processor" */
 	float ku_cur;		/* Current temp in C */
 	float ku_min;		/* Minimum temp in C */
 	float ku_max;		/* Maximum temp in C */
 	float ku_target;	/* Target temp in C */
-} ktempratures_t;
+} ktemprature_t;
 
 typedef struct kcapacity {
 	uint64_t kc_total;	/* Total available bytes */
@@ -37,10 +37,10 @@ typedef struct kcapacity {
 } kcapacity_t;
 
 typedef struct kinterface {
-	char *ki_name;	/* Interface Name, e.g "eth0" */ 
-	char *ki_mac;	/* MAC address, e.g. "00:15:5d:e2:ef:17" */ 
-	char *ki_ipv4;	/* IPv4 address. e.g. "192.168.200.33" */
-	char *ki_ipv6;	/* IPv6 address. e.g. "fe80::215:5dff:fee2:ef17" */
+	char *ki_name;		/* Interface Name, e.g "eth0" */ 
+	char *ki_mac;		/* MAC addr  e.g. "00:15:5d:e2:ef:17" */ 
+	char *ki_ipv4;		/* IPv4 addr e.g. "192.168.200.33" */
+	char *ki_ipv6;		/* IPv6 addr e.g. "fe80::215:5dff:fee2:ef17" */
 } kinterface_t;
 
 typedef struct kconfiguration {
@@ -60,11 +60,11 @@ typedef struct kconfiguration {
 	kpowerlevel_t kcf_power;	/* Device Current Power Level */
 } kconfiguration_t;
 
-typedef struct kstatistics {
+typedef struct kstatistic {
 	kmtype_t ks_mtype;
 	uint64_t ks_cnt;
 	uint64_t ks_bytes;
-} kstatistics_t;
+} kstatistic_t;
 
 /** 
  * klimits structure. 
@@ -91,12 +91,14 @@ typedef struct klimits {
 } klimits_t;
 
 /*
- * Generic device log. Could be anything provided by the kinetic server
- * usually these will be vendor extensions to the getlog.  Could be vendor
- * supplied extensions, i.e. "com.WD.glog" would be a vendor spefic log
+ * Generic device log. This is a logname that is provided by the server. 
+ * Currently there are no generic lags available. But could be anything 
+ * provided by the kinetic server. Usually these will be vendor extensions
+ * to the getlog.  A vendor kinetic server is encouraged to name their logs
+ * with a vendor specific prefix, i.e. "com.WD.glog".
  */
 typedef struct kdevicelog {
-	char *kdl_name;
+	char *kdl_name;		/* Log name to be fetched, null terminated */
 } kdevice_t;
 
  typedef struct kgetlog {
@@ -112,7 +114,7 @@ typedef struct kdevicelog {
 	 kcapacitiy_t		kgl_cap;
 	 kconfiguration_t	kgl_conf;
 	 
-	 kstatistics_t		*kgl_stat;
+	 kstatistic_t		*kgl_stat;
 	 uint32_t		kgl_statcnt;
 
 	 char 			*kgl_msgs;
