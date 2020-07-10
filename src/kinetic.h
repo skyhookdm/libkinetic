@@ -1,37 +1,13 @@
 #ifndef _KINETIC_H
 #define _KINETIC_H 
 
-#include ""
-
-/**
- * Kinetic PDU structure
- * The pdu structure is the first bits on the wire and defines the total
- * length of the elements that follow.  The first element is a magic byte
- * that defines the beginning of the PDU - it is set to 'F' or 0x46, then 
- * the length of the kinetic protobuf message and then finally the length 
- * of the value, if any. 
- *
- *        +------------------------------------------------+
- *        |  Kinetic Magic   - Must be 'F' 0x46            |
- *        +------------------------------------------------+
- *        |  Protobuf Length - BE, Bounded 0 <  L <= 1024k |
- *        +------------------------------------------------+
- *        |  Value Length    - BE, Bounded 0 <= L <= 1024k |
- *        +------------------------------------------------+
- */
-typedef struct kpdu {
-	uint8_t		kp_magic;	/* Always 'F' 0x46 */
-	uint32_t	kp_msglen;	/* Length of protobuf message */
-	uint32_t	kp_vallen;	/* Length of the value *
-} kpdu_t; 
-#define KP_MAGIC 0x46
-#define KP_LENGTH sizeof(pdu_t)	
-#define KP_INIT { KP_MAGIC, 0, 0 }
+#include "getlog.h"
+#include "message.h"
 
 /** 
  * Kinetic Status Codes 
  */ 
-#define CSSC(cssc) Command_Status_StatusCode_##cssc
+#define CSSC(cssc) COM__SEAGATE__KINETIC__PROTO__COMMAND__STATUS__STATUS_CODE__##cssc
 typedef enum kstatus_code {
 	K_INVALID_SC	= CSSC(INVALID_STATUS_CODE),
 	K_OK		= CSSC(SUCCESS),
@@ -65,14 +41,14 @@ typedef enum kstatus_code {
  */ 
 typedef struct kstatus {
 	kstatus_code_t	ks_code;
-	char *ks_message;
-	char *ks_detail;
+	char 		*ks_message;
+	char		*ks_detail;
 } kstatus_t;	
 
 /**
  * Kinetic Data Integrity supported algrithms.
  */
-#define CA(ca) Command_Algorithm_##ca
+#define CA(ca) COM__SEAGATE__KINETIC__PROTO__COMMAND__ALGORITHM__##ca
 enum kdi {
 	KDI_INVALID	= CA(INVALID_ALGORITHM),
 	KDI_SHA1	= CA(SHA1),
@@ -86,7 +62,7 @@ enum kdi {
 /**
  * Kinetic Message Types, ie Kinetic Ops
  */
-#define CMT(cmt) Command_MessageType_##cmt
+#define CMT(cmt) COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__##cmt
 typedef enum kmtype {
 	KMT_INVALID	= CMT(INVALID_MESSAGE_TYPE),
 	KMT_GET		= CMT(GET),		   
@@ -114,7 +90,7 @@ typedef enum kmtype {
 /**
  * Kinetic Cache Policies
  */
-#define CS(cs) Command_Synchronization_##cs
+#define CS(cs) COM__SEAGATE__KINETIC__PROTO__COMMAND__SYNCHRONIZATION__##cs
 typedef enum kcachepolicy {
 	KC_INVALID 	= CS(INVALID_SYNCHRONIZATION),
 	KC_WT 		= CS(WRITETHROUGH),	 
@@ -126,7 +102,7 @@ typedef enum kcachepolicy {
  * Kinetic Server Power Levels, 
  * PAK: probably should be in management.h
  */
-#define CPL(cpl) Command_PowerLevel_##cpl
+#define CPL(cpl) COM__SEAGATE__KINETIC__PROTO__COMMAND__POWER_LEVEL__##cpl
 typedef enum kpowerlevel {
 	KPL_INVALID	= CPL(INVALID_LEVEL),
 	KPL_NOMINAL 	= CPL(OPERATIONAL), 
@@ -134,7 +110,7 @@ typedef enum kpowerlevel {
 	KPL_SHUTDOWN	= CPL(SHUTDOWN),
 	KPL_FAIL	= CPL(FAIL),		
 } kpowerlevel_t;
-
+	
 /* Abstracting malloc and free, permits testing  */ 
 #define KI_MALLOC(_l) malloc((_l))
 #define KI_FREE(_p)   free((_p))

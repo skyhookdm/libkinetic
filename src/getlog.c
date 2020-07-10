@@ -87,6 +87,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kstatus_t krc;
 	struct kio *kio;
 	kpdu_t pdu = KP_INIT;
+	kmsghdr_t kmh;
+	kcmdhdr_t cmh;
 	struct kresult_message *kmreq, *kmresp;
 	
 	/* Validate the passed in glog */
@@ -119,12 +121,29 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kio->kio_sendmsg.km_msg[0].kiov_len = KP_LENGTH;
 	
 	/* pack the message */
-	kmreg = create_getlog_message(glog);
+	/* PAK: fill out kmsghdr and kcmdhdr */
+	/* PAK: Need to save conn config on session, for use here */
+	memset((void *)&kmh, 0, sizeof(kmh));
+	kmh.kmh_atype = KA_HMAC;
+	kmh.kmd_id = 1;
+	kmh.kmd_hmac = "abcdefgh";
+
+	memset((void *)&kch, 0, sizeof(kch));
+	kch.kch_clustvers = 0;
+	kch.kch_connid = 0;
+	kch.kch_type = KMT_GETLOG;
 	
+	kmreq = create_getlog_message(&kmh, &kch, glog);
+
+	/* PAK: Error handling */
 	rc = pack_getlog_request(kmreq,
 				 &(kio->kio_sendmsg.km_msg[1].kiov_base),
 				 &(kio->kio_sendmsg.km_msg[1].kiov_len));
-				
+
+	/* Setup the PDU */
+	pdu->kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
+	pdu->kp_vallen = 0;
+	
 	/* Send the request */
 	ktli_send(ktd, &kio);
 	printf ("Sent Kio: %p\n", &kio);
@@ -163,12 +182,14 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	destroy_command(kmresp);
  glex2:
 	destroy_command(kmreq);
-	destroy_request(kio->kio_recvmsg.km_msg[1].kiov_base);
+	destroy_request(kio->kio_sendmsg.km_msg[1].kiov_base);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[0].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg[1].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg);
 	KI_FREE(kio->kio_sendmsg.km_msg);
 	KI_FREE(kio);
+	
 	return(rc);
 }

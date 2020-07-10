@@ -4,7 +4,7 @@
  * Data structures specifically defined needed for the GETLOG request
  * See "Message GetLog" in kinetic.proto
  */
-#define CGLT(cglt) Command_GetLog_Type_##cglt
+#define CGLT(cglt) COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__##cglt
 typedef enum kgltype {
 	KGLT_INVALID		= CGLT(INVALID_TYPE),
 	KGLT_UTILIZATIONS	= CGLT(UTILIZATIONS),
