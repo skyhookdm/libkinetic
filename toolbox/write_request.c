@@ -27,23 +27,23 @@ int main(int argc, char **argv) {
     }
 
     /* create actual request */
-    struct kbuffer info_types_buffer = {
+    struct kbuffer getlog_types_buffer = {
         .len  = 3,
-        .base = (uint8_t []) {
-            UTIL_INFO_TYPE         ,
-            CAPACITY_INFO_TYPE     ,
-            DEVICE_LIMITS_INFO_TYPE,
+        .base = (kproto_getlog_type []) {
+            UTIL_GETLOG_TYPE         ,
+            CAPACITY_GETLOG_TYPE     ,
+            DEVICE_LIMITS_GETLOG_TYPE,
         }
     };
 
-    struct kresult_message getlog_result = create_info_request(info_types_buffer, NULL);
+    struct kresult_message getlog_result = create_getlog_request(getlog_types_buffer, NULL);
     if (getlog_result.result_code == FAILURE) {
         fprintf(stderr, "Unable to create GetLog request\n");
         return EXIT_FAILURE;
     }
 
     /* construct command buffer */
-    struct kresult_buffer pack_result = pack_info_request(
+    struct kresult_buffer pack_result = pack_getlog_request(
         (kproto_header *const) header_result.result_message,
         (kproto_getlog *const) getlog_result.result_message
     );
