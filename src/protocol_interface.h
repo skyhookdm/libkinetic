@@ -29,10 +29,11 @@
 
 struct kresult_message create_header(uint8_t header_fields_bitmap, ...);
 
-struct kresult_message create_info_request(struct kbuffer  info_types,
-                                           struct kbuffer *device_name);
+struct kresult_message create_getlog_request(struct kbuffer  getlog_types,
+                                             struct kbuffer *device_name);
 
-struct kresult_buffer  pack_info_request(kproto_header *const msg_header, kproto_getlog *const info_msg);
+struct kresult_buffer  pack_getlog_request(kproto_header *const msg_header,
+                                           kproto_getlog *const getlog_msg);
 struct kresult_message unpack_response(struct kbuffer response_buffer);
 
 
