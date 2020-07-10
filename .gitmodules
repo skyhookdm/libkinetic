@@ -1,0 +1,3 @@
+[submodule "vendor/list"]
+	path = vendor/list
+	url = https://github.com/pkufeldt/list.git
