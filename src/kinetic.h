@@ -2,6 +2,32 @@
 #define _KINETIC_H 
 
 #include ""
+
+/**
+ * Kinetic PDU structure
+ * The pdu structure is the first bits on the wire and defines the total
+ * length of the elements that follow.  The first element is a magic byte
+ * that defines the beginning of the PDU - it is set to 'F' or 0x46, then 
+ * the length of the kinetic protobuf message and then finally the length 
+ * of the value, if any. 
+ *
+ *        +------------------------------------------------+
+ *        |  Kinetic Magic   - Must be 'F' 0x46            |
+ *        +------------------------------------------------+
+ *        |  Protobuf Length - BE, Bounded 0 <  L <= 1024k |
+ *        +------------------------------------------------+
+ *        |  Value Length    - BE, Bounded 0 <= L <= 1024k |
+ *        +------------------------------------------------+
+ */
+typedef struct kpdu {
+	uint8_t		kp_magic;	/* Always 'F' 0x46 */
+	uint32_t	kp_msglen;	/* Length of protobuf message */
+	uint32_t	kp_vallen;	/* Length of the value *
+} kpdu_t; 
+#define KP_MAGIC 0x46
+#define KP_LENGTH sizeof(pdu_t)	
+#define KP_INIT { KP_MAGIC, 0, 0 }
+
 /** 
  * Kinetic Status Codes 
  */ 
@@ -109,6 +135,9 @@ typedef enum kpowerlevel {
 	KPL_FAIL	= CPL(FAIL),		
 } kpowerlevel_t;
 
+/* Abstracting malloc and free, permits testing  */ 
+#define KI_MALLOC(_l) malloc((_l))
+#define KI_FREE(_p)   free((_p))
 
 kstatus_t ki_setclustervers(int ktd, int64_t vers);
 

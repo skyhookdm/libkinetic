@@ -44,7 +44,7 @@ struct kio_msg {
  * caller to free, including buffers allocated by lower level receive code. 
  */
 struct kio {
-	int kio_cmd;   			/* kinetic cmd: get, put, getlog, etc 
+	uint32_t kio_cmd;   		/* kinetic cmd: get, put, getlog, etc 
 					   for debugging only */
 	int64_t kio_seq;		/* kinetic sequence */
 
