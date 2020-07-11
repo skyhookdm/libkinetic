@@ -14,6 +14,8 @@
  *
  */
 
+#include <stdio.h>
+
 #include "protocol_types.h"
 #include "protocol_interface.h"
 #include "getlog.h"
@@ -26,7 +28,7 @@ struct kresult_message create_getlog_request(struct kbuffer  getlog_types_buffer
 
     // Populate `types` field using `getlog_types_buffer` argument.
     getlog_msg->n_types = getlog_types_buffer.len;
-    getlog_msg->types   = (kproto_getlog_type *) getlog_types_buffer.base;
+    getlog_msg->types   = (kgltype_t *) getlog_types_buffer.base;
 
     if (device_name != NULL && device_name->len > 0 && device_name->base != NULL) {
         kproto_device_info *getlog_msg_device = (kproto_device_info *) malloc(sizeof(kproto_device_info));

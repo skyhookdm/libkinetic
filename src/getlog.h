@@ -1,84 +1,83 @@
+/**
+ * Data structures specifically defined needed for the GETLOG request
+ * See "Message GetLog" in kinetic.proto
+ */
+
 #ifndef _GETLOG_H
 #define _GETLOG_H
 
 
 #include "protocol/kinetic.pb-c.h"
+#include "kinetic.h"
 
-
-/*
-#define CGLT(cglt) Command__GetLog_Type_##cglt
-typedef enum kgltype {
-    KGLT_INVALID        = CGLT(INVALID_TYPE),
-    KGLT_UTILIZATIONS   = CGLT(UTILIZATIONS),
-    KGLT_TEMPERATURES   = CGLT(TEMPERATURES),
-    KGLT_CAPACITIES     = CGLT(CAPACITIES),
-    KGLT_CONFIGURATION  = CGLT(CONFIGURATION;),
-    KGLT_STATISTICS     = CGLT(STATISTICS),
-    KGLT_MESSAGES       = CGLT(MESSAGES),
-    KGLT_LIMITS     = CGLT(LIMITS),
-    KGLT_LOG        = CGLT(DEVICE),
-} kgltype_t;
-*/
-
-/**
- * Data structures specifically defined needed for the GETLOG request
- * See "Message GetLog" in kinetic.proto
+/* ------------------------------
+ * Data types for outgoing GetLog requests
  */
-// Types of information for GetLog (`Type`).
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Type kproto_getlog_type;
+
+// Convenience macros for long token names
+#define CGLT(cglt) COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__##cglt
+
+// Information types (categories) for GetLog requests (defined as `Type` in protobuf definition).
+// There is a typedef for the generated enum structure, and an unnamed enum to alias values of the
+// generated enum structure.
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Type kgltype_t;
 enum {
-    INVALID_GETLOG_TYPE          = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__INVALID_TYPE ,
-    UTIL_GETLOG_TYPE             = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__UTILIZATIONS ,
-    TEMP_GETLOG_TYPE             = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__TEMPERATURES ,
-    CAPACITY_GETLOG_TYPE         = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__CAPACITIES   ,
-    CONFIG_GETLOG_TYPE           = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__CONFIGURATION,
-    INTERFACE_CONFIG_GETLOG_TYPE = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__STATISTICS   ,
-    MESSAGE_GETLOG_TYPE          = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__MESSAGES     ,
-    DEVICE_LIMITS_GETLOG_TYPE    = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__LIMITS       ,
-    DEVICE_GETLOG_TYPE           = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__DEVICE       ,
+    KGLT_INVALID       = CGLT(INVALID_TYPE),
+    KGLT_UTILIZATIONS  = CGLT(UTILIZATIONS),
+    KGLT_TEMPERATURES  = CGLT(TEMPERATURES),
+    KGLT_CAPACITIES    = CGLT(CAPACITIES),
+    KGLT_CONFIGURATION = CGLT(CONFIGURATION),
+    KGLT_STATISTICS    = CGLT(STATISTICS),
+    KGLT_MESSAGES      = CGLT(MESSAGES),
+    KGLT_LIMITS        = CGLT(LIMITS),
+    KGLT_LOG           = CGLT(DEVICE),
 };
 
 
+/* ------------------------------
+ * Data types for incoming GetLog responses
+ */
+
 typedef struct kutilization {
-    char *ku_name;
-    float ku_value;
+    char  *ku_name;
+    float  ku_value;
 } kutilization_t;
 
-typedef struct ktemperatures {
-    char * kt_name;     /* Descriptive name, "HDA" "Processor" */
-    float ku_cur;       /* Current temp in C */
-    float ku_min;       /* Minimum temp in C */
-    float ku_max;       /* Maximum temp in C */
-    float ku_target;    /* Target temp in C */
-} ktemperatures_t;
+typedef struct ktemperature {
+    char  *kt_name;    /* Descriptive name, "HDA" "Processor" */
+    float  ku_cur;     /* Current temp in C */
+    float  ku_min;     /* Minimum temp in C */
+    float  ku_max;     /* Maximum temp in C */
+    float  ku_target;  /* Target temp in C */
+} ktemperature_t;
 
 typedef struct kcapacity {
-    uint64_t kc_total;  /* Total available bytes */
-    float kc_used;      /* Percent of Total used */
+    uint64_t kc_total; /* Total available bytes */
+    float    kc_used;  /* Percent of Total used */
 } kcapacity_t;
 
 typedef struct kinterface {
-    char *ki_name;  /* Interface Name, e.g "eth0" */
-    char *ki_mac;   /* MAC address, e.g. "00:15:5d:e2:ef:17" */
-    char *ki_ipv4;  /* IPv4 address. e.g. "192.168.200.33" */
-    char *ki_ipv6;  /* IPv6 address. e.g. "fe80::215:5dff:fee2:ef17" */
+    char *ki_name;     /* Interface Name, e.g "eth0" */
+    char *ki_mac;      /* MAC address, e.g. "00:15:5d:e2:ef:17" */
+    char *ki_ipv4;     /* IPv4 address. e.g. "192.168.200.33" */
+    char *ki_ipv6;     /* IPv6 address. e.g. "fe80::215:5dff:fee2:ef17" */
 } kinterface_t;
 
 typedef struct kconfiguration {
-    char *kcf_vendor;       /* Device Vendor Name  */
-    char *kcf_model;        /* Device Model Number */
-    char *kcf_serial;       /* Device Serial Number */
-    char *kcf_wwn;          /* Device World Wide Name */
-    char *kcf_version;      /* Device Version */
-    char *kcf_compdate;     /* Device Firmware Compilation Date */
-    char *kcf_srchash;      /* Firmware Source Code Hash */
-    char *kcf_proto;        /* Kinetic Protocol Version Number */
-    char *kcf_protocompdate;    /* Kinetic Protocol Compilation Date */
-    char *kcf_protosrchash;     /* Kinetic Protocol Source Code Hash */
-    kinterface_t *kcf_interfaces;   /* Device Interface List */
-    uint32_t kcf_port;      /* Device Unencrypted Port */
-    uint32_t kcf_tlsport;       /* Device Encrypted Port */
-    kpowerlevel_t kcf_power;    /* Device Current Power Level */
+    char          *kcf_vendor;        /* Device Vendor Name  */
+    char          *kcf_model;         /* Device Model Number */
+    char          *kcf_serial;        /* Device Serial Number */
+    char          *kcf_wwn;           /* Device World Wide Name */
+    char          *kcf_version;       /* Device Version */
+    char          *kcf_compdate;      /* Device Firmware Compilation Date */
+    char          *kcf_srchash;       /* Firmware Source Code Hash */
+    char          *kcf_proto;         /* Kinetic Protocol Version Number */
+    char          *kcf_protocompdate; /* Kinetic Protocol Compilation Date */
+    char          *kcf_protosrchash;  /* Kinetic Protocol Source Code Hash */
+    kinterface_t  *kcf_interfaces;    /* Device Interface List */
+    uint32_t       kcf_port;          /* Device Unencrypted Port */
+    uint32_t       kcf_tlsport;       /* Device Encrypted Port */
+    kpltype_t      kcf_power;         /* Device Current Power Level */
 } kconfiguration_t;
 
 typedef struct kstatistics {
@@ -88,10 +87,9 @@ typedef struct kstatistics {
 } kstatistics_t;
 
 /**
- * klimits structure.
- * These are all maximums.
- * structure elements that are "len"s are in bytes.
- * structure elements that are "cnt"s are in individual units
+ * Device limits as maximum values:
+ *  - elements with "len" suffix are in bytes.
+ *  - elements with "cnt" suffix are in units.
  */
 typedef struct klimits {
     uint32_t kl_keylen;         /* Maximum Key Length supported */
@@ -118,31 +116,30 @@ typedef struct klimits {
  */
 typedef struct kdevicelog {
     char *kdl_name;
-} kdevice_t;
+} kdevicelog_t;
 
- typedef struct kgetlog {
-     kgltype_t        *kgl_type;
-     uint32_t          kgl_typecnt;
+typedef struct kgetlog {
+    kgltype_t        *kgl_type;
+    uint32_t          kgl_typecnt;
 
-     kutilization_t   *kgl_util;
-     uint32_t          kgl_utilcnt;
+    kutilization_t   *kgl_util;
+    uint32_t          kgl_utilcnt;
 
-     ktemperature_t   *kgl_temp;
-     uint32_t          kgl_tempcnt;
+    ktemperature_t   *kgl_temp;
+    uint32_t          kgl_tempcnt;
 
-     kcapacitiy_t      kgl_cap;
-     kconfiguration_t  kgl_conf;
+    kcapacity_t       kgl_cap;
+    kconfiguration_t  kgl_conf;
 
-     kstatistics_t    *kgl_stat;
-     uint32_t          kgl_statcnt;
+    kstatistics_t    *kgl_stat;
+    uint32_t          kgl_statcnt;
 
-     char             *kgl_msgs;
-     uint32_t          kgl_msgscnt;
+    char             *kgl_msgs;
+    uint32_t          kgl_msgscnt;
 
-     klimits_t         kgl_limits;
-     kdevicelog_t      kgl_log;
- } kgetlog_t;
+    klimits_t         kgl_limits;
+    kdevicelog_t      kgl_log;
+} kgetlog_t;
 
 
 #endif /* _GETLOG_H */
-
