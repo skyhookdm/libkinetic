@@ -73,14 +73,13 @@ typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Limits                   
 
 /* Aliases for enums */
 typedef Com__Seagate__Kinetic__Proto__Command__MessageType                      kproto_message_type;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Type                     kproto_getlog_type;
 
 // Authorization types (`AuthType`)
 typedef enum {
-  INVALID_AUTH_TYPE     = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__INVALID_AUTH_TYPE,
-  HMAC_AUTH_TYPE        = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__HMACAUTH         ,
-  PIN_AUTH_TYPE         = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__PINAUTH          ,
-  UNSOLICITED_AUTH_TYPE = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__UNSOLICITEDSTATUS,
+    INVALID_AUTH_TYPE     = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__INVALID_AUTH_TYPE,
+    HMAC_AUTH_TYPE        = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__HMACAUTH         ,
+    PIN_AUTH_TYPE         = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__PINAUTH          ,
+    UNSOLICITED_AUTH_TYPE = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__UNSOLICITEDSTATUS,
 } kproto_auth_type;
 
 
@@ -109,19 +108,6 @@ typedef enum {
     SET_POWER_MSG_TYPE   = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__SET_POWER_LEVEL     ,
 } kproto_msg_type;
 
-
-// Types of information for GetLog (`Type`). Synonymous with kproto_getlog_type.
-typedef enum {
-    INVALID_INFO_TYPE          = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__INVALID_TYPE ,
-    UTIL_INFO_TYPE             = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__UTILIZATIONS ,
-    TEMP_INFO_TYPE             = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__TEMPERATURES ,
-    CAPACITY_INFO_TYPE         = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__CAPACITIES   ,
-    CONFIG_INFO_TYPE           = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__CONFIGURATION,
-    INTERFACE_CONFIG_INFO_TYPE = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__STATISTICS   ,
-    MESSAGE_INFO_TYPE          = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__MESSAGES     ,
-    DEVICE_LIMITS_INFO_TYPE    = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__LIMITS       ,
-    DEVICE_INFO_TYPE           = COM__SEAGATE__KINETIC__PROTO__COMMAND__GET_LOG__TYPE__DEVICE       ,
-} kproto_info_type;
 
 
 

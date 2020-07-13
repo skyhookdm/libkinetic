@@ -48,30 +48,30 @@ int main(int argc, char **argv) {
     }
 
     kproto_command *response_command = (kproto_command *) unpack_result.result_message;
-    struct kbuffer requested_info_types = {
+    struct kbuffer requested_getlog_types = {
         .len  = response_command->body->getlog->n_types,
         .base = response_command->body->getlog->types
     };
 
-    fprintf(stdout, "Types in info request are:\n\t");
-    for (int info_type_ndx = 0; info_type_ndx < requested_info_types.len; info_type_ndx++) {
-        uint8_t info_type_choice = ((uint8_t *) requested_info_types.base)[info_type_ndx];
+    fprintf(stdout, "Types in getlog request are:\n\t");
+    for (int getlog_type_ndx = 0; getlog_type_ndx < requested_getlog_types.len; getlog_type_ndx++) {
+        kproto_getlog_type getlog_type_choice = ((kproto_getlog_type *) requested_getlog_types.base)[getlog_type_ndx];
 
-        switch (info_type_choice) {
-            case UTIL_INFO_TYPE:
+        switch (getlog_type_choice) {
+            case UTIL_GETLOG_TYPE:
                 fprintf(stdout, "Utilization, ");
                 break;
 
-            case CAPACITY_INFO_TYPE:
+            case CAPACITY_GETLOG_TYPE:
                 fprintf(stdout, "Capacity, ");
                 break;
 
-            case DEVICE_LIMITS_INFO_TYPE:
+            case DEVICE_LIMITS_GETLOG_TYPE:
                 fprintf(stdout, "Limits, ");
                 break;
 
             default:
-                fprintf(stdout, "Unknown (%d), ", info_type_choice);
+                fprintf(stdout, "Unknown (%d), ", getlog_type_choice);
                 break;
         }
     }
