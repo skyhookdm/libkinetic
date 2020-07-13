@@ -80,7 +80,9 @@ ktli_init()
  * @param kh  A set of helper functions and data that divorces KTLI from proto
  */ 
 int
-ktli_open(enum ktli_driver_id did, struct ktli_helpers *kh)
+ktli_open(enum ktli_driver_id did,
+	  struct ktli_config *cf,
+	  struct ktli_helpers *kh)
 {
 	int i, rc;
 	int *kts;
@@ -182,9 +184,10 @@ ktli_open(enum ktli_driver_id did, struct ktli_helpers *kh)
 		goto open_err;
 	}
 
-	/* Set the driver, dhandle and helpers */
+	/* Set the driver, dhandle config and helpers */
 	kts_set_driver(*kts, de);
 	kts_set_dhandle(*kts, dh);
+	kts_set_config(*kts, cf);
 	kts_set_helpers(*kts, kh);
 	
 	/* Save the session Qs */
@@ -410,12 +413,13 @@ ktli_close(int kts)
  * PAK: Create KTLI config struct and hang them off the session for logging
  */
 int
-ktli_connect(int kts, char *host, char *port, int usetls, int id, char *hmac)
+ktli_connect(int kts)
 {
 	int rc;
 	void *dh; 			/* driver handle */
 	struct ktli_driver *de; 	/* driver entry */
 	enum ktli_sstate st;
+	struct ktli_config *cf;
 	
 	if (!kts_isvalid(kts)) {
 		errno = EBADF;
@@ -425,6 +429,7 @@ ktli_connect(int kts, char *host, char *port, int usetls, int id, char *hmac)
 	dh = kts_dhandle(kts);
 	de = kts_driver(kts);
 	st = kts_state(kts);
+	cf = kts_config(kts);
 	
 	if (st != KTLI_SSTATE_OPENED) {
 		/* invalid kts */
@@ -442,8 +447,9 @@ ktli_connect(int kts, char *host, char *port, int usetls, int id, char *hmac)
 	assert(de->ktlid_fns->ktli_dfns_connect);
 
 	/* call the corresponding driver connect */
-	rc = (de->ktlid_fns->ktli_dfns_connect)(dh, host, port,
-						usetls, id, hmac);
+	rc = (de->ktlid_fns->ktli_dfns_connect)(dh, cf->kcfg_host,
+						cf->kcfg_port,
+						(cf->kcfg_flags & KCFF_TLS));
 	if (rc == -1) {
 		/* driver connect sets errno */
 		return(-1);

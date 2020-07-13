@@ -121,6 +121,7 @@ main(int argc, char *argv[])
 	static struct kiovec	kiovec[2];
 	static struct header	header, *h;
 	static struct kio	kio, *kio2;
+	static struct ktli_config  kcf;
 	static struct ktli_helpers kh = 
 		{ sizeof(struct header), msg_getseq, msg_setseq, msg_length };
 	
@@ -195,8 +196,12 @@ main(int argc, char *argv[])
 		usage();
 	}
 
-	
-	ktd = ktli_open(KTLI_DRIVER_SOCKET, &kh);
+	kcf.kcfg_host = kargs.ka_host;
+	kcf.kcfg_port = kargs.ka_port;
+	kcf.kcfg_flags = KCFF_NOFLAGS;
+	kcf.kcfg_pconf = NULL;
+
+	ktd = ktli_open(KTLI_DRIVER_SOCKET, &kcf, &kh);
 	if (ktd < 0) {
 		perror("ktli_open: failed: ");
 			exit(1);
@@ -204,7 +209,7 @@ main(int argc, char *argv[])
 
 	printf("KTD: %d\n", ktd);
 
-	rc = ktli_connect(ktd, kargs.ka_host, kargs.ka_port, 0, 1, "abc123");
+	rc = ktli_connect(ktd);
 	if (rc < 0) {
 		perror("ktli_connect: failed: ");
 		exit(1);

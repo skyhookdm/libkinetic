@@ -1,5 +1,6 @@
 #ifndef _KIO_H
 #define _KIO_H
+#include <stdint.h>
 
 struct kiovec {
 	void  *kiov_base;    /* Starting address */

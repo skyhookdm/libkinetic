@@ -26,9 +26,9 @@ typedef struct kpdu {
 	uint32_t	kp_msglen;	/* Length of protobuf message */
 	uint32_t	kp_vallen;	/* Length of the value */
 } kpdu_t; 
-#define KP_MAGIC 0x46
-#define KP_LENGTH sizeof(kpdu_t)	
-#define KP_INIT { KP_MAGIC, 0, 0 }
+#define KP_MAGIC 	0x46
+#define KP_LENGTH 	sizeof(kpdu_t)	
+#define KP_INIT 	{ KP_MAGIC, 0, 0 }
 
 #define KMAT(ka) COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__##ka
 wtypedef enum kauth {
@@ -40,15 +40,15 @@ wtypedef enum kauth {
 
 #define KPCP(kp) COM__SEAGATE__KINETIC__PROTO__COMMAND__PRIORITY__##kp
 typedef enum kpriority {
-	LOWEST	= KPCP(LOWEST);
-	LOWER	= KPCP(LOWER);
-	LOW	= KPCP(LOW);
-	LNORMAL	= KPCP(LOWERNORMAL);
-	NORMAL	= KPCP(NORMAL);
-	HNORMAL	= KPCP(HIGHERNORMAL);
-	HIGH	= KPCP(HIGH);
-	HIGHER	= KPCP(HIGHER);
-	HIGHEST	= KPCP(HIGHEST);
+	LOWEST	= KPCP(LOWEST),
+	LOWER	= KPCP(LOWER),
+	LOW	= KPCP(LOW),
+	LNORMAL	= KPCP(LOWERNORMAL),
+	NORMAL	= KPCP(NORMAL),
+	HNORMAL	= KPCP(HIGHERNORMAL),
+	HIGH	= KPCP(HIGH),
+	HIGHER	= KPCP(HIGHER),
+	HIGHEST	= KPCP(HIGHEST),
 } kpriority_t;
 
 typedef struct kmsghdr {

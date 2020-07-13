@@ -21,8 +21,7 @@
 
 static void * ktli_socket_open();
 static int ktli_socket_close(void *dh);
-static int ktli_socket_connect(void *dh, char *host, char *port,
-			int usetls, int id, char *hmac);
+static int ktli_socket_connect(void *dh, char *host, char *port, int usetls);
 static int ktli_socket_disconnect(void *dh);
 static int ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt);
 static int ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt);
@@ -77,14 +76,13 @@ ktli_socket_close(void *dh)
 }
 
 int
-ktli_socket_connect(void *dh, char *host, char *port,
-		    int usetls, int id, char *hmac)
+ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 {
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
 	int dd, sfd, rc, on, MiB, flags;
 
-	if (!dh || !host || !port || !hmac) {
+	if (!dh || !host || !port) {
 		errno -EINVAL;
 		return(-1);
 	}
