@@ -1,5 +1,6 @@
 CC=gcc
 CFLAGS=-g
+LDFLAGS=-Ivendor/list/
 
 # directories
 BIN_DIR=bin
@@ -14,10 +15,10 @@ READ_UTIL=${TOOLBOX_DIR}/read_request.c
 WRITE_UTIL=${TOOLBOX_DIR}/write_request.c
 
 # library sources
-LIB_SRC=src/getlog.c src/protocol_interface.c
+LIB_SRC=src/getlog.c src/protocol_interface.c vendor/list/list.c
 
 test_read:
-	${CC} ${CFLAGS} -o ${BIN_DIR}/test_read ${LIB_SRC} ${READ_UTIL} ${KINETIC_PROTO_SRC} ${LIBPROTOBUF_SRC}
+	${CC} ${CFLAGS} ${LDFLAGS} -o ${BIN_DIR}/test_read ${LIB_SRC} ${READ_UTIL} ${KINETIC_PROTO_SRC} ${LIBPROTOBUF_SRC}
 
 test_write:
-	${CC} ${CFLAGS} -o ${BIN_DIR}/test_write ${LIB_SRC} ${WRITE_UTIL} ${KINETIC_PROTO_SRC} ${LIBPROTOBUF_SRC}
+	${CC} ${CFLAGS} ${LDFLAGS} -o ${BIN_DIR}/test_write ${LIB_SRC} ${WRITE_UTIL} ${KINETIC_PROTO_SRC} ${LIBPROTOBUF_SRC}
