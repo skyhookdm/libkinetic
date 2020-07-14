@@ -1,24 +1,26 @@
 CC=gcc
 CFLAGS=-g
-LDFLAGS=-Ivendor/list/
+LDFLAGS=-Ivendor/list/ -Ivendor/protobuf-c
 
 # directories
 BIN_DIR=bin
 TOOLBOX_DIR=toolbox
 
-# protocol-related sources
-LIBPROTOBUF_SRC=${HOME}/code/protobuf-c/protobuf-c/protobuf-c.c
+# source files for external dependencies (separated by project or repo)
+LIBPROTOBUF_SRC=vendor/protobuf-c/protobuf-c/protobuf-c.c
+LIBLIST_SRC=vendor/list/list.c
 KINETIC_PROTO_SRC=src/protocol/kinetic.pb-c.c
 
-# sources containing main functions (entrypoints)
+# source files containing main functions (entrypoints)
 READ_UTIL=${TOOLBOX_DIR}/read_request.c
 WRITE_UTIL=${TOOLBOX_DIR}/write_request.c
 
-# library sources
-LIB_SRC=src/getlog.c src/protocol_interface.c vendor/list/list.c
+# source files for library and dependency code
+LIB_SRC_FILES=src/getlog.c src/protocol_interface.c ${LIBLIST_SRC} ${LIBPROTOBUF_SRC}
+DEP_SRC_FILES=${KINETIC_PROTO_SRC} ${LIBPROTOBUF_SRC} ${LIBLIST_SRC}
 
 test_read:
-	${CC} ${CFLAGS} ${LDFLAGS} -o ${BIN_DIR}/test_read ${LIB_SRC} ${READ_UTIL} ${KINETIC_PROTO_SRC} ${LIBPROTOBUF_SRC}
+	${CC} ${CFLAGS} ${LDFLAGS} -o ${BIN_DIR}/test_read ${READ_UTIL} ${LIB_SRC_FILES} ${DEP_SRC_FILES}
 
 test_write:
-	${CC} ${CFLAGS} ${LDFLAGS} -o ${BIN_DIR}/test_write ${LIB_SRC} ${WRITE_UTIL} ${KINETIC_PROTO_SRC} ${LIBPROTOBUF_SRC}
+	${CC} ${CFLAGS} ${LDFLAGS} -o ${BIN_DIR}/test_write ${WRITE_UTIL} ${LIB_SRC_FILES} ${DEP_SRC_FILES}
