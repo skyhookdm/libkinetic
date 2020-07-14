@@ -1,9 +1,12 @@
 #ifndef _MESSAGE_H
 #define _MESSAGE_H
+
+
 /*
  * Message details user does not need to see
  */
 #include "kinetic.h"
+
 
 /**
  * Kinetic PDU structure
@@ -26,10 +29,12 @@ typedef struct kpdu {
 	uint32_t	kp_msglen;	/* Length of protobuf message */
 	uint32_t	kp_vallen;	/* Length of the value */
 } kpdu_t; 
+
 #define KP_MAGIC 	0x46
 #define KP_LENGTH 	sizeof(kpdu_t)	
 #define KP_INIT 	{ KP_MAGIC, 0, 0 }
 
+// Authorization types (`AuthType`)
 #define KMAT(ka) COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__##ka
 wtypedef enum kauth {
 	KA_INVALID	= KMAT(INVALID_AUTH_TYPE),
