@@ -855,6 +855,25 @@ ktli_drain_match(int kts, struct kio *kio)
 	
 	return(rc);
 }
+/**
+ * int ktli_pol (int kts, struct ktli_config *cf)
+ *
+ * This function returns the session config structure 
+ * 
+ * @param kts A connected kinetic session descriptor. 
+ *
+*/
+int
+ktli_config(int kts, struct ktli_config *cf)
+{
+	if (!kts_isvalid(kts)) {
+		errno = EBADF;
+		return(-1);
+	}
+		
+	*cf = kts_config(kts);
+	return(0);
+}
 
 /*
  * Session thread functions 

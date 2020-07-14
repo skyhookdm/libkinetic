@@ -210,5 +210,6 @@ extern int ktli_receive(int ktd, struct kio *kio);
 extern int ktli_poll(int ktd, int timeout);
 extern int ktli_drain(int ktd, struct kio **kio);
 extern int ktli_drain_match(int ktd, struct kio *kio);
+extern int ktli_conf(int ktd, struct ktli_config **cf);
 
 #endif /* _KTLI_H */
