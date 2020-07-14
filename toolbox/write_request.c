@@ -14,11 +14,11 @@ int main(int argc, char **argv) {
     fprintf(stdout, "KineticPrototype Version: 0.1\n");
 
     /* message header */
-    kmsg_auth_t message_auth = {
-        .auth_type     = MAT_PIN,
-        .hmac_identity = 0,
-        .auth_len      = 4,
-        .auth_data     = "0000",
+    kmsghdr_t message_auth = {
+        .kmh_atype  = KA_PIN,
+        .kmh_id     = 0,
+        .kmh_pinlen = 4,
+        .kmh_pin    = "0000",
     };
 
     /* connection options */
