@@ -62,57 +62,6 @@ typedef Com__Seagate__Kinetic__Proto__Command__Priority kproto_priority;
 /* Aliases for enums */
 
 /**
- * Kinetic Status Codes
- */
-
-#define CSSC(cssc) COM__SEAGATE__KINETIC__PROTO__COMMAND__STATUS__STATUS_CODE__##cssc
-
-typedef Com__Seagate__Kinetic__Proto__Command__Status__StatusCode kstatus_code_t;
-enum {
-	K_INVALID_SC   = CSSC(INVALID_STATUS_CODE),
-	K_OK		   = CSSC(SUCCESS),
-	K_EREJECTED    = CSSC(NOT_ATTEMPTED),
-	K_EHMAC		   = CSSC(HMAC_FAILURE),
-	K_EACCESS	   = CSSC(NOT_AUTHORIZED),
-	K_EVERSION	   = CSSC(VERSION_FAILURE),
-	K_EINTERNAL    = CSSC(INTERNAL_ERROR),
-	K_ENOHEADER    = CSSC(HEADER_REQUIRED),
-	K_ENOTFOUND    = CSSC(NOT_FOUND),
-	K_EBADVERS	   = CSSC(VERSION_MISMATCH),
-	K_EBUSY		   = CSSC(SERVICE_BUSY),
-	K_ETIMEDOUT    = CSSC(EXPIRED),
-	K_EDATA		   = CSSC(DATA_ERROR),
-	K_EPERMDATA    = CSSC(PERM_DATA_ERROR),
-	K_EP2PCONN	   = CSSC(REMOTE_CONNECTION_ERROR),
-	K_ENOSPACE	   = CSSC(NO_SPACE),
-	K_ENOHMAC	   = CSSC(NO_SUCH_HMAC_ALGORITHM),
-	K_EINVAL	   = CSSC(INVALID_REQUEST),
-	K_EP2P		   = CSSC(NESTED_OPERATION_ERRORS),
-	K_ELOCKED	   = CSSC(DEVICE_LOCKED),
-	K_ENOTLOCKED   = CSSC(DEVICE_ALREADY_UNLOCKED),
-	K_ECONNABORTED = CSSC(CONNECTION_TERMINATED),
-	K_EINVALBAT    = CSSC(INVALID_BATCH),
-	K_EHIBERNATE   = CSSC(HIBERNATE),
-	K_ESHUTDOWN    = CSSC(SHUTDOWN),
-};
-
-/**
- * Kinetic Data Integrity supported algrithms.
- */
-#define CA(ca) COM__SEAGATE__KINETIC__PROTO__COMMAND__ALGORITHM__##ca
-
-typedef Com__Seagate__Kinetic__Proto__Command__Algorithm kditype_t;
-enum {
-	KDI_INVALID = CA(INVALID_ALGORITHM),
-	KDI_SHA1	= CA(SHA1)			   ,
-	KDI_SHA2	= CA(SHA2)			   ,
-	KDI_SHA3	= CA(SHA3)			   ,
-	KDI_CRC32C	= CA(CRC32C)		   ,
-	KDI_CRC64	= CA(CRC64)			   ,
-	KDI_CRC32	= CA(CRC32)			   ,
-};
-
-/**
  * Kinetic Message Types, ie Kinetic Ops
  */
 #define CMT(cmt) COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__##cmt
