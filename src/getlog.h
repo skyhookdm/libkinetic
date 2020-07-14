@@ -8,7 +8,28 @@
 
 
 #include "protocol/kinetic.pb-c.h"
+#include "protocol_types.h"
 #include "kinetic.h"
+
+/**
+ * Forward declarations
+ */
+struct kbuffer;
+struct kgetlog;
+
+typedef struct kgetlog kgetlog_t;
+
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog                           kcmd_getlog_t;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device                   kgetlog_device_info;
+
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Utilization              kgetlog_utilization;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Temperature              kgetlog_temperature;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Capacity                 kgetlog_capacity;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Configuration            kgetlog_configuration;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Configuration__Interface kgetlog_interface_config;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Statistics               kgetlog_statistics;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Limits                   kgetlog_device_limits;
+
 
 /* ------------------------------
  * Data types for outgoing GetLog requests
@@ -77,13 +98,17 @@ typedef struct kconfiguration {
     kinterface_t  *kcf_interfaces;    /* Device Interface List */
     uint32_t       kcf_port;          /* Device Unencrypted Port */
     uint32_t       kcf_tlsport;       /* Device Encrypted Port */
-    kpltype_t      kcf_power;         /* Device Current Power Level */
+
+    /* Device Current Power Level */
+    Com__Seagate__Kinetic__Proto__Command__PowerLevel kcf_power;
 } kconfiguration_t;
 
 typedef struct kstatistics {
-    kmtype_t ks_mtype;
+    Com__Seagate__Kinetic__Proto__Command__MessageType ks_mtype;
+
     uint64_t ks_cnt;
     uint64_t ks_bytes;
+    uint64_t ks_maxlatency;
 } kstatistics_t;
 
 /**
@@ -114,13 +139,16 @@ typedef struct klimits {
  * usually these will be vendor extensions to the getlog.  Could be vendor
  * supplied extensions, i.e. "com.WD.glog" would be a vendor spefic log
  */
+//NOTE: should this have a length? see getlog.c:31
 typedef struct kdevicelog {
-    char *kdl_name;
+    char   *kdl_name;
+    size_t  len;
 } kdevicelog_t;
 
-typedef struct kgetlog {
+
+struct kgetlog {
     kgltype_t        *kgl_type;
-    uint32_t          kgl_typecnt;
+    size_t            kgl_typecnt;
 
     kutilization_t   *kgl_util;
     uint32_t          kgl_utilcnt;
@@ -139,7 +167,13 @@ typedef struct kgetlog {
 
     klimits_t         kgl_limits;
     kdevicelog_t      kgl_log;
-} kgetlog_t;
+};
+
+
+/**
+ * Command-specific operations
+ */
+struct kresult_message create_getlog_message(kmsg_auth_t *, kcmd_hdr_t *, kgetlog_t *);
 
 
 #endif /* _GETLOG_H */
