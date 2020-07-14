@@ -19,6 +19,7 @@
 
 #include "kinetic.h"
 #include "protocol_types.h"
+#include "message.h"
 
 /**
  * This file holds the highest-level of the implementation of an interface to the protocol. We want
@@ -200,7 +201,7 @@ pack_failure:
 	};
 }
 
-struct kresult_message create_message(kmsg_auth_t *msg_auth, ProtobufCBinaryData cmd_bytes) {
+struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes) {
 	kmsg_t *kinetic_msg = (kmsg_t *) malloc(sizeof(kmsg_t));
 	if (kinetic_msg == NULL) {
 		goto create_failure;
@@ -213,44 +214,44 @@ struct kresult_message create_message(kmsg_auth_t *msg_auth, ProtobufCBinaryData
 		kinetic_msg->commandbytes	  = cmd_bytes;
 	}
 
-	switch(msg_auth->auth_type) {
-		case MAT_HMAC:
+	switch(msg_hdr->kmh_atype) {
+		case KA_HMAC:
 			kinetic_msg->has_authtype = 1;
-			kinetic_msg->authtype	  = MAT_HMAC;
+			kinetic_msg->authtype	  = KA_HMAC;
 
 			kauth_hmac *msg_auth_hmac = (kauth_hmac *) malloc(sizeof(kauth_hmac));
 			com__seagate__kinetic__proto__message__hmacauth__init(msg_auth_hmac);
 
 			msg_auth_hmac->has_identity = 1;
-			msg_auth_hmac->identity		= msg_auth->hmac_identity;
+			msg_auth_hmac->identity		= msg_hdr->kmh_id;
 
 			msg_auth_hmac->has_hmac = 1;
 			msg_auth_hmac->hmac		= (ProtobufCBinaryData) {
-				.len  = msg_auth->auth_len,
-				.data = msg_auth->auth_data
+				.len  =             msg_hdr->kmh_hmaclen,
+				.data = (uint8_t *) msg_hdr->kmh_hmac
 			};
 
 			kinetic_msg->hmacauth = msg_auth_hmac;
 
 			break;
 
-		case MAT_PIN:
+		case KA_PIN:
 			kinetic_msg->has_authtype = 1;
-			kinetic_msg->authtype	  = MAT_PIN;
+			kinetic_msg->authtype	  = KA_PIN;
 
 			kauth_pin *msg_auth_pin = (kauth_pin *) malloc(sizeof(kauth_pin));
 			com__seagate__kinetic__proto__message__pinauth__init(msg_auth_pin);
 
 			msg_auth_pin->has_pin = 1;
 			msg_auth_pin->pin	  = (ProtobufCBinaryData) {
-				.len  = msg_auth->auth_len,
-				.data = msg_auth->auth_data
+				.len  =             msg_hdr->kmh_pinlen,
+				.data = (uint8_t *) msg_hdr->kmh_pin
 			};
 
 			kinetic_msg->pinauth = msg_auth_pin;
 			break;
 
-		case MAT_INVALID:
+		case KA_INVALID:
 		default:
 			goto create_failure;
 	};
