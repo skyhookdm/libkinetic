@@ -15,91 +15,75 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 
-#include "protocol_types.h"
-#include "protocol_interface.h"
 #include "getlog.h"
 
-struct kresult_message create_getlog_request(struct kbuffer  getlog_types_buffer,
-                                             struct kbuffer *device_name) {
 
-    kproto_getlog *getlog_msg = (kproto_getlog *) malloc(sizeof(kproto_getlog));
-    com__seagate__kinetic__proto__command__get_log__init(getlog_msg);
+// Typedefs for convenience
 
-    // Populate `types` field using `getlog_types_buffer` argument.
-    getlog_msg->n_types = getlog_types_buffer.len;
-    getlog_msg->types   = (kgltype_t *) getlog_types_buffer.base;
 
-    if (device_name != NULL && device_name->len > 0 && device_name->base != NULL) {
-        kproto_device_info *getlog_msg_device = (kproto_device_info *) malloc(sizeof(kproto_device_info));
-        com__seagate__kinetic__proto__command__get_log__device__init(getlog_msg_device);
-
-        getlog_msg_device->has_name = 1;
-        getlog_msg_device->name     = (ProtobufCBinaryData) {
-            .len  = device_name->len,
-            .data = (uint8_t *) device_name->base
-        };
-
-        getlog_msg->device = getlog_msg_device;
-    }
-
-    return (struct kresult_message) {
-        .result_code    = SUCCESS,
-        .result_message = (void *) getlog_msg
-    };
-}
-
-struct kresult_buffer pack_getlog_request(kproto_header *const msg_header,
-                                          kproto_getlog *const getlog_msg) {
+/*
+ * Helper functions
+ */
+//TODO: test
+ProtobufCBinaryData pack_cmd_getlog(kcmd_hdr_t *cmd_hdr, kcmd_getlog_t *cmd_getlog) {
     // Structs to use
-    kproto_command command_msg;
-    kproto_body    command_body;
+    kcmd_t      command_msg;
+    kcmd_body_t command_body;
 
     // initialize the structs
     com__seagate__kinetic__proto__command__init(&command_msg);
     com__seagate__kinetic__proto__command__body__init(&command_body);
 
     // update the header for the GetLog Message Body
-    msg_header->messagetype = GETLOG_MSG_TYPE;
+    cmd_hdr->messagetype = KMT_GETLOG;
 
     // stitch the Command together
-    command_body.getlog = getlog_msg;
+    command_body.getlog = cmd_getlog;
 
-    command_msg.header  = msg_header;
+    command_msg.header  = cmd_hdr;
     command_msg.body    = &command_body;
 
-    // Get size for command and allocate buffer
-    size_t   command_size   = com__seagate__kinetic__proto__command__get_packed_size(&command_msg);
-    uint8_t *command_buffer = (uint8_t *) malloc(sizeof(uint8_t) * command_size);
+    return pack_kinetic_command(&command_msg);
+}
 
-    if (command_buffer == NULL) {
-        return (struct kresult_buffer) {
-            .result_code = FAILURE,
-            .len         = 0,
-            .base        = NULL
+kcmd_getlog_t *to_command(kgetlog_t *cmd_data) {
+    kcmd_getlog_t *getlog_msg = (kcmd_getlog_t *) malloc(sizeof(kcmd_getlog_t));
+    com__seagate__kinetic__proto__command__get_log__init(getlog_msg);
+
+    // Populate `types` field using `getlog_types_buffer` argument.
+    getlog_msg->n_types = cmd_data->kgl_typecnt;
+    getlog_msg->types   = (kgltype_t *) cmd_data->kgl_type;
+
+    // Should device name have a length attribute?
+    if (cmd_data->kgl_log.kdl_name != NULL) {
+        kgetlog_device_info *getlog_msg_device = (kgetlog_device_info *) malloc(sizeof(kgetlog_device_info));
+        com__seagate__kinetic__proto__command__get_log__device__init(getlog_msg_device);
+
+        getlog_msg_device->has_name = 1;
+        getlog_msg_device->name     = (ProtobufCBinaryData) {
+            .len  =             cmd_data->kgl_log.len,
+            .data = (uint8_t *) cmd_data->kgl_log.kdl_name
         };
+
+        getlog_msg->device = getlog_msg_device;
     }
 
-    size_t packed_bytes = com__seagate__kinetic__proto__command__pack(&command_msg, command_buffer);
+    return getlog_msg;
+}
 
-    if (packed_bytes != command_size) {
-        fprintf(
-            stderr,
-            "Unexpected amount of bytes packed. %ld bytes packed, expected %ld\n",
-            packed_bytes,
-            command_size
-        );
 
-        return (struct kresult_buffer) {
-            .result_code = FAILURE,
-            .len         = 0,
-            .base        = NULL
-        };
-    }
+/*
+ * Externally accessible functions
+ */
+// TODO: test
+struct kresult_message create_getlog_message(kmsg_auth_t *msg_auth, kcmd_hdr_t *cmd_hdr, kgetlog_t *cmd_body) {
 
-    return (struct kresult_buffer) {
-        .result_code = SUCCESS,
-        .len         = packed_bytes,
-        .base        = (void *) command_buffer
-    };
+    // create and pack the Command
+    kcmd_getlog_t       *cmd_body_getlog = to_command(cmd_body);
+    ProtobufCBinaryData  command_bytes   = pack_cmd_getlog(cmd_hdr, cmd_body_getlog);
+
+    // return the constructed getlog message (or failure)
+    return create_message(msg_auth, command_bytes);
 }
