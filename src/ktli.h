@@ -170,7 +170,9 @@ enum ktli_config_flags {
 struct ktli_config {
 	char 			*kcfg_host;	/* Host name or number */
 	char 			*kcfg_port;	/* Service name or number */
-	enum ktli_config_flags	kcfg_flags;	/* Flags for the session */
+	int64_t			 kcfg_id;	/* User ID */
+	char			*kcfg_hmac;	/* User HMAC */
+	enum ktli_config_flags	 kcfg_flags;	/* Flags for the session */
 	void			*kcfg_pconf;	/* Private caller config */
 };
 	
@@ -210,5 +212,6 @@ extern int ktli_receive(int ktd, struct kio *kio);
 extern int ktli_poll(int ktd, int timeout);
 extern int ktli_drain(int ktd, struct kio **kio);
 extern int ktli_drain_match(int ktd, struct kio *kio);
+extern int ktli_conf(int ktd, struct ktli_config **cf);
 
 #endif /* _KTLI_H */
