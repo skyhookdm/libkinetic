@@ -267,12 +267,12 @@ kcmd_getlog_t *extract_to_command(kgetlog_t *cmd_data) {
  * Externally accessible functions
  */
 // TODO: test
-struct kresult_message create_getlog_message(kmsg_auth_t *msg_auth, kcmd_hdr_t *cmd_hdr, kgetlog_t *cmd_body) {
+struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmd_hdr_t *cmd_hdr, kgetlog_t *cmd_body) {
 
 	// create and pack the Command
 	kcmd_getlog_t		*cmd_body_getlog = extract_to_command(cmd_body);
 	ProtobufCBinaryData  command_bytes	 = pack_cmd_getlog(cmd_hdr, cmd_body_getlog);
 
 	// return the constructed getlog message (or failure)
-	return create_message(msg_auth, command_bytes);
+	return create_message(msg_hdr, command_bytes);
 }
