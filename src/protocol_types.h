@@ -44,7 +44,6 @@
 
 typedef Com__Seagate__Kinetic__Proto__Command__Status	kproto_status;
 */
-typedef Com__Seagate__Kinetic__Proto__Message		  kmsg_t;
 typedef Com__Seagate__Kinetic__Proto__Command		  kcmd_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Header kcmd_hdr_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Body   kcmd_body_t;
@@ -124,14 +123,6 @@ enum {
  * Custom types
  */
 
-// For Messages
-typedef struct kmsg_auth {
-	kauth_t  auth_type;
-	int64_t  hmac_identity;  /* Only use if auth_type is HMAC */
-	size_t   auth_len;
-	char    *auth_data;		 /* PIN or HMAC data */
-} kmsg_auth_t ;
-
 
 // Types for interfacing with protobufs
 enum header_field_type {
@@ -150,9 +141,6 @@ enum header_field_type {
  */
 
 struct kresult_message create_header(uint8_t header_field_bitmap, ...);
-struct kresult_message create_message(kmsg_auth_t *msg_auth, ProtobufCBinaryData cmd_bytes);
-
-struct kresult_buffer  pack_kinetic_message(kmsg_t *msg_data);
 ProtobufCBinaryData    pack_kinetic_command(kcmd_t *cmd_data);
 
 

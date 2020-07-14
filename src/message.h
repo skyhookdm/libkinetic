@@ -5,7 +5,12 @@
 /*
  * Message details user does not need to see
  */
-#include "kinetic.h"
+// #include "kinetic.h"
+#include "protocol_types.h"
+
+
+// Type aliases
+typedef Com__Seagate__Kinetic__Proto__Message kmsg_t;
 
 
 /**
@@ -59,6 +64,7 @@ enum {
 	HIGHEST	= KPCP(HIGHEST),
 };
 
+
 typedef struct kmsghdr {
 	kauth_t		kmh_atype;	/* Message Auth Type */
 	int64_t		kmh_id;		/* if HMAC, HMAC ID */
@@ -67,6 +73,7 @@ typedef struct kmsghdr {
 	void		*kmh_pin;	/* if PIN, PIN byte string */
 	uint32_t	kmh_pinlen;	/* if PIN, PIN Length */
 } kmsghdr_t;
+
 
 typedef struct kcmdhdr {
 	int64_t		kch_clustvers;	/* Cluster Version Number */
@@ -80,5 +87,14 @@ typedef struct kcmdhdr {
 	int32_t		kch_qexit;	/* Boolean: Quick Exit */
 	int32_t		kch_batid;	/* Batch ID */
 } kcmdhdr_t;
+
+
+/* ------------------------------
+ * General protocol API
+ */
+
+struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes);
+struct kresult_buffer  pack_kinetic_message(kmsg_t *msg_data);
+
 
 #endif /* _MESSAGE_H */
