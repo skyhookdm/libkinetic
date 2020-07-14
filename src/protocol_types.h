@@ -61,18 +61,6 @@ typedef Com__Seagate__Kinetic__Proto__Command__Priority kproto_priority;
 
 /* Aliases for enums */
 
-// Authorization types (`AuthType`)
-#define MAT(mat) COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__##mat
-
-typedef Com__Seagate__Kinetic__Proto__Message__AuthType kauthtype_t;
-enum {
-	MAT_INVALID		= MAT(INVALID_AUTH_TYPE),
-	MAT_HMAC		= MAT(HMACAUTH)			,
-	MAT_PIN			= MAT(PINAUTH)			,
-	MAT_UNSOLICITED = MAT(UNSOLICITEDSTATUS),
-};
-
-
 /**
  * Kinetic Status Codes
  */
@@ -162,9 +150,9 @@ enum {
 typedef Com__Seagate__Kinetic__Proto__Command__Synchronization kcachepolicy_t;
 enum {
 	KC_INVALID = CS(INVALID_SYNCHRONIZATION),
-	KC_WT	   = CS(WRITETHROUGH)			,
-	KC_WB	   = CS(WRITEBACK)				,
-	KC_FLUSH   = CS(FLUSH)					,
+	KC_WT      = CS(WRITETHROUGH)           ,
+	KC_WB      = CS(WRITEBACK)              ,
+	KC_FLUSH   = CS(FLUSH)                  ,
 };
 
 /**
@@ -175,14 +163,12 @@ enum {
 
 typedef Com__Seagate__Kinetic__Proto__Command__PowerLevel kpltype_t;
 enum {
-  KPLT_INVALID	   = CPLT(INVALID_LEVEL),
-  KPLT_OPERATIONAL = CPLT(OPERATIONAL)	,
-  KPLT_HIBERNATE   = CPLT(HIBERNATE)	,
-  KPLT_SHUTDOWN    = CPLT(SHUTDOWN)		,
-  KPLT_FAIL		   = CPLT(FAIL)			,
+	KPLT_INVALID     = CPLT(INVALID_LEVEL),
+	KPLT_OPERATIONAL = CPLT(OPERATIONAL)  ,
+	KPLT_HIBERNATE   = CPLT(HIBERNATE)    ,
+	KPLT_SHUTDOWN    = CPLT(SHUTDOWN)     ,
+	KPLT_FAIL        = CPLT(FAIL)         ,
 };
-
-
 
 
 /* ------------------------------
@@ -191,10 +177,10 @@ enum {
 
 // For Messages
 typedef struct kmsg_auth {
-	kauthtype_t  auth_type;
-	int64_t		 hmac_identity;  /* Only use if auth_type is HMAC */
-	size_t		 auth_len;
-	char		*auth_data;		 /* PIN or HMAC data */
+	kauth_t  auth_type;
+	int64_t  hmac_identity;  /* Only use if auth_type is HMAC */
+	size_t   auth_len;
+	char    *auth_data;		 /* PIN or HMAC data */
 } kmsg_auth_t ;
 
 
