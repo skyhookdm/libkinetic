@@ -36,15 +36,18 @@ typedef struct kpdu {
 
 // Authorization types (`AuthType`)
 #define KMAT(ka) COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__##ka
-wtypedef enum kauth {
-	KA_INVALID	= KMAT(INVALID_AUTH_TYPE),
-	KA_HMAC		= KMAT(HMACAUTH),
-	KA_PIN		= KMAT(PINAUTH),
-	KA_SERVER	= KMAT(UNSOLICITEDSTATUS),
-} kauth_t;
+typedef Com__Seagate__Kinetic__Proto__Message__AuthType kauth_t;
+enum {
+	KA_INVALID     = KMAT(INVALID_AUTH_TYPE),
+	KA_HMAC        = KMAT(HMACAUTH)			,
+	KA_PIN         = KMAT(PINAUTH)			,
+	KA_UNSOLICITED = KMAT(UNSOLICITEDSTATUS),
+};
+
 
 #define KPCP(kp) COM__SEAGATE__KINETIC__PROTO__COMMAND__PRIORITY__##kp
-typedef enum kpriority {
+typedef Com__Seagate__Kinetic__Proto__Command__Priority kpriority_t;
+enum {
 	LOWEST	= KPCP(LOWEST),
 	LOWER	= KPCP(LOWER),
 	LOW	= KPCP(LOW),
@@ -54,7 +57,7 @@ typedef enum kpriority {
 	HIGH	= KPCP(HIGH),
 	HIGHER	= KPCP(HIGHER),
 	HIGHEST	= KPCP(HIGHEST),
-} kpriority_t;
+};
 
 typedef struct kmsghdr {
 	kauth_t		kmh_atype;	/* Message Auth Type */
