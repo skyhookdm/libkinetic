@@ -2,7 +2,6 @@
  * Data structures specifically defined needed for the GETLOG request
  * See "Message GetLog" in kinetic.proto
  */
-
 #ifndef _GETLOG_H
 #define _GETLOG_H
 
@@ -43,15 +42,15 @@ typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Limits					kgetlog_device
 // generated enum structure.
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Type kgltype_t;
 enum {
-	KGLT_INVALID	   = CGLT(INVALID_TYPE),
-	KGLT_UTILIZATIONS  = CGLT(UTILIZATIONS),
-	KGLT_TEMPERATURES  = CGLT(TEMPERATURES),
-	KGLT_CAPACITIES    = CGLT(CAPACITIES),
+	KGLT_INVALID       = CGLT(INVALID_TYPE) ,
+	KGLT_UTILIZATIONS  = CGLT(UTILIZATIONS) ,
+	KGLT_TEMPERATURES  = CGLT(TEMPERATURES) ,
+	KGLT_CAPACITIES    = CGLT(CAPACITIES)   ,
 	KGLT_CONFIGURATION = CGLT(CONFIGURATION),
-	KGLT_STATISTICS    = CGLT(STATISTICS),
-	KGLT_MESSAGES	   = CGLT(MESSAGES),
-	KGLT_LIMITS		   = CGLT(LIMITS),
-	KGLT_LOG		   = CGLT(DEVICE),
+	KGLT_STATISTICS    = CGLT(STATISTICS)   ,
+	KGLT_MESSAGES      = CGLT(MESSAGES)     ,
+	KGLT_LIMITS        = CGLT(LIMITS)       ,
+	KGLT_LOG           = CGLT(DEVICE)       ,
 };
 
 
@@ -78,10 +77,10 @@ typedef struct kcapacity {
 } kcapacity_t;
 
 typedef struct kinterface {
-	char *ki_name;	   /* Interface Name, e.g "eth0" */
-	char *ki_mac;	   /* MAC address, e.g. "00:15:5d:e2:ef:17" */
-	char *ki_ipv4;	   /* IPv4 address. e.g. "192.168.200.33" */
-	char *ki_ipv6;	   /* IPv6 address. e.g. "fe80::215:5dff:fee2:ef17" */
+	char *ki_name;		/* Interface Name, e.g "eth0" */
+	char *ki_mac;		/* MAC addr  e.g. "00:15:5d:e2:ef:17" */
+	char *ki_ipv4;		/* IPv4 addr e.g. "192.168.200.33" */
+	char *ki_ipv6;		/* IPv6 addr e.g. "fe80::215:5dff:fee2:ef17" */
 } kinterface_t;
 
 typedef struct kconfiguration {
@@ -135,9 +134,11 @@ typedef struct klimits {
 } klimits_t;
 
 /*
- * Generic device log. Could be anything provided by the kinetic server
- * usually these will be vendor extensions to the getlog.  Could be vendor
- * supplied extensions, i.e. "com.WD.glog" would be a vendor spefic log
+ * Generic device log. This is a logname that is provided by the server.
+ * Currently there are no generic lags available. But could be anything
+ * provided by the kinetic server. Usually these will be vendor extensions
+ * to the getlog.  A vendor kinetic server is encouraged to name their logs
+ * with a vendor specific prefix, i.e. "com.WD.glog".
  */
 //NOTE: should this have a length? see getlog.c:31
 typedef struct kdevicelog {

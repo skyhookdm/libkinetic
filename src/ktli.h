@@ -100,8 +100,7 @@ struct ktli_driver_fns {
 	void * (*ktli_dfns_open)();
 	int (*ktli_dfns_close)(void *dh);
 
-	int (*ktli_dfns_connect)(void *dh, char *host, char *port,
-							 int usetls, int id, char *hmac);
+	int (*ktli_dfns_connect)(void *dh, char *host, char *port, int usetls);
 	int (*ktli_dfns_disconnect)(void *dh);
 	
 	int (*ktli_dfns_send)(void *dh, struct kiovec *msg, int msgcnt);
@@ -153,6 +152,28 @@ enum ktli_sstate {
 	KTLI_SSTATE_DRAINING  = 4, 
 }; 
 
+/*
+ * ktli_config_flags bitmap values
+ */
+enum ktli_config_flags {
+	KCFF_NOFLAGS	= 0x0000,
+	KCFF_TLS	= 0x0001,
+};
+
+/*
+ * ktli_config
+ * This hold the configuration for the session. The session needs to know
+ * the server host and service name. Also needs to know if TLS is required.
+ * An opaque ptr was also provided to allow the caller to hang private 
+ * configuration information.
+ */
+struct ktli_config {
+	char 			*kcfg_host;	/* Host name or number */
+	char 			*kcfg_port;	/* Service name or number */
+	enum ktli_config_flags	kcfg_flags;	/* Flags for the session */
+	void			*kcfg_pconf;	/* Private caller config */
+};
+	
 /**
  * ktli session helper functions and data.
  * The helper functions and data provide enough session info to abstract the 
@@ -179,15 +200,15 @@ struct ktli_helpers {
 };
 
 /* Exposed API */
-int ktli_open(enum ktli_driver_id did, struct ktli_helpers *kh);
-int ktli_close(int ktd);
-int ktli_connect(int ktd, char *host, char *port,
-		 int usetls, int id, char *hmac);
-int ktli_disconnect(int ktd);
-int ktli_send(int ktd, struct kio *kio);
-int ktli_receive(int ktd, struct kio *kio);
-int ktli_poll(int ktd, int timeout);
-int ktli_drain(int ktd, struct kio **kio);
-int ktli_drain_match(int ktd, struct kio *kio);
+extern int ktli_open(enum ktli_driver_id did,
+	      struct ktli_config *cf, struct ktli_helpers *kh);
+extern int ktli_close(int ktd);
+extern int ktli_connect(int ktd);
+extern int ktli_disconnect(int ktd);
+extern int ktli_send(int ktd, struct kio *kio);
+extern int ktli_receive(int ktd, struct kio *kio);
+extern int ktli_poll(int ktd, int timeout);
+extern int ktli_drain(int ktd, struct kio **kio);
+extern int ktli_drain_match(int ktd, struct kio *kio);
 
 #endif /* _KTLI_H */

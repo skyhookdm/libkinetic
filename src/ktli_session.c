@@ -49,6 +49,7 @@ struct kts_session {
 	pthread_t 		kts_pthread[KTS_MAXTIDS];
 	enum ktli_sstate	kts_state;	/* Session state */
 	int64_t			kts_sequence;	/* Next sequence # */
+	struct ktli_config 	*kts_config;	/* Session configuration*/
 };
 
 static int kts_table_size = KTS_MAX_SESSIONS;
@@ -127,6 +128,8 @@ kts_clear(int kts)
 	for(i=0; i<KTS_MAXTIDS; i++) kts_table[kts]->kts_pthread[i] = 0;
 	kts_table[kts]->kts_state = KTLI_SSTATE_UNKNOWN;
 	kts_table[kts]->kts_sequence = 0;
+	kts_table[kts]->kts_config = NULL;
+	
 	
 }
 
@@ -147,7 +150,8 @@ kts_set(int kts,
 	pthread_t sender,
 	pthread_t receiver,
 	enum ktli_sstate state,
-	int64_t sequence)
+	int64_t sequence,
+	struct ktli_config *cf)
 {
 	if (!kts_table[kts]) return;
 	
@@ -161,6 +165,7 @@ kts_set(int kts,
 	kts_table[kts]->kts_pthread[KTS_RECVTID] = receiver;
 	kts_table[kts]->kts_state = state;
 	kts_table[kts]->kts_sequence = sequence;
+	kts_table[kts]->kts_config = cf;
 }
 
 void
@@ -233,6 +238,13 @@ kts_set_sequence(int kts, int64_t sequence)
 	kts_table[kts]->kts_sequence = sequence;
 }
 
+void
+kts_set_config(int kts, struct ktli_config *cf)
+{
+	if (!kts_table[kts]) return;
+	kts_table[kts]->kts_config = cf;
+}
+
 /*
  *  *** References
  */
@@ -294,6 +306,12 @@ int64_t
 kts_sequence(int kts)
 {
 	return((kts_table[kts]?kts_table[kts]->kts_sequence:-1));
+}
+
+struct ktli_config *
+kts_config(int kts)
+{
+	return((kts_table[kts]?kts_table[kts]->kts_config:NULL));
 }
 
 int
