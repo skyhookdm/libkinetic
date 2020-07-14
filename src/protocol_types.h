@@ -42,10 +42,10 @@
  */
 /*
 
-typedef Com__Seagate__Kinetic__Proto__Command__Status   kproto_status;
+typedef Com__Seagate__Kinetic__Proto__Command__Status	kproto_status;
 */
-typedef Com__Seagate__Kinetic__Proto__Message         kmsg_t;
-typedef Com__Seagate__Kinetic__Proto__Command         kcmd_t;
+typedef Com__Seagate__Kinetic__Proto__Message		  kmsg_t;
+typedef Com__Seagate__Kinetic__Proto__Command		  kcmd_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Header kcmd_hdr_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Body   kcmd_body_t;
 
@@ -66,10 +66,10 @@ typedef Com__Seagate__Kinetic__Proto__Command__Priority kproto_priority;
 
 typedef Com__Seagate__Kinetic__Proto__Message__AuthType kauthtype_t;
 enum {
-    MAT_INVALID     = MAT(INVALID_AUTH_TYPE),
-    MAT_HMAC        = MAT(HMACAUTH)         ,
-    MAT_PIN         = MAT(PINAUTH)          ,
-    MAT_UNSOLICITED = MAT(UNSOLICITEDSTATUS),
+	MAT_INVALID		= MAT(INVALID_AUTH_TYPE),
+	MAT_HMAC		= MAT(HMACAUTH)			,
+	MAT_PIN			= MAT(PINAUTH)			,
+	MAT_UNSOLICITED = MAT(UNSOLICITEDSTATUS),
 };
 
 
@@ -81,31 +81,31 @@ enum {
 
 typedef Com__Seagate__Kinetic__Proto__Command__Status__StatusCode kstatus_code_t;
 enum {
-    K_INVALID_SC   = CSSC(INVALID_STATUS_CODE),
-    K_OK           = CSSC(SUCCESS),
-    K_EREJECTED    = CSSC(NOT_ATTEMPTED),
-    K_EHMAC        = CSSC(HMAC_FAILURE),
-    K_EACCESS      = CSSC(NOT_AUTHORIZED),
-    K_EVERSION     = CSSC(VERSION_FAILURE),
-    K_EINTERNAL    = CSSC(INTERNAL_ERROR),
-    K_ENOHEADER    = CSSC(HEADER_REQUIRED),
-    K_ENOTFOUND    = CSSC(NOT_FOUND),
-    K_EBADVERS     = CSSC(VERSION_MISMATCH),
-    K_EBUSY        = CSSC(SERVICE_BUSY),
-    K_ETIMEDOUT    = CSSC(EXPIRED),
-    K_EDATA        = CSSC(DATA_ERROR),
-    K_EPERMDATA    = CSSC(PERM_DATA_ERROR),
-    K_EP2PCONN     = CSSC(REMOTE_CONNECTION_ERROR),
-    K_ENOSPACE     = CSSC(NO_SPACE),
-    K_ENOHMAC      = CSSC(NO_SUCH_HMAC_ALGORITHM),
-    K_EINVAL       = CSSC(INVALID_REQUEST),
-    K_EP2P         = CSSC(NESTED_OPERATION_ERRORS),
-    K_ELOCKED      = CSSC(DEVICE_LOCKED),
-    K_ENOTLOCKED   = CSSC(DEVICE_ALREADY_UNLOCKED),
-    K_ECONNABORTED = CSSC(CONNECTION_TERMINATED),
-    K_EINVALBAT    = CSSC(INVALID_BATCH),
-    K_EHIBERNATE   = CSSC(HIBERNATE),
-    K_ESHUTDOWN    = CSSC(SHUTDOWN),
+	K_INVALID_SC   = CSSC(INVALID_STATUS_CODE),
+	K_OK		   = CSSC(SUCCESS),
+	K_EREJECTED    = CSSC(NOT_ATTEMPTED),
+	K_EHMAC		   = CSSC(HMAC_FAILURE),
+	K_EACCESS	   = CSSC(NOT_AUTHORIZED),
+	K_EVERSION	   = CSSC(VERSION_FAILURE),
+	K_EINTERNAL    = CSSC(INTERNAL_ERROR),
+	K_ENOHEADER    = CSSC(HEADER_REQUIRED),
+	K_ENOTFOUND    = CSSC(NOT_FOUND),
+	K_EBADVERS	   = CSSC(VERSION_MISMATCH),
+	K_EBUSY		   = CSSC(SERVICE_BUSY),
+	K_ETIMEDOUT    = CSSC(EXPIRED),
+	K_EDATA		   = CSSC(DATA_ERROR),
+	K_EPERMDATA    = CSSC(PERM_DATA_ERROR),
+	K_EP2PCONN	   = CSSC(REMOTE_CONNECTION_ERROR),
+	K_ENOSPACE	   = CSSC(NO_SPACE),
+	K_ENOHMAC	   = CSSC(NO_SUCH_HMAC_ALGORITHM),
+	K_EINVAL	   = CSSC(INVALID_REQUEST),
+	K_EP2P		   = CSSC(NESTED_OPERATION_ERRORS),
+	K_ELOCKED	   = CSSC(DEVICE_LOCKED),
+	K_ENOTLOCKED   = CSSC(DEVICE_ALREADY_UNLOCKED),
+	K_ECONNABORTED = CSSC(CONNECTION_TERMINATED),
+	K_EINVALBAT    = CSSC(INVALID_BATCH),
+	K_EHIBERNATE   = CSSC(HIBERNATE),
+	K_ESHUTDOWN    = CSSC(SHUTDOWN),
 };
 
 /**
@@ -115,13 +115,13 @@ enum {
 
 typedef Com__Seagate__Kinetic__Proto__Command__Algorithm kditype_t;
 enum {
-    KDI_INVALID = CA(INVALID_ALGORITHM),
-    KDI_SHA1    = CA(SHA1)             ,
-    KDI_SHA2    = CA(SHA2)             ,
-    KDI_SHA3    = CA(SHA3)             ,
-    KDI_CRC32C  = CA(CRC32C)           ,
-    KDI_CRC64   = CA(CRC64)            ,
-    KDI_CRC32   = CA(CRC32)            ,
+	KDI_INVALID = CA(INVALID_ALGORITHM),
+	KDI_SHA1	= CA(SHA1)			   ,
+	KDI_SHA2	= CA(SHA2)			   ,
+	KDI_SHA3	= CA(SHA3)			   ,
+	KDI_CRC32C	= CA(CRC32C)		   ,
+	KDI_CRC64	= CA(CRC64)			   ,
+	KDI_CRC32	= CA(CRC32)			   ,
 };
 
 /**
@@ -131,27 +131,27 @@ enum {
 
 typedef Com__Seagate__Kinetic__Proto__Command__MessageType kmtype_t;
 enum {
-    KMT_INVALID   = CMT(INVALID_MESSAGE_TYPE),
-    KMT_GET       = CMT(GET),
-    KMT_PUT       = CMT(PUT),
-    KMT_DEL       = CMT(DELETE),
-    KMT_GETNEXT   = CMT(GETNEXT),
-    KMT_GETPREV   = CMT(GETPREVIOUS),
-    KMT_GETRANGE  = CMT(GETKEYRANGE),
-    KMT_GETVERS   = CMT(GETVERSION),
-    KMT_SETUP     = CMT(SETUP),
-    KMT_GETLOG    = CMT(GETLOG),
-    KMT_SECURITY  = CMT(SECURITY),
-    KMT_PUSHP2P   = CMT(PEER2PEERPUSH),
-    KMT_NOOP      = CMT(NOOP),
-    KMT_FLUSH     = CMT(FLUSHALLDATA),
-    KMT_PINOP     = CMT(PINOP),
-    KMT_SCANMEDIA = CMT(MEDIASCAN),
-    KMT_OPTMEDIA  = CMT(MEDIAOPTIMIZE),
-    KMT_STARTBAT  = CMT(START_BATCH),
-    KMT_ENDBAT    = CMT(END_BATCH),
-    KMT_ABORTBAT  = CMT(ABORT_BATCH),
-    KMT_SETPOWER  = CMT(SET_POWER_LEVEL),
+	KMT_INVALID   = CMT(INVALID_MESSAGE_TYPE),
+	KMT_GET		  = CMT(GET),
+	KMT_PUT		  = CMT(PUT),
+	KMT_DEL		  = CMT(DELETE),
+	KMT_GETNEXT   = CMT(GETNEXT),
+	KMT_GETPREV   = CMT(GETPREVIOUS),
+	KMT_GETRANGE  = CMT(GETKEYRANGE),
+	KMT_GETVERS   = CMT(GETVERSION),
+	KMT_SETUP	  = CMT(SETUP),
+	KMT_GETLOG	  = CMT(GETLOG),
+	KMT_SECURITY  = CMT(SECURITY),
+	KMT_PUSHP2P   = CMT(PEER2PEERPUSH),
+	KMT_NOOP	  = CMT(NOOP),
+	KMT_FLUSH	  = CMT(FLUSHALLDATA),
+	KMT_PINOP	  = CMT(PINOP),
+	KMT_SCANMEDIA = CMT(MEDIASCAN),
+	KMT_OPTMEDIA  = CMT(MEDIAOPTIMIZE),
+	KMT_STARTBAT  = CMT(START_BATCH),
+	KMT_ENDBAT	  = CMT(END_BATCH),
+	KMT_ABORTBAT  = CMT(ABORT_BATCH),
+	KMT_SETPOWER  = CMT(SET_POWER_LEVEL),
 };
 
 /**
@@ -161,10 +161,10 @@ enum {
 
 typedef Com__Seagate__Kinetic__Proto__Command__Synchronization kcachepolicy_t;
 enum {
-    KC_INVALID = CS(INVALID_SYNCHRONIZATION),
-    KC_WT      = CS(WRITETHROUGH)           ,
-    KC_WB      = CS(WRITEBACK)              ,
-    KC_FLUSH   = CS(FLUSH)                  ,
+	KC_INVALID = CS(INVALID_SYNCHRONIZATION),
+	KC_WT	   = CS(WRITETHROUGH)			,
+	KC_WB	   = CS(WRITEBACK)				,
+	KC_FLUSH   = CS(FLUSH)					,
 };
 
 /**
@@ -175,11 +175,11 @@ enum {
 
 typedef Com__Seagate__Kinetic__Proto__Command__PowerLevel kpltype_t;
 enum {
-  KPLT_INVALID     = CPLT(INVALID_LEVEL),
-  KPLT_OPERATIONAL = CPLT(OPERATIONAL)  ,
-  KPLT_HIBERNATE   = CPLT(HIBERNATE)    ,
-  KPLT_SHUTDOWN    = CPLT(SHUTDOWN)     ,
-  KPLT_FAIL        = CPLT(FAIL)         ,
+  KPLT_INVALID	   = CPLT(INVALID_LEVEL),
+  KPLT_OPERATIONAL = CPLT(OPERATIONAL)	,
+  KPLT_HIBERNATE   = CPLT(HIBERNATE)	,
+  KPLT_SHUTDOWN    = CPLT(SHUTDOWN)		,
+  KPLT_FAIL		   = CPLT(FAIL)			,
 };
 
 
@@ -191,22 +191,22 @@ enum {
 
 // For Messages
 typedef struct kmsg_auth {
-    kauthtype_t  auth_type;
-    int64_t      hmac_identity;  /* Only use if auth_type is HMAC */
-    size_t       auth_len;
-    char        *auth_data;      /* PIN or HMAC data */
+	kauthtype_t  auth_type;
+	int64_t		 hmac_identity;  /* Only use if auth_type is HMAC */
+	size_t		 auth_len;
+	char		*auth_data;		 /* PIN or HMAC data */
 } kmsg_auth_t ;
 
 
 // Types for interfacing with protobufs
 enum header_field_type {
-    CLUST_VER    = (uint8_t) 1 << 0,
-    CONN_ID      = (uint8_t) 1 << 1,
-    SEQ_NUM      = (uint8_t) 1 << 2,
-    TIMEOUT      = (uint8_t) 1 << 3,
-    PRIORITY     = (uint8_t) 1 << 4,
-    TIME_QUANTA  = (uint8_t) 1 << 5,
-    BATCH_ID     = (uint8_t) 1 << 6,
+	CLUST_VER	 = (uint8_t) 1 << 0,
+	CONN_ID		 = (uint8_t) 1 << 1,
+	SEQ_NUM		 = (uint8_t) 1 << 2,
+	TIMEOUT		 = (uint8_t) 1 << 3,
+	PRIORITY	 = (uint8_t) 1 << 4,
+	TIME_QUANTA  = (uint8_t) 1 << 5,
+	BATCH_ID	 = (uint8_t) 1 << 6,
 };
 
 

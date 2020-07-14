@@ -9,12 +9,12 @@
  * NIC Card TCP offload, or io_uring. This transport layer interface allows 
  * the client to select which one they want to use. So the KTLI module is
  * split vertically into 2 halves. 
- *            +-------------------------------------+
- *            |           KTLI upper half           |
- *            +--------+--------+--------+----------+
- *	      | Socket | DPDK   | uring  | NIC Card |
- *	      | Driver | Driver | Driver | Driver   |
- *	      +--------+--------+--------+----------+
+ *			  +-------------------------------------+
+ *			  |			  KTLI upper half			|
+ *			  +--------+--------+--------+----------+
+ *		  | Socket | DPDK	| uring  | NIC Card |
+ *		  | Driver | Driver | Driver | Driver	|
+ *		  +--------+--------+--------+----------+
  *
  * The top half is the generic handling of the outbound and inbound messages,
  * requests and their responses. It provides a basic API for opening, closing,
@@ -32,17 +32,17 @@
  * that session, then sends, polls on that connected session, receiving 
  * once responses have come in. Eventually the caller will disconnect
  * drain and close the session. 
- *                                +-------+                             +---+
- *                           +--->| send  |<---+                        |   |
- *                           |    +-------+    |                        |   V
- * +------+    +---------+   |    +-------+    |    +------------+    +-------+
+ *								  +-------+								+---+
+ *							 +--->| send  |<---+						|	|
+ *							 |	  +-------+    |						|	V
+ * +------+    +---------+	 |	  +-------+    |	+------------+	  +-------+
  * | open |--->| connect |---|--->| poll  |<---|--->| disconnect |--->| drain |
- * +------+    +---------+   |    +-------+    |    +------------+    +-------+
- *                           |    +-------+    |                          |
- *                           +--->| recv  |<---+                          V
- * 				  +-------+                           +-------+
- *			                                              | close |
- * 						                      +-------+
+ * +------+    +---------+	 |	  +-------+    |	+------------+	  +-------+
+ *							 |	  +-------+    |						  |
+ *							 +--->| recv  |<---+						  V
+ *				  +-------+							  +-------+
+ *														  | close |
+ *											  +-------+
  *
  * The backend APIs are supported by creating KTLI backend drivers. The backend 
  * ktli driver is specified when opening a session and you receive a kinetic 
@@ -62,23 +62,23 @@
  * layer. 
  *	o Kinetic server mandates that request sequences numbers on a given
  *	  connection be increasing. Instead of allowing the other layers 
- * 	  to provide the sequence number and constantly sorting outbound 
+ *	  to provide the sequence number and constantly sorting outbound 
  *	  send queue and potentially stalling the send queue waiting for a
- * 	  sequence number to arrive in the queue, KTLI sequences the 
- * 	  requests, with the ordering being the arrivial order in the 
- * 	  KTLI send queue.  This requires a helper function to set the 
- * 	  sequence number in the request.
+ *	  sequence number to arrive in the queue, KTLI sequences the 
+ *	  requests, with the ordering being the arrivial order in the 
+ *	  KTLI send queue.	This requires a helper function to set the 
+ *	  sequence number in the request.
  *	o When messages are then received the sequence number is acknowledged
- * 	  in a separate ackSequence field.  Since KTLI pairs inbound
- * 	  reponses with their outbound requests, a helper function is needed
- * 	  get the ackSequence number out of the message so that it can
- * 	  search the outstanding sent request for a matching sequence number.
+ *	  in a separate ackSequence field.	Since KTLI pairs inbound
+ *	  reponses with their outbound requests, a helper function is needed
+ *	  get the ackSequence number out of the message so that it can
+ *	  search the outstanding sent request for a matching sequence number.
  *	o To successfully receive the message the total length of the 
- * 	  message is needed. Since mesages are variable length, the PDU 
+ *	  message is needed. Since mesages are variable length, the PDU 
  *	  which comes fist in the message specifies that messages length. 
- * 	  Two pieces of information are therefore needed to receive a 
- * 	  message: the length of the PDU which is static and helper function 
- * 	  that takes the PDU and returns the message's total length.
+ *	  Two pieces of information are therefore needed to receive a 
+ *	  message: the length of the PDU which is static and helper function 
+ *	  that takes the PDU and returns the message's total length.
  * KTLI takes a structure with these helper functions and data at open time
  * hanging this structure on the session for use by the send and receive code.
  * 
@@ -89,7 +89,7 @@
 /* 
  * KTLI uses GCC builtin CAS for lockless atomic updates
  * bool __sync_bool_compare_and_swap (type *ptr, type oldval type newval, ...)
- *   if the current value of *ptr is oldval, then write newval into *ptr. 
+ *	 if the current value of *ptr is oldval, then write newval into *ptr. 
  * But does it have to be so long of a function name? Make it smaller
 */
 #define SBCAS __sync_bool_compare_and_swap
@@ -101,7 +101,7 @@ struct ktli_driver_fns {
 	int (*ktli_dfns_close)(void *dh);
 
 	int (*ktli_dfns_connect)(void *dh, char *host, char *port,
-				 int usetls, int id, char *hmac);
+							 int usetls, int id, char *hmac);
 	int (*ktli_dfns_disconnect)(void *dh);
 	
 	int (*ktli_dfns_send)(void *dh, struct kiovec *msg, int msgcnt);
@@ -111,68 +111,68 @@ struct ktli_driver_fns {
 };
 
 enum ktli_driver_id {
-	KTLI_DRIVER_NONE = 0,
-	KTLI_DRIVER_SOCKET,
-	KTLI_DRIVER_DPDK,
-	KTLI_DRIVER_URING,
+	KTLI_DRIVER_NONE   = 0,
+	KTLI_DRIVER_SOCKET	  ,
+	KTLI_DRIVER_DPDK	  ,
+	KTLI_DRIVER_URING	  ,
 	
 	/* ↑↑↑↑↑ add new driver id here */
 };
 
 struct ktli_queue {
-	LIST		*ktq_list;	/* the queue itself */
-	pthread_mutex_t	ktq_m;		/* mutex protecting the queue */
-	pthread_cond_t 	ktq_cv;		/* condition variable for waiting */
-	int 		ktq_exit;	/* queue exit flag */
+	LIST			*ktq_list;	/* the queue itself */
+	pthread_mutex_t  ktq_m;		/* mutex protecting the queue */
+	pthread_cond_t	 ktq_cv;	/* condition variable for waiting */
+	int				 ktq_exit;	/* queue exit flag */
 };
 
 /* 
- * ktli session state machine                  
- *                                             +---+
- *                                             |   | send, receive, poll
- *                                             |   v
- * +---------+  open>  +--------+  connect  +-----------+
+ * ktli session state machine				   
+ *											   +---+
+ *											   |   | send, receive, poll
+ *											   |   v
+ * +---------+	open>  +--------+  connect	+-----------+
  * | unknown |<------->| opened |---------->| connected |--+
- * +---------+ <close  +--------+           +-----------+  |
- *                       ^        disconnect      |        | server hangup
- *                       |   +--------------------+        |  or
- *         drain,receive |   |                             | error
- *                       |   v                             |
- *                 +----------+  disconnect  +---------+  |
- *                 | draining |<-------------| aborted |<-+ 
- *                 +----------+              +---------+ 
- *                    ^   |
- *                    |   | drain/receive
- *                    +---+
+ * +---------+ <close  +--------+			+-----------+  |
+ *						 ^		  disconnect	  |		   | server hangup
+ *						 |	 +--------------------+		   |  or
+ *		   drain,receive |	 |							   | error
+ *						 |	 v							   |
+ *				   +----------+  disconnect  +---------+  |
+ *				   | draining |<-------------| aborted |<-+ 
+ *				   +----------+				 +---------+ 
+ *					  ^   |
+ *					  |   | drain/receive
+ *					  +---+
  */
 enum ktli_sstate {
-	KTLI_SSTATE_UNKNOWN	= 0, 
-	KTLI_SSTATE_OPENED	= 1,
-	KTLI_SSTATE_CONNECTED	= 2,
-	KTLI_SSTATE_ABORTED	= 3,
-	KTLI_SSTATE_DRAINING	= 4, 
+	KTLI_SSTATE_UNKNOWN   = 0, 
+	KTLI_SSTATE_OPENED	  = 1,
+	KTLI_SSTATE_CONNECTED = 2,
+	KTLI_SSTATE_ABORTED   = 3,
+	KTLI_SSTATE_DRAINING  = 4, 
 }; 
 
 /**
  * ktli session helper functions and data.
  * The helper functions and data provide enough session info to abstract the 
- * ktli layer from the the kinetic protocol structure.  To accomplish this a 
+ * ktli layer from the the kinetic protocol structure.	To accomplish this a 
  * session must be preconfigured with 3 functions and 1 piece of data:
  *	o a header(PDU) length that informs the minimum receive 
  *	o a function that sets the seqence number in an outbound request
  *	o a function that gets the ackSequence number from an inbound response
  *	o a function, that given a header buffer, returns the expected response 
- * 	  length
+ *	  length
  */
 struct ktli_helpers {
 	/* houses min recv necessary to determine full message length */
-	int kh_recvhdr_len;  		
+	int kh_recvhdr_len;			
 
 	/* Extracts the ackSequence from a full message in a single kiovec */
 	int64_t (*kh_getaseq_fn)(struct kiovec *msg, int msgcnt);
 
 	/* Sets the sequence in a full message in a single kiovec */
-	void    (*kh_setseq_fn)(struct kiovec *msg, int msgcnt, int64_t seq);
+	void	(*kh_setseq_fn)(struct kiovec *msg, int msgcnt, int64_t seq);
 
 	/* Returns total length of a message given a header in one kiovec */
 	int32_t (*kh_msglen_fn)(struct kiovec *msg_hdr);
