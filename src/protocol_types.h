@@ -18,6 +18,8 @@
 #define __KINETIC_TYPES_H
 
 
+#include <stdarg.h>
+
 #include "protocol/kinetic.pb-c.h"
 
 /**
@@ -38,17 +40,14 @@
 /* ------------------------------
  * Aliases for Message types
  */
-typedef Com__Seagate__Kinetic__Proto__Message                                   kproto_message;
-typedef Com__Seagate__Kinetic__Proto__Message__HMACauth                         kproto_hmac;
-typedef Com__Seagate__Kinetic__Proto__Message__PINauth                          kproto_pin;
+/*
 
-typedef Com__Seagate__Kinetic__Proto__Command                                   kproto_command;
-typedef Com__Seagate__Kinetic__Proto__Command__Header                           kproto_header;
-typedef Com__Seagate__Kinetic__Proto__Command__Body                             kproto_body;
-typedef Com__Seagate__Kinetic__Proto__Command__Status                           kproto_status;
-
-// Sub-message of a Command Body for device information and state
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog                           kproto_getlog;
+typedef Com__Seagate__Kinetic__Proto__Command__Status   kproto_status;
+*/
+typedef Com__Seagate__Kinetic__Proto__Message         kmsg_t;
+typedef Com__Seagate__Kinetic__Proto__Command         kcmd_t;
+typedef Com__Seagate__Kinetic__Proto__Command__Header kcmd_hdr_t;
+typedef Com__Seagate__Kinetic__Proto__Command__Body   kcmd_body_t;
 
 
 /* ------------------------------
@@ -58,55 +57,130 @@ typedef Com__Seagate__Kinetic__Proto__Command__GetLog                           
 /* Aliases for structs */
 
 // Field types for requests
-typedef Com__Seagate__Kinetic__Proto__Command__Priority                         kproto_priority;
-
-// Field types for responses
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Utilization              kproto_utilization;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Temperature              kproto_temperature;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Capacity                 kproto_capacity;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Configuration            kproto_configuration;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Configuration__Interface kproto_interface_config;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Statistics               kproto_statistics;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device                   kproto_device_info;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Limits                   kproto_device_limits;
-
+typedef Com__Seagate__Kinetic__Proto__Command__Priority kproto_priority;
 
 /* Aliases for enums */
-typedef Com__Seagate__Kinetic__Proto__Command__MessageType                      kproto_message_type;
 
 // Authorization types (`AuthType`)
-typedef enum {
-    INVALID_AUTH_TYPE     = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__INVALID_AUTH_TYPE,
-    HMAC_AUTH_TYPE        = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__HMACAUTH         ,
-    PIN_AUTH_TYPE         = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__PINAUTH          ,
-    UNSOLICITED_AUTH_TYPE = COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__UNSOLICITEDSTATUS,
-} kproto_auth_type;
+#define MAT(mat) COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__##mat
+
+typedef Com__Seagate__Kinetic__Proto__Message__AuthType kauthtype_t;
+enum {
+    MAT_INVALID     = MAT(INVALID_AUTH_TYPE),
+    MAT_HMAC        = MAT(HMACAUTH)         ,
+    MAT_PIN         = MAT(PINAUTH)          ,
+    MAT_UNSOLICITED = MAT(UNSOLICITEDSTATUS),
+};
 
 
-// Message types (`MessageType`)
-typedef enum {
-    INVALID_MSG_TYPE     = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__INVALID_MESSAGE_TYPE,
-    GET_MSG_TYPE         = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__GET                 ,
-    PUT_MSG_TYPE         = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__PUT                 ,
-    DELETE_MSG_TYPE      = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__DELETE              ,
-    GET_NEXT_MSG_TYPE    = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__GETNEXT             ,
-    GET_PREV_MSG_TYPE    = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__GETPREVIOUS         ,
-    GET_RANGE_MSG_TYPE   = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__GETKEYRANGE         ,
-    GET_VER_MSG_TYPE     = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__GETVERSION          ,
-    SETUP_MSG_TYPE       = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__SETUP               ,
-    GETLOG_MSG_TYPE      = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__GETLOG              ,
-    SEC_MSG_TYPE         = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__SECURITY            ,
-    PUSH_MSG_TYPE        = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__PEER2PEERPUSH       ,
-    NOOP_MSG_TYPE        = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__NOOP                ,
-    FLUSH_MSG_TYPE       = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__FLUSHALLDATA        ,
-    PIN_MSG_TYPE         = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__PINOP               ,
-    SCAN_MSG_TYPE        = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__MEDIASCAN           ,
-    OPTIMIZE_MSG_TYPE    = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__MEDIAOPTIMIZE       ,
-    START_BATCH_MSG_TYPE = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__START_BATCH         ,
-    END_BATCH_MSG_TYPE   = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__END_BATCH           ,
-    ABORT_BATCH_MSG_TYPE = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__ABORT_BATCH         ,
-    SET_POWER_MSG_TYPE   = COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__SET_POWER_LEVEL     ,
-} kproto_msg_type;
+/**
+ * Kinetic Status Codes
+ */
+
+#define CSSC(cssc) COM__SEAGATE__KINETIC__PROTO__COMMAND__STATUS__STATUS_CODE__##cssc
+
+typedef Com__Seagate__Kinetic__Proto__Command__Status__StatusCode kstatus_code_t;
+enum {
+    K_INVALID_SC   = CSSC(INVALID_STATUS_CODE),
+    K_OK           = CSSC(SUCCESS),
+    K_EREJECTED    = CSSC(NOT_ATTEMPTED),
+    K_EHMAC        = CSSC(HMAC_FAILURE),
+    K_EACCESS      = CSSC(NOT_AUTHORIZED),
+    K_EVERSION     = CSSC(VERSION_FAILURE),
+    K_EINTERNAL    = CSSC(INTERNAL_ERROR),
+    K_ENOHEADER    = CSSC(HEADER_REQUIRED),
+    K_ENOTFOUND    = CSSC(NOT_FOUND),
+    K_EBADVERS     = CSSC(VERSION_MISMATCH),
+    K_EBUSY        = CSSC(SERVICE_BUSY),
+    K_ETIMEDOUT    = CSSC(EXPIRED),
+    K_EDATA        = CSSC(DATA_ERROR),
+    K_EPERMDATA    = CSSC(PERM_DATA_ERROR),
+    K_EP2PCONN     = CSSC(REMOTE_CONNECTION_ERROR),
+    K_ENOSPACE     = CSSC(NO_SPACE),
+    K_ENOHMAC      = CSSC(NO_SUCH_HMAC_ALGORITHM),
+    K_EINVAL       = CSSC(INVALID_REQUEST),
+    K_EP2P         = CSSC(NESTED_OPERATION_ERRORS),
+    K_ELOCKED      = CSSC(DEVICE_LOCKED),
+    K_ENOTLOCKED   = CSSC(DEVICE_ALREADY_UNLOCKED),
+    K_ECONNABORTED = CSSC(CONNECTION_TERMINATED),
+    K_EINVALBAT    = CSSC(INVALID_BATCH),
+    K_EHIBERNATE   = CSSC(HIBERNATE),
+    K_ESHUTDOWN    = CSSC(SHUTDOWN),
+};
+
+/**
+ * Kinetic Data Integrity supported algrithms.
+ */
+#define CA(ca) COM__SEAGATE__KINETIC__PROTO__COMMAND__ALGORITHM__##ca
+
+typedef Com__Seagate__Kinetic__Proto__Command__Algorithm kditype_t;
+enum {
+    KDI_INVALID = CA(INVALID_ALGORITHM),
+    KDI_SHA1    = CA(SHA1)             ,
+    KDI_SHA2    = CA(SHA2)             ,
+    KDI_SHA3    = CA(SHA3)             ,
+    KDI_CRC32C  = CA(CRC32C)           ,
+    KDI_CRC64   = CA(CRC64)            ,
+    KDI_CRC32   = CA(CRC32)            ,
+};
+
+/**
+ * Kinetic Message Types, ie Kinetic Ops
+ */
+#define CMT(cmt) COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__##cmt
+
+typedef Com__Seagate__Kinetic__Proto__Command__MessageType kmtype_t;
+enum {
+    KMT_INVALID   = CMT(INVALID_MESSAGE_TYPE),
+    KMT_GET       = CMT(GET),
+    KMT_PUT       = CMT(PUT),
+    KMT_DEL       = CMT(DELETE),
+    KMT_GETNEXT   = CMT(GETNEXT),
+    KMT_GETPREV   = CMT(GETPREVIOUS),
+    KMT_GETRANGE  = CMT(GETKEYRANGE),
+    KMT_GETVERS   = CMT(GETVERSION),
+    KMT_SETUP     = CMT(SETUP),
+    KMT_GETLOG    = CMT(GETLOG),
+    KMT_SECURITY  = CMT(SECURITY),
+    KMT_PUSHP2P   = CMT(PEER2PEERPUSH),
+    KMT_NOOP      = CMT(NOOP),
+    KMT_FLUSH     = CMT(FLUSHALLDATA),
+    KMT_PINOP     = CMT(PINOP),
+    KMT_SCANMEDIA = CMT(MEDIASCAN),
+    KMT_OPTMEDIA  = CMT(MEDIAOPTIMIZE),
+    KMT_STARTBAT  = CMT(START_BATCH),
+    KMT_ENDBAT    = CMT(END_BATCH),
+    KMT_ABORTBAT  = CMT(ABORT_BATCH),
+    KMT_SETPOWER  = CMT(SET_POWER_LEVEL),
+};
+
+/**
+ * Kinetic Cache Policies
+ */
+#define CS(cs) COM__SEAGATE__KINETIC__PROTO__COMMAND__SYNCHRONIZATION__##cs
+
+typedef Com__Seagate__Kinetic__Proto__Command__Synchronization kcachepolicy_t;
+enum {
+    KC_INVALID = CS(INVALID_SYNCHRONIZATION),
+    KC_WT      = CS(WRITETHROUGH)           ,
+    KC_WB      = CS(WRITEBACK)              ,
+    KC_FLUSH   = CS(FLUSH)                  ,
+};
+
+/**
+ * Kinetic Server Power Levels,
+ * PAK: probably should be in management.h
+ */
+#define CPLT(cplt) COM__SEAGATE__KINETIC__PROTO__COMMAND__POWER_LEVEL__##cplt
+
+typedef Com__Seagate__Kinetic__Proto__Command__PowerLevel kpltype_t;
+enum {
+  KPLT_INVALID     = CPLT(INVALID_LEVEL),
+  KPLT_OPERATIONAL = CPLT(OPERATIONAL)  ,
+  KPLT_HIBERNATE   = CPLT(HIBERNATE)    ,
+  KPLT_SHUTDOWN    = CPLT(SHUTDOWN)     ,
+  KPLT_FAIL        = CPLT(FAIL)         ,
+};
 
 
 
@@ -114,6 +188,15 @@ typedef enum {
 /* ------------------------------
  * Custom types
  */
+
+// For Messages
+typedef struct kmsg_auth {
+    kauthtype_t  auth_type;
+    int64_t      hmac_identity;  /* Only use if auth_type is HMAC */
+    size_t       auth_len;
+    char        *auth_data;      /* PIN or HMAC data */
+} kmsg_auth_t ;
+
 
 // Types for interfacing with protobufs
 enum header_field_type {
@@ -126,46 +209,16 @@ enum header_field_type {
     BATCH_ID     = (uint8_t) 1 << 6,
 };
 
-// Types for interfacing with API
-enum kresult_code {
-    SUCCESS = 0,
-    FAILURE    ,
-};
 
-struct kbuffer {
-    size_t  len;
-    void   *base;
-};
-
-struct kresult_buffer {
-    enum kresult_code  result_code;
-    size_t             len;
-    void              *base;
-};
-
-struct kresult_message {
-    enum kresult_code  result_code;
-    void              *result_message;
-};
-
-
-/** ktli session helper functions and data.
- * 
- * These provide enough session info to abstract the ktli layer from the the kinetic protocol
- * structure. To accomplish this, a session must be preconfigured with:
- *  - (data)     length of response header (full message length extracted from header)
- *  - (function) logic to set the seqence number in an outbound request
- *  - (function) logic to extract the ackSequence number from an inbound response
- *  - (function) logic to return the expected response length (given a header buffer)
+/* ------------------------------
+ * General protocol API
  */
-struct kiovec;
-struct ktli_helpers {
-    int     kh_recvhdr_len;         
 
-    // functions
-    int64_t (*kh_getaseq_fn)(struct kiovec *msg, int msgcnt);
-    void    (*kh_setseq_fn)(struct kiovec *msg, int msgcnt, int64_t seq);
-    int32_t (*kh_msglen_fn)(struct kiovec *msg_hdr);
-};
+struct kresult_message create_header(uint8_t header_field_bitmap, ...);
+struct kresult_message create_message(kmsg_auth_t *msg_auth, ProtobufCBinaryData cmd_bytes);
+
+struct kresult_buffer  pack_kinetic_message(kmsg_t *msg_data);
+ProtobufCBinaryData    pack_kinetic_command(kcmd_t *cmd_data);
+
 
 #endif //__KINETIC_TYPES_H
