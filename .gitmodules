@@ -1,3 +1,6 @@
 [submodule "vendor/list"]
 	path = vendor/list
 	url = https://github.com/pkufeldt/list.git
+[submodule "vendor/protobuf-c"]
+	path = vendor/protobuf-c
+	url = https://github.com/protobuf-c/protobuf-c.git
