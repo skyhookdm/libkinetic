@@ -237,7 +237,7 @@ ProtobufCBinaryData pack_cmd_getlog(kcmd_hdr_t *cmd_hdr, kcmd_getlog_t *cmd_getl
 	return pack_kinetic_command(&command_msg);
 }
 
-kcmd_getlog_t *to_command(kgetlog_t *cmd_data) {
+kcmd_getlog_t *extract_to_command(kgetlog_t *cmd_data) {
 	kcmd_getlog_t *getlog_msg = (kcmd_getlog_t *) malloc(sizeof(kcmd_getlog_t));
 	com__seagate__kinetic__proto__command__get_log__init(getlog_msg);
 
@@ -270,7 +270,7 @@ kcmd_getlog_t *to_command(kgetlog_t *cmd_data) {
 struct kresult_message create_getlog_message(kmsg_auth_t *msg_auth, kcmd_hdr_t *cmd_hdr, kgetlog_t *cmd_body) {
 
 	// create and pack the Command
-	kcmd_getlog_t		*cmd_body_getlog = to_command(cmd_body);
+	kcmd_getlog_t		*cmd_body_getlog = extract_to_command(cmd_body);
 	ProtobufCBinaryData  command_bytes	 = pack_cmd_getlog(cmd_hdr, cmd_body_getlog);
 
 	// return the constructed getlog message (or failure)
