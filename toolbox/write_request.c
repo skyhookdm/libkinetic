@@ -1,15 +1,25 @@
+#include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 
+#include "../src/kinetic.h"
 #include "../src/protocol_types.h"
-#include "../src/protocol_interface.h"
+#include "../src/getlog.h"
 
 
 int main(int argc, char **argv) {
     fprintf(stdout, "KineticPrototype Version: 0.1\n");
+
+    /* message header */
+    kmsg_auth_t message_auth = {
+        .auth_type     = MAT_PIN,
+        .hmac_identity = 0,
+        .auth_len      = 4,
+        .auth_data     = "0000",
+    };
 
     /* connection options */
     uint8_t header_field_bitmap   = CLUST_VER | CONN_ID | TIMEOUT | BATCH_ID;
@@ -27,26 +37,23 @@ int main(int argc, char **argv) {
     }
 
     /* create actual request */
-    struct kbuffer getlog_types_buffer = {
-        .len  = 3,
-        .base = (kproto_getlog_type []) {
-            UTIL_GETLOG_TYPE         ,
-            CAPACITY_GETLOG_TYPE     ,
-            DEVICE_LIMITS_GETLOG_TYPE,
-        }
+    kgetlog_t *getlog_msg_data = (kgetlog_t *) malloc(sizeof(kgetlog_t));
+    getlog_msg_data->kgl_typecnt = 3;
+    getlog_msg_data->kgl_type    = (kgltype_t []) {
+        KGLT_UTILIZATIONS, KGLT_CAPACITIES, KGLT_LIMITS
     };
 
-    struct kresult_message getlog_result = create_getlog_request(getlog_types_buffer, NULL);
-    if (getlog_result.result_code == FAILURE) {
+    struct kresult_message create_result = create_getlog_message(
+        &message_auth, (kcmd_hdr_t *) header_result.result_message, getlog_msg_data
+    );
+
+    if (create_result.result_code == FAILURE) {
         fprintf(stderr, "Unable to create GetLog request\n");
         return EXIT_FAILURE;
     }
 
     /* construct command buffer */
-    struct kresult_buffer pack_result = pack_getlog_request(
-        (kproto_header *const) header_result.result_message,
-        (kproto_getlog *const) getlog_result.result_message
-    );
+    struct kresult_buffer pack_result = pack_kinetic_message((kmsg_t *) create_result.result_message);
 
     if (pack_result.result_code == FAILURE) {
         fprintf(stderr, "Unable to pack Kinetic RPC\n");
