@@ -103,8 +103,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kstatus_t krc;
 	struct kio *kio;
 	kpdu_t pdu = KP_INIT;
-	kmsghdr_t kmh;
-	kcmdhdr_t cmh;
+	kmsghdr_t msg_hdr;
+	kcmdhdr_t cmd_hdr;
 	struct kresult_message *kmreq, *kmresp;
 
 	/* Validate the passed in glog */
@@ -139,17 +139,17 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* pack the message */
 	/* PAK: fill out kmsghdr and kcmdhdr */
 	/* PAK: Need to save conn config on session, for use here */
-	memset((void *)&kmh, 0, sizeof(kmh));
-	kmh.kmh_atype = KA_HMAC;
-	kmh.kmd_id = 1;
-	kmh.kmd_hmac = "abcdefgh";
+	memset((void *)&msg_hdr, 0, sizeof(msg_hdr));
+	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmd_id = 1;
+	msg_hdr.kmd_hmac = "abcdefgh";
 
-	memset((void *)&kch, 0, sizeof(kch));
-	kch.kch_clustvers = 0;
-	kch.kch_connid = 0;
-	kch.kch_type = KMT_GETLOG;
-	
-	kmreq = create_getlog_message(&kmh, &kch, glog);
+	memset((void *)&cmd_hdr, 0, sizeof(cmd_hdr));
+	cmd_hdr.cmh_clustvers = 0;
+	cmd_hdr.cmh_connid = 0;
+	cmd_hdr.cmh_type = KMT_GETLOG;
+
+	kmreq = create_getlog_message(&msg_hdr, &cmd_hdr, glog);
 
 	/* PAK: Error handling */
 	rc = pack_getlog_request(kmreq,
