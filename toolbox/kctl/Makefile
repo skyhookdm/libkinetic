@@ -4,12 +4,12 @@ OBJS = 	kctl.o util.o
 #	ping.o cluster.o lock.o acl.o range.o  \
 #	histogram.o
 
-CXXFLAGS=-g 
+CFLAGS=-g -I../../src
 LDLIBS = -lunwind -lssl -lcrypto -lpthread
 all: kctl
 
 kctl: $(OBJS) $(KLIBS) 
-	$(CXX) -o $@ $(OBJS) $(KLIBS) $(LDLIBS)
+	$(C) -o $@ $(OBJS) $(KLIBS) $(LDLIBS)
 
 clean:
 	rm -rf a.out kctl *.o
