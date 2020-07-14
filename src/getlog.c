@@ -43,11 +43,11 @@ gl_validate_req(kgetlog_t *glog)
 		switch (glog->kgl_type[i]) {
 		case KGLT_UTILIZATIONS:
 		case KGLT_TEMPERATURES:
-		case KGLT_CAPACITIES:		
-		case KGLT_CONFIGURATION:	
-		case KGLT_STATISTICS:		
-		case KGLT_MESSAGES:		
-		case KGLT_LIMITS:		
+		case KGLT_CAPACITIES:
+		case KGLT_CONFIGURATION:
+		case KGLT_STATISTICS:
+		case KGLT_MESSAGES:
+		case KGLT_LIMITS:
 			/* a good type */
 			break;
 
@@ -55,7 +55,7 @@ gl_validate_req(kgetlog_t *glog)
 			/* a good type - LOG has special error checking */
 			log = 1;
 			break;
-			
+
 		default:
 			return(-1);
 		}
@@ -106,7 +106,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kmsghdr_t kmh;
 	kcmdhdr_t cmh;
 	struct kresult_message *kmreq, *kmresp;
-	
+
 	/* Validate the passed in glog */
 	rc = gl_validate_req(glog);
 	if (rc < 0) {
@@ -129,13 +129,13 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	if (!kio->kio_sendmsg.km_msg) {
 		errno = ENOMEM;
 		return(-1);
-	}		
+	}
 
-	/* Hang the PDU buffer */ 
+	/* Hang the PDU buffer */
 	kio->kio_cmd = KMT_GETLOG;
 	kio->kio_sendmsg.km_msg[0].kiov_base = (void *)&pdu;
 	kio->kio_sendmsg.km_msg[0].kiov_len = KP_LENGTH;
-	
+
 	/* pack the message */
 	/* PAK: fill out kmsghdr and kcmdhdr */
 	/* PAK: Need to save conn config on session, for use here */
@@ -159,14 +159,14 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* Setup the PDU */
 	pdu->kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu->kp_vallen = 0;
-	
+
 	/* Send the request */
 	ktli_send(ktd, &kio);
 	printf ("Sent Kio: %p\n", &kio);
 
 	/* Wait for the response */
 	ktli_poll(ktd, 0);
-	      
+
 	/* Receive the response */
 	/* PAK: need error handling */
 	rc = ktli_receive(ktd, &kio);
@@ -206,7 +206,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	KI_FREE(kio->kio_recvmsg.km_msg);
 	KI_FREE(kio->kio_sendmsg.km_msg);
 	KI_FREE(kio);
-	
+
 	return(rc);
 
 struct kresult_message create_getlog_request(struct kbuffer  getlog_types_buffer,
