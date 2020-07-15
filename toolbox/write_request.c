@@ -4,6 +4,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "../src/kinetic.h"
 #include "../src/protocol_types.h"
@@ -11,71 +12,77 @@
 
 
 int main(int argc, char **argv) {
-    fprintf(stdout, "KineticPrototype Version: 0.1\n");
+	fprintf(stdout, "KineticPrototype Version: 0.1\n");
 
-    /* message header */
-    kmsghdr_t message_auth = {
-        .kmh_atype  = KA_PIN,
-        .kmh_id     = 0,
-        .kmh_pinlen = 4,
-        .kmh_pin    = "0000",
-    };
+	/* message header */
+	kmsghdr_t message_auth = {
+		.kmh_atype	= KA_PIN,
+		.kmh_id		= 0,
+		.kmh_pinlen = 4,
+		.kmh_pin	= "0000",
+	};
 
-    /* connection options */
-    uint8_t header_field_bitmap   = CLUST_VER | CONN_ID | TIMEOUT | BATCH_ID;
-    struct kresult_message header_result = create_header(
-        header_field_bitmap,
-        (int64_t)    2,
-        (int64_t)   10,
-        (uint64_t) 500,
-        (uint32_t)   1
-    );
+	/* connection options */
+	kcmdhdr_t cmdhdr_opts = (kcmdhdr_t) {
+		.kch_clustvers = 2,
+		.kch_connid    = 10,
+		.kch_timeout   = 500,
+		.kch_batid	   = 1,
+		.kch_seq	   = 0,
+		.kch_ackseq    = 0,
+		.kch_type	   = 0,
+		.kch_pri	   = 0,
+		.kch_quanta    = 0,
+		.kch_qexit	   = 0,
+	};
 
-    if (header_result.result_code == FAILURE)  {
-        fprintf(stderr, "Unable to create Header for kinetic Command\n");
-        return EXIT_FAILURE;
-    }
+	/* create actual request */
+	kgetlog_t cmdbody_data;
+	memset((void *) &cmdbody_data, 0, sizeof(kgetlog_t));
 
-    /* create actual request */
-    kgetlog_t *getlog_msg_data = (kgetlog_t *) malloc(sizeof(kgetlog_t));
-    getlog_msg_data->kgl_typecnt = 3;
-    getlog_msg_data->kgl_type    = (kgltype_t []) {
-        KGLT_UTILIZATIONS, KGLT_CAPACITIES, KGLT_LIMITS
-    };
+	cmdbody_data.kgl_typecnt = 3;
+	cmdbody_data.kgl_type	 = (kgltype_t []) {
+		KGLT_UTILIZATIONS, KGLT_CAPACITIES, KGLT_LIMITS
+	};
 
-    struct kresult_message create_result = create_getlog_message(
-        &message_auth, (kcmd_hdr_t *) header_result.result_message, getlog_msg_data
-    );
+	struct kresult_message create_result = create_getlog_message(
+		&message_auth, &cmdhdr_opts, &cmdbody_data
+	);
 
-    if (create_result.result_code == FAILURE) {
-        fprintf(stderr, "Unable to create GetLog request\n");
-        return EXIT_FAILURE;
-    }
+	if (create_result.result_code == FAILURE) {
+		fprintf(stderr, "Unable to create GetLog request\n");
+		return EXIT_FAILURE;
+	}
 
-    /* construct command buffer */
-    struct kresult_buffer pack_result = pack_kinetic_message((kmsg_t *) create_result.result_message);
+	/* construct command buffer */
+	void   *msg_buffer;
+	size_t msg_size;
 
-    if (pack_result.result_code == FAILURE) {
-        fprintf(stderr, "Unable to pack Kinetic RPC\n");
-        return EXIT_FAILURE;
-    }
+	int pack_result = pack_kinetic_message(
+		(kproto_msg_t *) create_result.result_message, &msg_buffer, &msg_size
+	);
 
-    /* Write packed bytes to file for now */
-    int     output_fd     = open("request.kinetic", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
-    ssize_t bytes_written = write(output_fd, pack_result.base, pack_result.len);
+	if (pack_result == FAILURE) {
+		fprintf(stderr, "Unable to pack Kinetic RPC\n");
+		return EXIT_FAILURE;
+	}
 
-    if (bytes_written < 0) {
-        fprintf(stderr, "Unable to write marshalled bytes to file: 'request.kinetic'\n");
-        return EXIT_FAILURE;
-    }
+	/* Write packed bytes to file for now */
+	int		output_fd	  = open("request.kinetic", O_CREAT | O_WRONLY, S_IRUSR | S_IWUSR);
+	ssize_t bytes_written = write(output_fd, msg_buffer, msg_size);
 
-    if (close(output_fd) < 0) {
-        fprintf(stderr, "Unable to close file: 'request.kinetic'\n");
-        return EXIT_FAILURE;
-    }
+	if (bytes_written < 0) {
+		fprintf(stderr, "Unable to write marshalled bytes to file: 'request.kinetic'\n");
+		return EXIT_FAILURE;
+	}
 
-    fprintf(stdout, "Packed %ld bytes into a kinetic RPC\n", pack_result.len);
+	if (close(output_fd) < 0) {
+		fprintf(stderr, "Unable to close file: 'request.kinetic'\n");
+		return EXIT_FAILURE;
+	}
+
+	fprintf(stdout, "Packed %ld bytes into a kinetic RPC\n", msg_size);
 
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
