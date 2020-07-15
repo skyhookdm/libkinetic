@@ -10,7 +10,7 @@
 
 
 // Type aliases
-typedef Com__Seagate__Kinetic__Proto__Message kmsg_t;
+typedef Com__Seagate__Kinetic__Proto__Message kproto_msg_t;
 
 
 /**
@@ -94,7 +94,7 @@ typedef struct kcmdhdr {
  */
 
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes);
-struct kresult_buffer  pack_kinetic_message(kmsg_t *msg_data);
+enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **msg_buffer, size_t *msg_size);
 
 
 #endif /* _MESSAGE_H */
