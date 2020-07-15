@@ -23,6 +23,7 @@
 #include <netinet/in.h>
 #include <inttypes.h>
 #include <endian.h>
+#include <errno.h>
 
 #include "kio.h"
 #include "ktli.h"
@@ -64,6 +65,8 @@ gl_validate_req(kgetlog_t *glog)
 	/* If log expect a logname, if not then there shouldn't be a name */
 	if (log) {
 		if (glog->kgl_log.kdl_name) {
+			// TODO: recommend using an actual length, because it needs to be passed anyways.
+			// (see glog->kgl_log.len in getlog.h)
 			int n = strlen(glog->kgl_log.kdl_name);
 			if (!n || n > 1024) {
 				errno = ERANGE;
@@ -73,16 +76,20 @@ gl_validate_req(kgetlog_t *glog)
 			/* Log requested but no name fail with default err */
 			return(-1);
 		}
-	} elese if (glog->kgl_log.kdl_name) {
+	} else if (glog->kgl_log.kdl_name) {
 		/* Shouldn't have a name without a LOG type */
 		return (-1);
 	}
 
 	/* make sure all other ptrs and cnts are NULL and 0 */
-	if (glog->kgl_log.kdl_util || glog->kgl_log.kdl_utilcnt ||
-	    glog->kgl_log.kdl_temp || glog->kgl_log.kdl_tempcnt ||
-	    glog->kgl_log.kdl_stat || glog->kgl_log.kdl_statcnt ||
-	    glog->kgl_log.kdl_msgs || glog->kgl_log.kdl_msgscnt) {
+	if (   glog->kgl_util
+		|| glog->kgl_utilcnt
+		|| glog->kgl_temp
+		|| glog->kgl_tempcnt
+		|| glog->kgl_stat
+		|| glog->kgl_statcnt
+		|| glog->kgl_msgs
+		|| glog->kgl_msgscnt) {
 		return(-1);
 	}
 
@@ -105,60 +112,85 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kpdu_t pdu = KP_INIT;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
-	struct kresult_message *kmreq, *kmresp;
+	struct kresult_message kmreq, *kmresp;
 
 	/* Validate the passed in glog */
 	rc = gl_validate_req(glog);
 	if (rc < 0) {
 		/* errno set by validate */
-		return(-1);
+
+		// TODO: set ks_detail
+		// .ks_detail  = sprintf("gl_validate_req returned error: %d\n", rc
+		return (kstatus_t) {
+			.ks_code    = K_INVALID_SC,
+			.ks_message = "Invalid request",
+			.ks_detail  = "",
+		};
 	}
 
 	/* create the kio structure */
-	kio = (struct kio *)KI_MALLOC(sizeof(struct kio));
+	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
 		errno = ENOMEM;
-		return(-1);
+
+		// TODO: set ks_detail
+		return (kstatus_t) {
+			.ks_code    = K_INVALID_SC,
+			.ks_message = "Unable to allocate memory for request",
+			.ks_detail  = "",
+		};
 	}
 	memset(kio, 0, sizeof(struct kio));
 
 	/* Alocate the kio vectors */
 	kio->kio_sendmsg.km_cnt = 2; /* PDU and protobuf */
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
-	kio->kio_sendmsg.km_msg = (struct kiovec *)KI_MALLOC(n);
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
 		errno = ENOMEM;
-		return(-1);
+
+		// TODO: set ks_detail
+		return (kstatus_t) {
+			.ks_code    = K_INVALID_SC,
+			.ks_message = "Error sending request",
+			.ks_detail  = "",
+		};
 	}
 
 	/* Hang the PDU buffer */
 	kio->kio_cmd = KMT_GETLOG;
-	kio->kio_sendmsg.km_msg[0].kiov_base = (void *)&pdu;
+	kio->kio_sendmsg.km_msg[0].kiov_base = (void *) &pdu;
 	kio->kio_sendmsg.km_msg[0].kiov_len = KP_LENGTH;
 
 	/* pack the message */
 	/* PAK: fill out kmsghdr and kcmdhdr */
 	/* PAK: Need to save conn config on session, for use here */
-	memset((void *)&msg_hdr, 0, sizeof(msg_hdr));
+	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
-	msg_hdr.kmd_id = 1;
-	msg_hdr.kmd_hmac = "abcdefgh";
+	msg_hdr.kmh_id    = 1;
+	msg_hdr.kmh_hmac  = "abcdefgh";
 
-	memset((void *)&cmd_hdr, 0, sizeof(cmd_hdr));
-	cmd_hdr.cmh_clustvers = 0;
-	cmd_hdr.cmh_connid = 0;
-	cmd_hdr.cmh_type = KMT_GETLOG;
+	memset((void *) &cmd_hdr, 0, sizeof(cmd_hdr));
+	cmd_hdr.kch_clustvers = 0;
+	cmd_hdr.kch_connid    = 0;
+	cmd_hdr.kch_type      = KMT_GETLOG;
 
 	kmreq = create_getlog_message(&msg_hdr, &cmd_hdr, glog);
+	if (kmreq.result_code == FAILURE) {
+		goto glex2;
+	}
 
 	/* PAK: Error handling */
-	rc = pack_getlog_request(kmreq,
-				 &(kio->kio_sendmsg.km_msg[1].kiov_base),
-				 &(kio->kio_sendmsg.km_msg[1].kiov_len));
+	// success: rc = 0; failure: rc = 1 (see enum kresult_code)
+	rc = pack_kinetic_message(
+		(kproto_msg_t *) &(kmreq.result_message),
+		&(kio->kio_sendmsg.km_msg[1].kiov_base),
+		&(kio->kio_sendmsg.km_msg[1].kiov_len)
+	);
 
 	/* Setup the PDU */
-	pdu->kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
-	pdu->kp_vallen = 0;
+	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
+	pdu.kp_vallen = 0;
 
 	/* Send the request */
 	ktli_send(ktd, &kio);
@@ -172,7 +204,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	rc = ktli_receive(ktd, &kio);
 
 	kmresp = unpack_getlog_resp(kio->kio_sendmsg.km_msg[1].kiov_base,
-				    kio->kio_sendmsg.km_msg[1].kiov_len);
+								kio->kio_sendmsg.km_msg[1].kiov_len);
+
 	if (kmresp->result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
@@ -207,7 +240,14 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	KI_FREE(kio->kio_sendmsg.km_msg);
 	KI_FREE(kio);
 
-	return(rc);
+	// TODO: translae rc error code into kstatus_t
+	// return (rc);
+	return (kstatus_t) {
+		.ks_code    = K_INVALID_SC,
+		.ks_message = "Error sending getlog request: glex2",
+		.ks_detail  = "",
+	};
+}
 
 struct kresult_message create_getlog_request(struct kbuffer  getlog_types_buffer,
                                              struct kbuffer *device_name) {
@@ -249,10 +289,12 @@ void extract_to_command_body(kproto_getlog_t *proto_getlog, kgetlog_t *cmd_data)
 		kgetlog_device_info *getlog_msg_device = (kgetlog_device_info *) malloc(sizeof(kgetlog_device_info));
 		com__seagate__kinetic__proto__command__get_log__device__init(getlog_msg_device);
 
+		// TODO: see that kgl_log.len is used instead of computing strlen?
 		getlog_msg_device->has_name = 1;
 		getlog_msg_device->name		= (ProtobufCBinaryData) {
-			.len  =				cmd_data->kgl_log.len,
-			.data = (uint8_t *) cmd_data->kgl_log.kdl_name
+			// .len  =				cmd_data->kgl_log.len,
+			.len  = (size_t)    strlen(cmd_data->kgl_log.kdl_name),
+			.data = (uint8_t *) cmd_data->kgl_log.kdl_name,
 		};
 
 		proto_getlog->device = getlog_msg_device;
