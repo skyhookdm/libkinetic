@@ -58,62 +58,6 @@
 typedef Com__Seagate__Kinetic__Proto__Message__HMACauth kauth_hmac;
 typedef Com__Seagate__Kinetic__Proto__Message__PINauth	kauth_pin;
 
-struct kresult_message create_header(uint8_t header_fields_bitmap, ...) {
-	int		num_fields = 0;
-	va_list header_field_values;
-
-	// count how many bits are set
-	for (int bit_pos = 0; bit_pos < 7; bit_pos++) {
-		if (header_fields_bitmap & (1 << bit_pos)) { num_fields++; }
-	}
-
-	va_start(header_field_values, header_fields_bitmap);
-
-	// allocate and populate message header
-	kcmd_hdr_t *cmd_hdr = (kcmd_hdr_t *) malloc(sizeof(kcmd_hdr_t));
-	com__seagate__kinetic__proto__command__header__init(cmd_hdr);
-
-	if (header_fields_bitmap & CLUST_VER) {
-		cmd_hdr->clusterversion		= va_arg(header_field_values, int64_t);
-		cmd_hdr->has_clusterversion = 1;
-	}
-
-	if (header_fields_bitmap & CONN_ID) {
-		cmd_hdr->connectionid	  = va_arg(header_field_values, int64_t);
-		cmd_hdr->has_connectionid = 1;
-	}
-
-	if (header_fields_bitmap & SEQ_NUM) {
-		cmd_hdr->sequence	  = va_arg(header_field_values, uint64_t);
-		cmd_hdr->has_sequence = 1;
-	}
-
-	if (header_fields_bitmap & TIMEOUT) {
-		cmd_hdr->timeout	 = va_arg(header_field_values, uint64_t);
-		cmd_hdr->has_timeout = 1;
-	}
-
-	if (header_fields_bitmap & PRIORITY) {
-		cmd_hdr->priority	  = va_arg(header_field_values, kproto_priority);
-		cmd_hdr->has_priority = 1;
-	}
-
-	if (header_fields_bitmap & TIME_QUANTA) {
-		cmd_hdr->timequanta		= va_arg(header_field_values, uint64_t);
-		cmd_hdr->has_timequanta = 1;
-	}
-
-	if (header_fields_bitmap & BATCH_ID) {
-		cmd_hdr->batchid	 = va_arg(header_field_values, uint32_t);
-		cmd_hdr->has_batchid = 1;
-	}
-
-	va_end(header_field_values);
-	return (struct kresult_message) {
-		.result_code	= SUCCESS,
-		.result_message = (void *) cmd_hdr
-	};
-}
 
 struct kresult_message unpack_response(struct kbuffer response_buffer) {
 	kproto_cmd_t *response_command = com__seagate__kinetic__proto__command__unpack(
