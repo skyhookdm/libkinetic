@@ -1,5 +1,5 @@
-#ifndef _MESSAGE_H
-#define _MESSAGE_H
+#ifndef _SESSION_H
+#define _SESSION_H
 /*
  * Session details user does not need to see
  */
@@ -10,4 +10,4 @@ typedef struct ksession {
 	kcmdhdr_t	ks_ch;		
 } ksession_t;
 
-#endif /* _MESSAGE_H */
+#endif /* _SESSION_H */

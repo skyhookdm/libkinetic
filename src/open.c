@@ -1,3 +1,21 @@
+#include <assert.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <errno.h>
+#include <pthread.h>
+#include <sys/types.h>
+
+#include "kinetic.h"
+#include "getlog.h"
+#include "session.h"
+
+#include "ktli.h"
+
+int64_t ki_getaseq(struct kiovec *msg, int msgcnt);
+void    ki_setseq(struct kiovec *msg, int msgcnt, int64_t seq);
+int32_t ki_msglen(struct kiovec *msg_hdr);
 
 /* Kinetic API helpers */
 static struct ktli_helpers ki_kh = {
@@ -29,19 +47,18 @@ int
 ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 {
 	int ktd, rc;
-	uint64_t id;
 	struct ktli_config *cf;
 	ksession_t *ks;
-	getlog_t glog;
+	kgetlog_t glog;
 	kgltype_t glt;
-
+	kstatus_t kstatus;
 	/*
 	 * these ktli and session configs get hung on the ktli session
 	 * so need to allocate these structures.
 	 */
 	cf = malloc(sizeof(struct ktli_config));
-	ses = malloc(sizeof(ksession_t));
-	if (!cf || !ses) {
+	ks = malloc(sizeof(ksession_t));
+	if (!cf || !ks) {
 	}
 
 	memset(cf, 0, sizeof(struct ktli_config));
@@ -49,7 +66,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 
 	/* Setup the session config structure */
 	cf->kcfg_host = strdup(host);
-	cf->kcfg_port = strdup(post);
+	cf->kcfg_port = strdup(port);
 	cf->kcfg_hmac = strdup(hmac);
 	cf->kcfg_flags = KCFF_NOFLAGS;
 	if (usetls) cf->kcfg_flags |= KCFF_TLS;
@@ -82,13 +99,13 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	}
 
 	/* Get the limits structure and save it on the session */
-	memset(&glog, 0, sizeof(getlog_t));
+	memset(&glog, 0, sizeof(kgetlog_t));
 	glt = KGLT_LIMITS;
 	glog.kgl_type = &glt;
 	glog.kgl_typecnt = 1;
 
-	rc = ki_getlog(ktd, &glog);
-	memcpy(ks->ks_l, &glog.kgl_limits, sizeof(klimits_t));
+	kstatus = ki_getlog(ktd, &glog);
+	memcpy(&ks->ks_l, &glog.kgl_limits, sizeof(klimits_t));
 	
 	/* PAK: Getversion call() to set session cluster version */
 	

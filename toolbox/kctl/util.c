@@ -10,7 +10,7 @@
 * 6A 66 6C 6B 6A 73 20 6C  6B 6A 73 66 6C 6A 6C 6B  |  jflkjs lkjsfljlk 
 * 61 73 64 66 6B 6C 39 33  30 72 20 35 75 67 6A 67  |  asdfkl930r 5ugjg 
 * 66 20 0A    
-*/                                      |  f . 
+*/ 
 void
 hexdump(const void* data, size_t size) {
 	char ascii[17];

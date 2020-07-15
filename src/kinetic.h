@@ -46,8 +46,7 @@ typedef struct kstatus {
 /**
  * The API.
  */
-int ki_open(char *host, char *port,
-	    uint32_t usetls, int64_t id, void *hmac);
+int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac);
 int ki_close(int ktd);
 
 kstatus_t ki_setclustervers(int ktd, int64_t vers);

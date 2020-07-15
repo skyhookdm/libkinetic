@@ -75,7 +75,7 @@ typedef struct kcmdhdr {
 	int64_t		kch_ackseq;	/* Response Sequence Number */
 	kmtype_t	kch_type;	/* Request Command Type */
 	int64_t		kch_timeout;	/* Timeout Period */
-	kpriority_t	kh_pri;		/* Request Priority */
+	kpriority_t	kch_pri;		/* Request Priority */
 	int64_t		kch_quanta;	/* Time Quanta */
 	int32_t		kch_qexit;	/* Boolean: Quick Exit */
 	int32_t		kch_batid;	/* Batch ID */
