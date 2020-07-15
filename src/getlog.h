@@ -116,13 +116,13 @@ typedef struct kstatistics {
  *	- elements with "cnt" suffix are in units.
  */
 typedef struct klimits {
-	uint32_t kl_keylen;			/* Maximum Key Length supported */
-	uint32_t kl_vallen;			/* Maximum Value Length supported */
-	uint32_t kl_verlen;			/* Maximum Version Length supported */
-	uint32_t kl_taglen;			/* Maximum Tag Length supported */
-	uint32_t kl_msglen;			/* Maximum Message Length supported */
-	uint32_t kl_pinlen;			/* Maximum Pin Length supported */
-	uint32_t kl_batlen;			/* Maximum Batch Length supported */
+	uint32_t kl_keylen;		/* Maximum Key Length supported */
+	uint32_t kl_vallen;		/* Maximum Value Length supported */
+	uint32_t kl_verlen;		/* Maximum Version Length supported */
+	uint32_t kl_taglen;		/* Maximum Tag Length supported */
+	uint32_t kl_msglen;		/* Maximum Message Length supported */
+	uint32_t kl_pinlen;		/* Maximum Pin Length supported */
+	uint32_t kl_batlen;		/* Maximum Batch Length supported */
 	uint32_t kl_pendrdcnt;		/* Total Allowed Pending RD Reqs */
 	uint32_t kl_pendwrcnt;		/* Total Allowed Pending WR Reqs */
 	uint32_t kl_conncnt;		/* Total Allowed Client Connections */

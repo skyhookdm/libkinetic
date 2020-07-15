@@ -4,8 +4,8 @@ OBJS = 	kctl.o util.o
 #	ping.o cluster.o lock.o acl.o range.o  \
 #	histogram.o
 
-CFLAGS=-g -I../../src
-LDLIBS = -lunwind -lssl -lcrypto -lpthread
+CFLAGS=-g -I../../src -I../../vendor/protobuf-c
+LDLIBS = -lkinetic
 all: kctl
 
 kctl: $(OBJS) $(KLIBS) 

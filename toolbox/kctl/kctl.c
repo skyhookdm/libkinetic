@@ -1,6 +1,11 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include <fcntl.h>
 #include <unistd.h>
+#include <errno.h>
+#include <inttypes.h>
 #include <sys/types.h>
 
 #include <kinetic.h>
@@ -20,8 +25,8 @@ struct kargs kargs = {
 	.ka_user 	= 1,
 	.ka_hmac	= (char *)"asdfasdf",
 	.ka_host	= (char *)"127.0.0.1",
-	.ka_port	= 8123,
-	.ka_usessl	= 0,
+	.ka_port	= "8123",
+	.ka_usetls	= 0,
 	.ka_timeout	= 10,
 	.ka_clustervers = -1,
 	.ka_quiet	= 0,
@@ -45,12 +50,10 @@ extern int kctl_range(int argc, char *argv[], int kts, struct kargs *ka);
 int kctl_nohandler(int argc, char *argv[], int kts, struct kargs *ka);
 
 struct ktable {
-	enum kctl_command ktab_cmd;
+	enum kctl_cmd ktab_cmd;
 	const char *ktab_cmdstr;
 	const char *ktab_cmdhelp;
-	int (*ktab_handler)(int, char *[],
-			    unique_ptr<KCTL_CONTYPE>&,
-			    struct kargs *);
+	int (*ktab_handler)(int, char *[], int, struct kargs *);
 } ktable[] = {
 #if 0
 	{ KCTL_NOOP,    "ping",    "Ping the kinetic device", &kctl_ping},
@@ -73,7 +76,7 @@ struct ktable {
 #endif
 	
 	/* End of Table (EOT) KEEP LAST */
-	{ KCTL_EOT, "nocmd", "nohelp", &kctl_nohandler}
+	{ KCTL_EOT, "nocmd", "nohelp", &kctl_nohandler},
 };
 
 int	kctl(int, char *[], struct kargs *ka);
@@ -101,9 +104,9 @@ usage()
 	fprintf(stderr, "\nWhere, COMMON OPTIONS are [default]:\n");
 	fprintf(stderr,	"\t-h host      Hostname or IP address [%s]\n",
 		kargs.ka_host);
-	fprintf(stderr, "\t-p port      Port number [%d]\n", kargs.ka_port);
+	fprintf(stderr, "\t-p port      Port number [%s]\n", kargs.ka_port);
 	fprintf(stderr, "\t-s           Use SSL [no]\n");
-	fprintf(stderr, "\t-u id        User ID [%d]\n", kargs.ka_user);
+	fprintf(stderr, "\t-u id        User ID [%ld]\n", kargs.ka_user);
 	fprintf(stderr,	"\t-m hmac      HMAC Key [%s]\n", kargs.ka_hmac);
 	fprintf(stderr, "\t-c version   Client Cluster Version [0]\n");
 	fprintf(stderr,	"\t-T timeout   Timeout in seconds [%d]\n",
@@ -123,15 +126,15 @@ void
 print_args(struct kargs *ka)
 {
 #define PA_LABEL_WIDTH  "12"
-	printf("%" PA_LABEL_WIDTH "s kinetic%s://%d:%s@%s:%d/%s\n", "URL:",
-	       ka->ka_usessl?"s":"", ka->ka_user, ka->ka_hmac,
+	printf("%" PA_LABEL_WIDTH "s kinetic%s://%ld:%s@%s:%s/%s\n", "URL:",
+	       ka->ka_usetls?"s":"", ka->ka_user, ka->ka_hmac,
 	       ka->ka_host, ka->ka_port, ka->ka_cmdstr);
 	
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Host:", ka->ka_host);
-	printf("%" PA_LABEL_WIDTH "s %d\n", "Port:", ka->ka_port);
-	printf("%" PA_LABEL_WIDTH "s %d\n", "UserID:", ka->ka_user);
+	printf("%" PA_LABEL_WIDTH "s %s\n", "Port:", ka->ka_port);
+	printf("%" PA_LABEL_WIDTH "s %ld\n", "UserID:", ka->ka_user);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "HMAC Key:", ka->ka_hmac);
-	printf("%" PA_LABEL_WIDTH "s %d\n", "Use SSL:", ka->ka_usessl);
+	printf("%" PA_LABEL_WIDTH "s %d\n", "Use TLS:", ka->ka_usetls);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Timeout:", ka->ka_timeout);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Quiet:", ka->ka_quiet);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Terse:", ka->ka_terse);
@@ -158,7 +161,7 @@ main(int argc, char *argv[])
 			kargs.ka_hmac = optarg;
 			break;
 		case 'p':
-			kargs.ka_port = atoi(optarg);
+			kargs.ka_port = optarg;
 			break;
 		case 'c':
 			kargs.ka_clustervers = strtol(optarg, &cp, 0);
@@ -170,7 +173,7 @@ main(int argc, char *argv[])
 			kargs.ka_clustervers = (int64_t) atoi(optarg);
 			break;
                 case 's':
-                        kargs.ka_usessl = 1;
+                        kargs.ka_usetls = 1;
                         break;
                 case 'q':
                         kargs.ka_quiet = 1;
@@ -261,9 +264,7 @@ kctl(int argc, char *argv[], struct kargs *ka)
 
 
 int
-kctl_nohandler(int argc, char *argv[],
-	 unique_ptr<KCTL_CONTYPE>& kcon,
-	 struct kargs *ka)
+kctl_nohandler(int argc, char *argv[], int kts, struct kargs *ka)
 {
 
 	fprintf( stderr,  "Illegal call - Should never be called\n");
