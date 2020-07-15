@@ -18,7 +18,7 @@ struct kgetlog;
 
 typedef struct kgetlog kgetlog_t;
 
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog							kcmd_getlog_t;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog							kproto_getlog_t;
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device					kgetlog_device_info;
 
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Utilization				kgetlog_utilization;
@@ -174,7 +174,7 @@ struct kgetlog {
 /**
  * Command-specific operations
  */
-struct kresult_message create_getlog_message(kmsghdr_t *, kcmd_hdr_t *, kgetlog_t *);
+struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
 
 
 #endif /* _GETLOG_H */

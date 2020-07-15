@@ -44,9 +44,9 @@
 
 typedef Com__Seagate__Kinetic__Proto__Command__Status	kproto_status;
 */
-typedef Com__Seagate__Kinetic__Proto__Command		  kcmd_t;
-typedef Com__Seagate__Kinetic__Proto__Command__Header kcmd_hdr_t;
-typedef Com__Seagate__Kinetic__Proto__Command__Body   kcmd_body_t;
+typedef Com__Seagate__Kinetic__Proto__Command		  kproto_cmd_t;
+typedef Com__Seagate__Kinetic__Proto__Command__Header kproto_cmdhdr_t;
+typedef Com__Seagate__Kinetic__Proto__Command__Body   kproto_body_t;
 
 
 /* ------------------------------
@@ -141,7 +141,7 @@ enum header_field_type {
  */
 
 struct kresult_message create_header(uint8_t header_field_bitmap, ...);
-ProtobufCBinaryData    pack_kinetic_command(kcmd_t *cmd_data);
+ProtobufCBinaryData    pack_kinetic_command(kproto_cmd_t *cmd_data);
 
 
 #endif //__KINETIC_TYPES_H

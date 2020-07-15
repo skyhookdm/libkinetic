@@ -116,7 +116,7 @@ struct kresult_message create_header(uint8_t header_fields_bitmap, ...) {
 }
 
 struct kresult_message unpack_response(struct kbuffer response_buffer) {
-	kcmd_t *response_command = com__seagate__kinetic__proto__command__unpack(
+	kproto_cmd_t *response_command = com__seagate__kinetic__proto__command__unpack(
 		NULL,
 		response_buffer.len,
 		(uint8_t *) response_buffer.base
@@ -141,7 +141,7 @@ struct kresult_message unpack_response(struct kbuffer response_buffer) {
 	};
 }
 
-ProtobufCBinaryData pack_kinetic_command(kcmd_t *cmd_data) {
+ProtobufCBinaryData pack_kinetic_command(kproto_cmd_t *cmd_data) {
 	// Get size for command and allocate buffer
 	size_t	 command_size	= com__seagate__kinetic__proto__command__get_packed_size(cmd_data);
 	uint8_t *command_buffer = (uint8_t *) malloc(sizeof(uint8_t) * command_size);
@@ -167,12 +167,12 @@ pack_failure:
 	return (ProtobufCBinaryData) { .len = 0, .data = NULL };
 }
 
-struct kresult_buffer pack_kinetic_message(kmsg_t *msg_data) {
+enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **result_buffer, size_t *result_size) {
 	// Get size for command and allocate buffer
-	size_t	 msg_size	= com__seagate__kinetic__proto__message__get_packed_size(msg_data);
+	size_t msg_size     = com__seagate__kinetic__proto__message__get_packed_size(msg_data);
 	uint8_t *msg_buffer = (uint8_t *) malloc(sizeof(uint8_t) * msg_size);
 
-	if (msg_buffer == NULL) { goto pack_failure; }
+	if (msg_buffer == NULL) { return FAILURE; }
 
 	size_t num_bytes_packed = com__seagate__kinetic__proto__message__pack(msg_data, msg_buffer);
 
@@ -184,25 +184,18 @@ struct kresult_buffer pack_kinetic_message(kmsg_t *msg_data) {
 			msg_size
 		);
 
-		goto pack_failure;
+		free(msg_buffer);
+		return FAILURE;
 	}
 
-	return (struct kresult_buffer) {
-		.result_code = SUCCESS,
-		.len		 = num_bytes_packed,
-		.base		 = msg_buffer,
-	};
+	*result_buffer = msg_buffer;
+	*result_size   = msg_size;
 
-pack_failure:
-	return (struct kresult_buffer) {
-		.result_code = FAILURE,
-		.len		 = 0,
-		.base		 = NULL
-	};
+	return SUCCESS;
 }
 
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes) {
-	kmsg_t *kinetic_msg = (kmsg_t *) malloc(sizeof(kmsg_t));
+	kproto_msg_t *kinetic_msg = (kproto_msg_t *) malloc(sizeof(kproto_msg_t));
 	if (kinetic_msg == NULL) {
 		goto create_failure;
 	}
