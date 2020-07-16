@@ -98,5 +98,6 @@ struct kresult_message unpack_kinetic_message(void *response_buffer, size_t resp
 
 enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **msg_buffer, size_t *msg_size);
 
+void destroy_message(void *unpacked_msg);
 
 #endif /* _MESSAGE_H */

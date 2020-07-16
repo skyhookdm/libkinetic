@@ -142,5 +142,6 @@ ProtobufCBinaryData     pack_kinetic_command(kproto_cmd_t *cmd_data);
 
 kproto_cmd_t           *unpack_kinetic_command(ProtobufCBinaryData commandbytes);
 
+void destroy_command(void *unpacked_cmd);
 
 #endif //__KINETIC_TYPES_H
