@@ -111,6 +111,17 @@ pack_failure:
 	return (ProtobufCBinaryData) { .len = 0, .data = NULL };
 }
 
+kproto_cmd_t *unpack_kinetic_command(ProtobufCBinaryData commandbytes) {
+	// a NULL allocator defaults to system allocator (malloc)
+	ProtobufCAllocator *mem_allocator = NULL;
+
+	kproto_cmd_t *unpacked_cmd = com__seagate__kinetic__proto__command__unpack(
+		mem_allocator, commandbytes.len, (uint8_t *) commandbytes.data
+	);
+
+	return unpacked_cmd;
+}
+
 enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **result_buffer, size_t *result_size) {
 	// Get size for command and allocate buffer
 	size_t msg_size     = com__seagate__kinetic__proto__message__get_packed_size(msg_data);
@@ -136,6 +147,20 @@ enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **result_buf
 	*result_size   = msg_size;
 
 	return SUCCESS;
+}
+
+struct kresult_message unpack_kinetic_message(void *response_buffer, size_t response_size) {
+	// a NULL allocator defaults to system allocator (malloc)
+	ProtobufCAllocator *mem_allocator = NULL;
+
+	kproto_msg_t *unpacked_msg = com__seagate__kinetic__proto__message__unpack(
+		mem_allocator, response_size, (uint8_t *) response_buffer
+	);
+
+	return (struct kresult_message) {
+		.result_code    = unpacked_msg == NULL ? FAILURE : SUCCESS,
+		.result_message = (void *) unpacked_msg
+	}
 }
 
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes) {
