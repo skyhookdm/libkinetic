@@ -229,3 +229,23 @@ create_failure:
 		.result_message = NULL,
 	};
 }
+
+void destroy_message(void *unpacked_msg) {
+	// At some point, it would be best to make sure the allocator used in `unpack` is used here
+	ProtobufCAllocator *mem_allocator = NULL;
+
+	com__seagate__kinetic__proto__message__free_unpacked(
+		(kproto_msg_t *) unpacked_msg,
+		mem_allocator
+	);
+}
+
+void destroy_command(void *unpacked_cmd) {
+	// At some point, it would be best to make sure the allocator used in `unpack` is used here
+	ProtobufCAllocator *mem_allocator = NULL;
+
+	com__seagate__kinetic__proto__command__free_unpacked(
+		(kproto_cmd_t *) unpacked_cmd,
+		mem_allocator
+	);
+}
