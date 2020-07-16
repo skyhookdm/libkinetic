@@ -31,6 +31,21 @@
 #include "kinetic_internal.h"
 #include "getlog.h"
 
+// macro for extracting optional fields
+#define assign_if_set(lvar, field_container, field) { \
+	if (field_container->has_##field) {               \
+		lvar = field_container->field;                \
+	}                                                 \
+}
+
+// macro for extracting optional field that is a ProtobufCBinaryData struct
+#define assign_if_set_charbuf(lvar, field_container, field) { \
+	if (field_container->has_##field) {                       \
+		lvar = (char *) field_container->field.data;          \
+	}                                                         \
+}
+
+
 /**
  * Internal prototypes
  */
@@ -367,6 +382,123 @@ struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	return create_message(msg_hdr, command_bytes);
 }
 
+int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilization_t **util_data) {
+	getlog_data->kgl_util    = (kutilization_t *) malloc(sizeof(kutilization_t) * n_utils);
+	if (getlog_data->kgl_util == NULL) {
+		return -1;
+	}
+
+	getlog_data->kgl_utilcnt = n_utils;
+	for (int ndx = 0; ndx < n_utils; ndx++) {
+		getlog_data->kgl_util[ndx].ku_name = util_data[ndx]->name;
+
+		assign_if_set(getlog_data->kgl_util[ndx].ku_value, util_data[ndx], value);
+	}
+
+	return 0;
+}
+
+int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperature_t **temp_data) {
+	getlog_data->kgl_temp    = (ktemperature_t *) malloc(sizeof(ktemperature_t) * n_temps);
+	if (getlog_data->kgl_temp == NULL) {
+		return -1;
+	}
+
+	getlog_data->kgl_tempcnt = n_temps;
+	for (int ndx = 0; ndx < n_temps; ndx++) {
+		getlog_data->kgl_temp[ndx].kt_name = temp_data[ndx]->name;
+
+		// use convenience macros for optional fields
+		assign_if_set(getlog_data->kgl_temp[ndx].kt_cur   , temp_data[ndx], current);
+		assign_if_set(getlog_data->kgl_temp[ndx].kt_min   , temp_data[ndx], minimum);
+		assign_if_set(getlog_data->kgl_temp[ndx].kt_max   , temp_data[ndx], maximum);
+		assign_if_set(getlog_data->kgl_temp[ndx].kt_target, temp_data[ndx], target);
+	}
+
+	return 0;
+}
+
+int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics_t **stat_data) {
+	getlog_data->kgl_stat = (kstatistics_t *) malloc(sizeof(kstatistics_t) * n_stats);
+	if (getlog_data->kgl_stat == NULL) {
+		return -1;
+	}
+
+	getlog_data->kgl_statcnt = n_stats;
+	for (int ndx = 0; ndx < n_stats; ndx++) {
+		// use convenience macros for optional fields
+		assign_if_set(getlog_data->kgl_stat[ndx].ks_mtype     , stat_data[ndx], messagetype);
+		assign_if_set(getlog_data->kgl_stat[ndx].ks_cnt       , stat_data[ndx], count);
+		assign_if_set(getlog_data->kgl_stat[ndx].ks_bytes     , stat_data[ndx], bytes);
+		assign_if_set(getlog_data->kgl_stat[ndx].ks_maxlatency, stat_data[ndx], maxlatency);
+	}
+
+	return 0;
+}
+
+int extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config) {
+	getlog_data->kgl_conf.kcf_vendor = config->vendor;
+	getlog_data->kgl_conf.kcf_model  = config->model;
+
+	if (config->has_serialnumber) {
+		getlog_data->kgl_conf.kcf_serial = (char *) config->serialnumber.data;
+	}
+	if (config->has_worldwidename) {
+		getlog_data->kgl_conf.kcf_wwn = (char *) config->worldwidename.data;
+	}
+
+	getlog_data->kgl_conf.kcf_version       = config->version;
+	getlog_data->kgl_conf.kcf_compdate      = config->compilationdate;
+	getlog_data->kgl_conf.kcf_srchash       = config->sourcehash;
+	getlog_data->kgl_conf.kcf_proto         = config->protocolversion;
+	getlog_data->kgl_conf.kcf_protocompdate = config->protocolcompilationdate;
+	getlog_data->kgl_conf.kcf_protosrchash  = config->protocolsourcehash;
+
+	assign_if_set(getlog_data->kgl_conf.kcf_port   , config, port);
+	assign_if_set(getlog_data->kgl_conf.kcf_tlsport, config, tlsport);
+	assign_if_set(getlog_data->kgl_conf.kcf_power  , config, currentpowerlevel);
+
+	// interfaces
+	size_t num_interface_bytes           = sizeof(kinterface_t) * config->n_interface;
+	getlog_data->kgl_conf.kcf_interfaces = (kinterface_t *) malloc(num_interface_bytes);
+
+	if (getlog_data->kgl_conf.kcf_interfaces == NULL) {
+		return -1;
+	}
+
+	for (int ndx = 0; ndx < config->n_interface; ndx++) {
+		kinterface_t getlog_if = getlog_data->kgl_conf.kcf_interfaces[ndx];
+
+		getlog_if.ki_name = config->interface[ndx]->name;
+
+		assign_if_set_charbuf(getlog_if.ki_mac , config->interface[ndx], mac);
+		assign_if_set_charbuf(getlog_if.ki_ipv4, config->interface[ndx], ipv4address);
+		assign_if_set_charbuf(getlog_if.ki_ipv6, config->interface[ndx], ipv6address);
+	}
+
+	return 0;
+}
+
+int extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
+	assign_if_set(getlog_data->kgl_limits.kl_keylen     , limits, maxkeysize                 );
+	assign_if_set(getlog_data->kgl_limits.kl_vallen     , limits, maxvaluesize               );
+	assign_if_set(getlog_data->kgl_limits.kl_verlen     , limits, maxversionsize             );
+	assign_if_set(getlog_data->kgl_limits.kl_taglen     , limits, maxtagsize                 );
+	assign_if_set(getlog_data->kgl_limits.kl_msglen     , limits, maxmessagesize             );
+	assign_if_set(getlog_data->kgl_limits.kl_pinlen     , limits, maxpinsize                 );
+	assign_if_set(getlog_data->kgl_limits.kl_batlen     , limits, maxbatchsize               );
+	assign_if_set(getlog_data->kgl_limits.kl_pendrdcnt  , limits, maxoutstandingreadrequests );
+	assign_if_set(getlog_data->kgl_limits.kl_pendwrcnt  , limits, maxoutstandingwriterequests);
+	assign_if_set(getlog_data->kgl_limits.kl_conncnt    , limits, maxconnections             );
+	assign_if_set(getlog_data->kgl_limits.kl_idcnt      , limits, maxidentitycount           );
+	assign_if_set(getlog_data->kgl_limits.kl_rangekeycnt, limits, maxkeyrangecount           );
+	assign_if_set(getlog_data->kgl_limits.kl_batopscnt  , limits, maxoperationcountperbatch  );
+	assign_if_set(getlog_data->kgl_limits.kl_batdelcnt  , limits, maxdeletesperbatch         );
+	assign_if_set(getlog_data->kgl_limits.kl_devbatcnt  , limits, maxbatchcountperdevice     );
+
+	return 0;
+}
+
 kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog_data) {
 	kproto_msg_t *getlog_response_msg = (kproto_msg_t *) response_msg->result_message;
 
@@ -382,12 +514,32 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	// unpack the command bytes into a command structure
 	kproto_cmd_t *cmd_response = unpack_kinetic_command(getlog_response_msg->commandbytes);
 
+	// ------------------------------
 	// populate getlog_data from command body
-	kproto_getlog_t *getlog_response = cmd_response->body->getlog;
+	kproto_getlog_t *response = cmd_response->body->getlog;
 
-	// TODO: need to walk each utilization
-	//getlog_data->kgl_util = *(getlog_response->utilizations);
+	// 0 is success, < 0 is failure. Use this for all the extract functions
+	// TODO: check all of the return codes
+	int extract_result = 0;
 
+	// repeated fields first
+	extract_result = extract_utilizations(getlog_data, response->n_utilizations, response->utilizations);
+	extract_result = extract_temperatures(getlog_data, response->n_temperatures, response->temperatures);
+	extract_result = extract_statistics(getlog_data, response->n_statistics, response->statistics);
+
+	// then optional fields (can't use macro because the field needs to be decomposed)
+	if (response->has_messages) {
+		getlog_data->kgl_msgs   = (char *) response->messages.data;
+		getlog_data->kgl_msglen = response->messages.len;
+	}
+
+	// then other fields
+	assign_if_set(getlog_data->kgl_cap.kc_total, response->capacity, nominalcapacityinbytes);
+	assign_if_set(getlog_data->kgl_cap.kc_used , response->capacity, portionfull);
+	extract_result = extract_configuration(getlog_data, response->configuration);
+	extract_result = extract_limits(getlog_data, response->limits);
+
+	// ------------------------------
 	// propagate the response status to the caller
 	kproto_status_t *response_status = cmd_response->status;
 
