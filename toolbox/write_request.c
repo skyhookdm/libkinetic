@@ -8,8 +8,11 @@
 
 #include "../src/kinetic.h"
 #include "../src/protocol_types.h"
+#include "../src/message.h"
 #include "../src/getlog.h"
 
+
+struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
 
 int main(int argc, char **argv) {
 	fprintf(stdout, "KineticPrototype Version: 0.1\n");
