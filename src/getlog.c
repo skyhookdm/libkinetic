@@ -37,8 +37,8 @@
 ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
 void extract_to_command_header(kproto_cmdhdr_t *, kcmdhdr_t *);
 void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
-struct kresult_message create_getlog_message(kmsghdr_t *,
-					     kcmdhdr_t *, kgetlog_t *);
+struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
+kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
 
 static int
 gl_validate_req(kgetlog_t *glog)
@@ -215,17 +215,17 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* PAK: need error handling */
 	rc = ktli_receive(ktd, kio);
 
-	kmresp = unpack_getlog_resp(kio->kio_sendmsg.km_msg[1].kiov_base,
-				    kio->kio_sendmsg.km_msg[1].kiov_len);
+	kmresp = unpack_kinetic_message(kio->kio_sendmsg.km_msg[1].kiov_base,
+									kio->kio_sendmsg.km_msg[1].kiov_len);
 
-	if (kmresp->result_code == FAILURE) {
+	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
 		goto glex2;
 	}
 
-	kstatus = extract_getlog(kmresp, &glog);
-	if (kstatus->ks_code != K_OK) {
+	kstatus_t command_status = extract_getlog(&kmresp, glog);
+	if (command_status->ks_code != K_OK) {
 		rc = -1;
 		goto glex1;
 	}
@@ -365,4 +365,34 @@ struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
+}
+
+kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog_data) {
+	kproto_msg_t *getlog_response_msg = (kproto_msg_t *) response_msg->result_message;
+
+	// commandbytes should exist, but we should probably be thorough
+	if (!getlog_response_msg->has_commandbytes) {
+		return (kstatus_t) {
+			.ks_code    = K_INVALID_SC,
+			.ks_message = "Response message has no command bytes",
+			.ks_detail  = NULL
+		};
+	}
+
+	// unpack the command bytes into a command structure
+	kproto_cmd_t *cmd_response = unpack_kinetic_command(getlog_response_msg->commandbytes);
+
+	// populate getlog_data from command body
+	kproto_getlog_t *getlog_response = cmd_response->body->getlog;
+
+	// TODO: need to walk each utilization
+	//getlog_data->kgl_util = *(getlog_response->utilizations);
+
+	// propagate the response status to the caller
+	kproto_status_t *response_status = cmd_response->status;
+	return (kstatus_t) {
+		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
+		.ks_message = response_status->statusmessage,
+		.ks_detail  = response_status->has_detailedmessage ? response_status->detailedmessage : NULL
+	}
 }
