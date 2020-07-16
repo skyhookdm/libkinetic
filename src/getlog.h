@@ -175,6 +175,7 @@ struct kgetlog {
  * Command-specific operations
  */
 struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
+kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
 
 
 #endif /* _GETLOG_H */
