@@ -160,7 +160,7 @@ struct kresult_message unpack_kinetic_message(void *response_buffer, size_t resp
 	return (struct kresult_message) {
 		.result_code    = unpacked_msg == NULL ? FAILURE : SUCCESS,
 		.result_message = (void *) unpacked_msg
-	}
+	};
 }
 
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes) {

@@ -225,7 +225,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	}
 
 	kstatus_t command_status = extract_getlog(&kmresp, glog);
-	if (command_status->ks_code != K_OK) {
+	if (command_status.ks_code != K_OK) {
 		rc = -1;
 		goto glex1;
 	}
@@ -390,9 +390,15 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 
 	// propagate the response status to the caller
 	kproto_status_t *response_status = cmd_response->status;
+
+	char *status_detail_msg = response_status->has_detailedmessage ?
+		  (char *) response_status->detailedmessage.data
+		: NULL
+	;
+
 	return (kstatus_t) {
 		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
 		.ks_message = response_status->statusmessage,
-		.ks_detail  = response_status->has_detailedmessage ? response_status->detailedmessage : NULL
-	}
+		.ks_detail  = status_detail_msg
+	};
 }
