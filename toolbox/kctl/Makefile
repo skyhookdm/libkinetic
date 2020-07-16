@@ -9,7 +9,7 @@ LDLIBS = -lkinetic
 all: kctl
 
 kctl: $(OBJS) $(KLIBS) 
-	$(C) -o $@ $(OBJS) $(KLIBS) $(LDLIBS)
+	$(CC) -o $@ $(OBJS) $(KLIBS) $(LDLIBS)
 
 clean:
 	rm -rf a.out kctl *.o

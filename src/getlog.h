@@ -5,9 +5,6 @@
 #ifndef _GETLOG_H
 #define _GETLOG_H
 
-
-#include "protocol/kinetic.pb-c.h"
-#include "protocol_types.h"
 #include "kinetic.h"
 
 /**
@@ -169,12 +166,5 @@ struct kgetlog {
 	klimits_t		  kgl_limits;
 	kdevicelog_t	  kgl_log;
 };
-
-
-/**
- * Command-specific operations
- */
-struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
-
 
 #endif /* _GETLOG_H */

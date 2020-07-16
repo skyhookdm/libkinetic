@@ -27,7 +27,18 @@
 
 #include "kio.h"
 #include "ktli.h"
+#include "kinetic.h"
+#include "kinetic_int.h"
 #include "getlog.h"
+
+/**
+ * Internal prototypes
+ */
+ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
+void extract_to_command_header(kproto_cmdhdr_t *, kcmdhdr_t *);
+void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
+struct kresult_message create_getlog_message(kmsghdr_t *,
+					     kcmdhdr_t *, kgetlog_t *);
 
 static int
 gl_validate_req(kgetlog_t *glog)
@@ -112,7 +123,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kpdu_t pdu = KP_INIT;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
-	struct kresult_message kmreq, *kmresp;
+	struct kresult_message kmreq, kmresp;
 
 	/* Validate the passed in glog */
 	rc = gl_validate_req(glog);
@@ -188,23 +199,24 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		&(kio->kio_sendmsg.km_msg[1].kiov_len)
 	);
 
+	
 	/* Setup the PDU */
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu.kp_vallen = 0;
 
 	/* Send the request */
-	ktli_send(ktd, &kio);
-	printf ("Sent Kio: %p\n", &kio);
+	ktli_send(ktd, kio);
+	printf ("Sent Kio: %p\n", kio);
 
 	/* Wait for the response */
 	ktli_poll(ktd, 0);
 
 	/* Receive the response */
 	/* PAK: need error handling */
-	rc = ktli_receive(ktd, &kio);
+	rc = ktli_receive(ktd, kio);
 
 	kmresp = unpack_getlog_resp(kio->kio_sendmsg.km_msg[1].kiov_base,
-								kio->kio_sendmsg.km_msg[1].kiov_len);
+				    kio->kio_sendmsg.km_msg[1].kiov_len);
 
 	if (kmresp->result_code == FAILURE) {
 		/* cleanup and return error */
@@ -228,9 +240,9 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	/* clean up */
  glex1:
-	destroy_command(kmresp);
+	destroy_message(kmresp);
  glex2:
-	destroy_command(kmreq);
+	destroy_message(kmreq);
 	destroy_request(kio->kio_sendmsg.km_msg[1].kiov_base);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
@@ -248,9 +260,6 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		.ks_detail  = "",
 	};
 }
-
-struct kresult_message create_getlog_request(struct kbuffer  getlog_types_buffer,
-                                             struct kbuffer *device_name) {
 
 /*
  * Helper functions

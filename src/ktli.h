@@ -9,10 +9,10 @@
  * NIC Card TCP offload, or io_uring. This transport layer interface allows 
  * the client to select which one they want to use. So the KTLI module is
  * split vertically into 2 halves. 
- *			  +-------------------------------------+
- *			  |			  KTLI upper half			|
- *			  +--------+--------+--------+----------+
- *		  | Socket | DPDK	| uring  | NIC Card |
+ *		  +-------------------------------------+
+ *		  |		  KTLI upper half	|
+ *		  +--------+--------+--------+----------+
+ *		  | Socket | DPDK   | uring  | NIC Card |
  *		  | Driver | Driver | Driver | Driver	|
  *		  +--------+--------+--------+----------+
  *
@@ -32,17 +32,17 @@
  * that session, then sends, polls on that connected session, receiving 
  * once responses have come in. Eventually the caller will disconnect
  * drain and close the session. 
- *								  +-------+								+---+
- *							 +--->| send  |<---+						|	|
- *							 |	  +-------+    |						|	V
- * +------+    +---------+	 |	  +-------+    |	+------------+	  +-------+
+ *	 			  +-------+				+---+
+ *			     +--->| send  |<---+			|   |
+ *			     |	  +-------+    |			|   V
+ * +------+    +---------+   |	  +-------+    |    +------------+    +-------+
  * | open |--->| connect |---|--->| poll  |<---|--->| disconnect |--->| drain |
- * +------+    +---------+	 |	  +-------+    |	+------------+	  +-------+
- *							 |	  +-------+    |						  |
- *							 +--->| recv  |<---+						  V
- *				  +-------+							  +-------+
- *														  | close |
- *											  +-------+
+ * +------+    +---------+   |	  +-------+    |    +------------+    +-------+
+ *			     |	  +-------+    |			  |
+ *			     +--->| recv  |<---+			  V
+ *				  +-------+			      +-------+
+ *								      | close |
+ *								      +-------+
  *
  * The backend APIs are supported by creating KTLI backend drivers. The backend 
  * ktli driver is specified when opening a session and you receive a kinetic 
@@ -89,9 +89,10 @@
 /* 
  * KTLI uses GCC builtin CAS for lockless atomic updates
  * bool __sync_bool_compare_and_swap (type *ptr, type oldval type newval, ...)
- *	 if the current value of *ptr is oldval, then write newval into *ptr. 
+ *
+ * atomic: if the curr value of *ptr == oldval, then write newval into *ptr. 
  * But does it have to be so long of a function name? Make it smaller
-*/
+ */
 #define SBCAS __sync_bool_compare_and_swap
 
 struct ktli_driver;
@@ -110,7 +111,7 @@ struct ktli_driver_fns {
 };
 
 enum ktli_driver_id {
-	KTLI_DRIVER_NONE   = 0,
+	KTLI_DRIVER_NONE       = 0,
 	KTLI_DRIVER_SOCKET	  ,
 	KTLI_DRIVER_DPDK	  ,
 	KTLI_DRIVER_URING	  ,
@@ -119,30 +120,30 @@ enum ktli_driver_id {
 };
 
 struct ktli_queue {
-	LIST			*ktq_list;	/* the queue itself */
+	LIST		*ktq_list;	/* the queue itself */
 	pthread_mutex_t  ktq_m;		/* mutex protecting the queue */
 	pthread_cond_t	 ktq_cv;	/* condition variable for waiting */
-	int				 ktq_exit;	/* queue exit flag */
+	int		 ktq_exit;	/* queue exit flag */
 };
 
 /* 
  * ktli session state machine				   
- *											   +---+
- *											   |   | send, receive, poll
- *											   |   v
- * +---------+	open>  +--------+  connect	+-----------+
+ *						+---+
+ *			   			|   | send, receive, poll
+ *						|   v
+ * +---------+	open>  +--------+  connect  +-----------+
  * | unknown |<------->| opened |---------->| connected |--+
- * +---------+ <close  +--------+			+-----------+  |
- *						 ^		  disconnect	  |		   | server hangup
- *						 |	 +--------------------+		   |  or
- *		   drain,receive |	 |							   | error
- *						 |	 v							   |
- *				   +----------+  disconnect  +---------+  |
- *				   | draining |<-------------| aborted |<-+ 
- *				   +----------+				 +---------+ 
- *					  ^   |
- *					  |   | drain/receive
- *					  +---+
+ * +---------+ <close  +--------+	    +-----------+  |
+ * 			 ^	  disconnect	 |	   | server hangup
+ *			 |  +--------------------+	   |  or
+ *	   drain,receive |  |				   | error
+ *			 |  v			  	   |
+ *		   +----------+   disconnect +---------+   |
+ *		   | draining |<-------------| aborted |<--+ 
+ *		   +----------+		     +---------+ 
+ *		       ^   |
+ *		       |   | drain/receive
+ *		       +---+
  */
 enum ktli_sstate {
 	KTLI_SSTATE_UNKNOWN   = 0, 
