@@ -354,3 +354,33 @@ struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
 }
+
+kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog_data) {
+	kproto_msg_t *getlog_response_msg = (kproto_msg_t *) response_msg->result_message;
+
+	// commandbytes should exist, but we should probably be thorough
+	if (!getlog_response_msg->has_commandbytes) {
+		return (kstatus_t) {
+			.ks_code    = K_INVALID_SC,
+			.ks_message = "Response message has no command bytes",
+			.ks_detail  = NULL
+		};
+	}
+
+	// unpack the command bytes into a command structure
+	kproto_cmd_t *cmd_response = unpack_kinetic_command(getlog_response_msg->commandbytes);
+
+	// populate getlog_data from command body
+	kproto_getlog_t *getlog_response = cmd_response->body->getlog;
+
+	// TODO: need to walk each utilization
+	//getlog_data->kgl_util = *(getlog_response->utilizations);
+
+	// propagate the response status to the caller
+	kproto_status_t *response_status = cmd_response->status;
+	return (kstatus_t) {
+		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
+		.ks_message = response_status->statusmessage,
+		.ks_detail  = response_status->has_detailedmessage ? response_status->detailedmessage : NULL
+	}
+}
