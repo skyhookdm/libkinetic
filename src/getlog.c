@@ -240,10 +240,10 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	/* clean up */
  glex1:
-	destroy_message(kmresp);
+	destroy_message(kmresp.result_message);
  glex2:
-	destroy_message(kmreq);
-	destroy_request(kio->kio_sendmsg.km_msg[1].kiov_base);
+	destroy_message(kmreq.result_message);
+	destroy_message(kio->kio_sendmsg.km_msg[1].kiov_base);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[0].kiov_base);
