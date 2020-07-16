@@ -112,7 +112,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kpdu_t pdu = KP_INIT;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
-	struct kresult_message kmreq, *kmresp;
+	struct kresult_message kmreq, kmresp;
 
 	/* Validate the passed in glog */
 	rc = gl_validate_req(glog);
@@ -203,17 +203,17 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* PAK: need error handling */
 	rc = ktli_receive(ktd, &kio);
 
-	kmresp = unpack_getlog_resp(kio->kio_sendmsg.km_msg[1].kiov_base,
-								kio->kio_sendmsg.km_msg[1].kiov_len);
+	kmresp = unpack_kinetic_message(kio->kio_sendmsg.km_msg[1].kiov_base,
+									kio->kio_sendmsg.km_msg[1].kiov_len);
 
-	if (kmresp->result_code == FAILURE) {
+	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
 		goto glex2;
 	}
 
-	kstatus = extract_getlog(kmresp, &glog);
-	if (kstatus->ks_code != K_OK) {
+	kstatus_t command_status = extract_getlog(&kmresp, glog);
+	if (command_status->ks_code != K_OK) {
 		rc = -1;
 		goto glex1;
 	}
@@ -248,9 +248,6 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		.ks_detail  = "",
 	};
 }
-
-struct kresult_message create_getlog_request(struct kbuffer  getlog_types_buffer,
-                                             struct kbuffer *device_name) {
 
 /*
  * Helper functions
