@@ -28,7 +28,7 @@
 #include "kio.h"
 #include "ktli.h"
 #include "kinetic.h"
-#include "kinetic_int.h"
+#include "kinetic_internal.h"
 #include "getlog.h"
 
 /**
