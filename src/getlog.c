@@ -100,7 +100,7 @@ gl_validate_req(kgetlog_t *glog)
 		|| glog->kgl_stat
 		|| glog->kgl_statcnt
 		|| glog->kgl_msgs
-		|| glog->kgl_msgscnt) {
+		|| glog->kgl_msglen) {
 		return(-1);
 	}
 
