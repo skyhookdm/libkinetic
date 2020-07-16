@@ -40,13 +40,10 @@
 /* ------------------------------
  * Aliases for Message types
  */
-/*
-
-typedef Com__Seagate__Kinetic__Proto__Command__Status	kproto_status;
-*/
 typedef Com__Seagate__Kinetic__Proto__Command		  kproto_cmd_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Header kproto_cmdhdr_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Body   kproto_body_t;
+typedef Com__Seagate__Kinetic__Proto__Command__Status kproto_status_t;
 
 
 /* ------------------------------
@@ -140,8 +137,10 @@ enum header_field_type {
  * General protocol API
  */
 
-struct kresult_message create_header(uint8_t header_field_bitmap, ...);
-ProtobufCBinaryData    pack_kinetic_command(kproto_cmd_t *cmd_data);
+struct kresult_message  create_header(uint8_t header_field_bitmap, ...);
+ProtobufCBinaryData     pack_kinetic_command(kproto_cmd_t *cmd_data);
+
+kproto_cmd_t           *unpack_kinetic_command(ProtobufCBinaryData commandbytes);
 
 
 #endif //__KINETIC_TYPES_H
