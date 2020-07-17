@@ -55,67 +55,83 @@ void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
 struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
 kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
 
+/**
+ * gl_validate_req(kgetlog_t *glrq)
+ *
+ *  glrq 	contains the user passed in glog
+ *
+ * Validate that the user is asking for valid information. The type array
+ * in the glrq may only have valid log types and they may not be repeated.
+ *
+ */
 static int
-gl_validate_req(kgetlog_t *glog)
+gl_validate_req(kgetlog_t *glrq)
 {
-	int i, log;
+	int i;
+	int util, temp, cap, conf, stat, mesg, lim, log;
 
-	errno = EINVAL;  /* assume we will find a problem */
+	errno = K_EINVAL;  /* assume we will find a problem */
 
 	/* Check the the requested types */
-	if (!glog->kgl_type || !glog->kgl_typecnt)
+	if (!glrq || !glrq->kgl_type || !glrq->kgl_typecnt)
 		return(-1);
-	log = 0;
-	for (i=0; i<glog->kgl_typecnt; i++) {
-		switch (glog->kgl_type[i]) {
+
+	/*
+	 * PAK: what if LOG and MESSAGES are set? does log use messages
+	 *  for its data?
+	 */
+	/* track how many times a type is in the array */
+	util = temp = cap = conf = stat = mesg = lim = log = 0;
+	for (i=0; i<glrq->kgl_typecnt; i++) {
+		switch (glrq->kgl_type[i]) {
 		case KGLT_UTILIZATIONS:
+			util++; break;
 		case KGLT_TEMPERATURES:
+			temp++; break;
 		case KGLT_CAPACITIES:
+			cap++; break;
 		case KGLT_CONFIGURATION:
+			conf++; break;
 		case KGLT_STATISTICS:
+			stat++; break;
 		case KGLT_MESSAGES:
+			mesg++; break;
 		case KGLT_LIMITS:
-			/* a good type */
-			break;
-
+			lim++; break;
 		case KGLT_LOG:
-			/* a good type - LOG has special error checking */
-			log = 1;
-			break;
-
+			log++; break;
 		default:
 			return(-1);
 		}
 	}
 
+	/* if a type is repeated, fail */
+	if (util>1 || temp>1 || cap>1 || conf>1 ||
+	    stat>1 || mesg>1 || lim>1 || log>1) {
+			return(-1);
+	}
+
 	/* If log expect a logname, if not then there shouldn't be a name */
 	if (log) {
-		if (glog->kgl_log.kdl_name) {
-			// TODO: recommend using an actual length, because it needs to be passed anyways.
-			// (see glog->kgl_log.len in getlog.h)
-			int n = strlen(glog->kgl_log.kdl_name);
-			if (!n || n > 1024) {
-				errno = ERANGE;
+		if (glrq->kgl_log.kdl_name)
+			if (!glrq->kgl_log.kdl_len ||
+			    (glrq->kgl_log.kdl_len > 1024) {
 				return(-1);
 			}
 		} else {
 			/* Log requested but no name fail with default err */
 			return(-1);
 		}
-	} else if (glog->kgl_log.kdl_name) {
+	} else if (glrq->kgl_log.kdl_name) {
 		/* Shouldn't have a name without a LOG type */
 		return (-1);
-	}
+	} /* no log and no logname, thats good */
 
 	/* make sure all other ptrs and cnts are NULL and 0 */
-	if (   glog->kgl_util
-		|| glog->kgl_utilcnt
-		|| glog->kgl_temp
-		|| glog->kgl_tempcnt
-		|| glog->kgl_stat
-		|| glog->kgl_statcnt
-		|| glog->kgl_msgs
-		|| glog->kgl_msglen) {
+	if (glrq->kgl_util	|| glrq->kgl_utilcnt	||
+	    glrq->kgl_temp	|| glrq->kgl_tempcnt	||
+	    glrq->kgl_stat	|| glrq->kgl_statcnt	||
+	    glrq->kgl_msgs	|| glrq->kgl_msgscnt) {
 		return(-1);
 	}
 
@@ -123,10 +139,144 @@ gl_validate_req(kgetlog_t *glog)
 	return(0);
 }
 
+/**
+ * gl_validate_resp(kgetlog_t *glrq, *glrsp)
+ *
+ *  glrq 	contains the original user passed in glog
+ *  glrsp	contains the server returned glog
+ *
+ * Validate that the server answered the request and the glog structure is
+ * correct.
+ */
 static int
-gl_validate_resp(kgetlog_t *glog)
+gl_validate_resp(kgetlog_t *glrq, *glrsp)
 {
+	int i, j;
+	int util, temp, cap, conf, stat, mesg, lim, log;
 
+	errno = K_EINVAL;  /* assume we will find a problem */
+
+	/*
+	 * Check the reqs and resp type exist types and
+	 * that cnts should be the same
+	 */
+	if (!glrq || glrsp  ||
+	    !glrq->kgl_type || !glrsp->kgl_type ||
+	    (glrq->kgl_typecnt != glrq->kgl_typecnt)) {
+		return(-1);
+	}
+
+	/*
+	 * build up vars that represent requested types, this will
+	 * allow correct accounting by decrementing them as we find
+	 * them in the responses below. The req was hopefully already
+	 * validated before receiving a response this validation garantees
+	 * unique requested types.
+	 */
+	util = temp = cap = conf = stat = mesg = lim = log = 0;
+	for (i=0; i<glrq->kgl_typecnt; i++) {
+		switch (glrq->kgl_type[i]) {
+		case KGLT_UTILIZATIONS:
+			util++; break;
+		case KGLT_TEMPERATURES:
+			temp++; break;
+		case KGLT_CAPACITIES:
+			cap++; break;
+		case KGLT_CONFIGURATION:
+			conf++; break;
+		case KGLT_STATISTICS:
+			stat++; break;
+		case KGLT_MESSAGES:
+			mesg++; break;
+		case KGLT_LIMITS:
+			lim++; break;
+		case KGLT_LOG:
+			log++; break;
+		default:
+			return(-1);
+		}
+	}
+
+	for (i=0; i<glrsp->kgl_typecnt; i++) {
+		/* match this response type to a req type */
+		for (j=0; j<glrq->kgl_typecnt; j++) {
+			if (glrsp->kgl_type[i] == glrq->kgl_type[i]) {
+				break;
+			}
+		}
+
+		/*
+		 * if the 'for' above is exhausted then no match,
+		 * the resp has an answer that was not requested
+		 */
+		if (j == glrq->kgl_typecnt) {
+			return(-1);
+		}
+
+		/* got a match */
+		switch (glrsp->kgl_type[i]) {
+		case KGLT_UTILIZATIONS:
+			util--;  /* dec to account for the req */
+
+			/* if an util array is provided */
+			if (!glrsp->kgl_util || !glrsp->kgl_utilcnt)
+				return(-1);
+			break;
+		case KGLT_TEMPERATURES:
+			temp--;  /* dec to account for the req */
+
+			/* if an temp array is provided */
+			if (!glrsp->kgl_temp || !glrsp->kgl_tempcnt)
+				return(-1);
+			break;
+		case KGLT_CAPACITIES:
+			cap++;  /* dec to account for the req */
+
+			/* cap built into get log, no way to validate */
+			break;
+		case KGLT_CONFIGURATION:
+			conf--;  /* dec to account for the req */
+
+			/* conf built into get log, no way to validate */
+			break;
+		case KGLT_STATISTICS:
+			stat--;  /* dec to account for the req */
+
+			/* if an stat array is provided */
+			if (!glrsp->kgl_stat || !glrsp->kgl_statcnt)
+				return(-1);
+			break;
+		case KGLT_MESSAGES:
+			mesg--;  /* dec to account for the req */
+
+			/* if an msgs buf is provided */
+			if (!glrsp->kgl_msgs || !glrsp->kgl_msgscnt)
+				return(-1);
+			break;
+		case KGLT_LIMITS:
+			lim--;  /* dec to account for the req */
+
+			/* limits built into get log, no way to validate */
+			break;
+		case KGLT_LOG:
+			log--;  /* dec to account for the req */
+			/* if an msgs buf is provided */
+			if (!glrsp->kgl_msgs || !glrsp->kgl_msgscnt)
+				return(-1);
+			break;
+		default:
+			/* Bad type */
+			return(-1);
+		}
+	}
+
+	/* if every req type was found in the resp all these should be 0 */
+	if (util || temp || cap || conf || stat || mesg || lim || log) {
+			return(-1);
+	}
+
+	errno = 0;
+	return(0);
 }
 
 kstatus_t
@@ -138,6 +288,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kpdu_t pdu = KP_INIT;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
+	kgetlog_t *glog2;
 	struct kresult_message kmreq, kmresp;
 
 	/* Validate the passed in glog */
@@ -239,13 +390,13 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex2;
 	}
 
-	kstatus_t command_status = extract_getlog(&kmresp, glog);
+	kstatus_t command_status = extract_getlog(&kmresp, glog2);
 	if (command_status.ks_code != K_OK) {
 		rc = -1;
 		goto glex1;
 	}
 
-	rc = gl_validate_resp(glog);
+	rc = gl_validate_resp(glog, glog2);
 
 	if (rc < 0) {
 		/* errno set by validate */
@@ -253,6 +404,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex1;
 	}
 
+	/* PAK: need to copy glog2 into glog and freee up glog2 */
+	
 	/* clean up */
  glex1:
 	destroy_message(kmresp.result_message);
