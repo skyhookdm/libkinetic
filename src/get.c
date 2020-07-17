@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2015 Seagate Technology LLC.
+ * Copyright 2013-2020 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -29,263 +29,130 @@
 #include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_int.h"
-#include "getlog.h"
 
 /**
  * Internal prototypes
  */
-ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
+ProtobufCBinaryData pack_cmd_get(kproto_cmdhdr_t *, kproto_getlog_t *);
 void extract_to_command_header(kproto_cmdhdr_t *, kcmdhdr_t *);
 void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
-struct kresult_message create_getlog_message(kmsghdr_t *,
+struct kresult_message create_get_message(kmsghdr_t *,
 					     kcmdhdr_t *, kgetlog_t *);
 
 /**
- * gl_validate_req(kgetlog_t *glrq)
+ * g_validate_kv(kv_t *kv, limit_t *lim)
  *
- *  glrq 	contains the user passed in glog
+ *  kv		Always contains a key, but optionally may have a value
+ *		However there must always value kiovec array of at least 
+ * 		element and should always be initialized. if unused,
+ *		as in a get, kv_val[0].kiov_base=NULL and kv_val[0].kiov_len=0
+ *  lim 	Contains server limits	
  *
- * Validate that the user is asking for valid information. The type array
- * in the glrq may only have valid log types and they may not be repeated.
+ * Validate that the user is passing a valid kv structure
  *
  */
 static int
-gl_validate_req(kgetlog_t *glrq)
+g_validate_kv(kv_t *kv, limit_t *lim)
 {
 	int i;
+	size_t len;
 	int util, temp, cap, conf, stat, mesg, lim, log;
 
 	errno = K_EINVAL;  /* assume we will find a problem */
 
-	/* Check the the requested types */
-	if (!glrq || !glrq->kgl_type || !glrq->kgl_typecnt)
+	
+	/* Check the required key */
+	if (!kv || !kv->kv_key || kv->kv_keycnt < 1) 
 		return(-1);
 
-	/*
-	 * PAK: what if LOG and MESSAGES are set? does log use messages
-	 *  for its data?
-	 */
-	/* track how many times a type is in the array */
-	util = temp = cap = conf = stat = mesg = lim = log = 0;
-	for (i=0; i<glrq->kgl_typecnt; i++) {
-		switch (glrq->kgl_type[i]) {
-		case KGLT_UTILIZATIONS:
-			util++; break;
-		case KGLT_TEMPERATURES:
-			temp++; break;
-		case KGLT_CAPACITIES:
-			cap++; break;
-		case KGLT_CONFIGURATION:
-			conf++; break;
-		case KGLT_STATISTICS:
-			stat++; break;
-		case KGLT_MESSAGES:
-			mesg++; break;
-		case KGLT_LIMITS:
-			lim++; break;
-		case KGLT_LOG:
-			log++; break;
-		default:
-			return(-1);
-		}
-	}
+	/* Total up the length across all vectors */
+	for (len=0, i=0; i<kv->kv_keycnt; i++)
+		len += kv->kv_key[i].kiov_len;
 
-	/* if a type is repeated, fail */
-	if (util>1 || temp>1 || cap>1 || conf>1 ||
-	    stat>1 || mesg>1 || lim>1 || log>1) {
-			return(-1);
-	}
-
-	/* If log expect a logname, if not then there shouldn't be a name */
-	if (log) {
-		if (glrq->kgl_log.kdl_name)
-			if (!glrq->kgl_log.kdl_len ||
-			    (glrq->kgl_log.kdl_len > 1024) {
-				return(-1);
-			}
-		} else {
-			/* Log requested but no name fail with default err */
-			return(-1);
-		}
-	} else if (glrq->kgl_log.kdl_name) {
-		/* Shouldn't have a name without a LOG type */
-		return (-1);
-	} /* no log and no logname, thats good */
-
-	/* make sure all other ptrs and cnts are NULL and 0 */
-	if (glrq->kgl_util	|| glrq->kgl_utilcnt	||
-	    glrq->kgl_temp	|| glrq->kgl_tempcnt	||
-	    glrq->kgl_stat	|| glrq->kgl_statcnt	||
-	    glrq->kgl_msgs	|| glrq->kgl_msgscnt) {
+	if (len > lim->kl_keylen)
 		return(-1);
-	}
 
+	/* Check the value vectors */	
+	if (!kv->kv_val || kv->kv_valcnt < 1) 
+		return(-1);
+
+	/* Total up the length across all vectors */
+	for (len=0, i=0; i<kv->kv_valcnt; i++)
+		len += kv->kv_val[i].kiov_len;
+
+	if (len > lim->kl_vallen)
+		return(-1);
+	
+	/* Check the version */
+	if (kv->kv_vers &&
+	    ((kv->kv_verslen < 1) || (kv->kv_verslen > lim->kl_verlen)))
+		return(-1);
+
+	/* Check the tag */
+	if (kv->kv_tag &&
+	    ((kv->kv_taglen < 1) || (kv->kv_taglen > lim->kl_taglen)))
+		return(-1);
+
+	/* Check the Data integrity Type */
+	switch (kv->kvditype) {
+	case 0: /* zero is unused by the protocol but is valid for gets */
+	case KDI_SHA1:
+	case KDI_SHA2:
+	case KDI_SHA3:
+	case KDI_CRC32C:
+	case KDI_CRC64:
+	case KDI_CRC32:
+		break;
+	default:
+		return(-1);
+		
 	errno = 0;
 	return(0);
 }
 
 /**
- * gl_validate_resp(kgetlog_t *glrq, *glrsp)
+ * ki_get(int ktd, kv_t *kv)
  *
- *  glrq 	contains the original user passed in glog
- *  glrsp	contains the server returned glog
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_tag and kv_taglen are optional. 
+ *		kv_ditype is returned by the server, but it should 
+ * 		have either a 0 or a valid ditype in it to start with
  *
- * Validate that the server answered the request and the glog structure is
- * correct.
+ * Get the value specified by the given key, tag, and version. 
+ *
  */
-static int
-gl_validate_resp(kgetlog_t *glrq, *glrsp)
-{
-	int i, j;
-	int util, temp, cap, conf, stat, mesg, lim, log;
-
-	errno = K_EINVAL;  /* assume we will find a problem */
-
-	/*
-	 * Check the reqs and resp type exist types and
-	 * that cnts should be the same
-	 */
-	if (!glrq || glrsp  ||
-	    !glrq->kgl_type || !glrsp->kgl_type ||
-	    (glrq->kgl_typecnt != glrq->kgl_typecnt)) {
-		return(-1);
-	}
-
-	/*
-	 * build up vars that represent requested types, this will
-	 * allow correct accounting by decrementing them as we find
-	 * them in the responses below. The req was hopefully already
-	 * validated before receiving a response this validation garantees
-	 * unique requested types.
-	 */
-	util = temp = cap = conf = stat = mesg = lim = log = 0;
-	for (i=0; i<glrq->kgl_typecnt; i++) {
-		switch (glrq->kgl_type[i]) {
-		case KGLT_UTILIZATIONS:
-			util++; break;
-		case KGLT_TEMPERATURES:
-			temp++; break;
-		case KGLT_CAPACITIES:
-			cap++; break;
-		case KGLT_CONFIGURATION:
-			conf++; break;
-		case KGLT_STATISTICS:
-			stat++; break;
-		case KGLT_MESSAGES:
-			mesg++; break;
-		case KGLT_LIMITS:
-			lim++; break;
-		case KGLT_LOG:
-			log++; break;
-		default:
-			return(-1);
-		}
-	}
-
-	for (i=0; i<glrsp->kgl_typecnt; i++) {
-		/* match this response type to a req type */
-		for (j=0; j<glrq->kgl_typecnt; j++) {
-			if (glrsp->kgl_type[i] == glrq->kgl_type[i]) {
-				break;
-			}
-		}
-
-		/*
-		 * if the 'for' above is exhausted then no match,
-		 * the resp has an answer that was not requested
-		 */
-		if (j == glrq->kgl_typecnt) {
-			return(-1);
-		}
-
-		/* got a match */
-		switch (glrsp->kgl_type[i]) {
-		case KGLT_UTILIZATIONS:
-			util--;  /* dec to account for the req */
-
-			/* if an util array is provided */
-			if (!glrsp->kgl_util || !glrsp->kgl_utilcnt)
-				return(-1);
-			break;
-		case KGLT_TEMPERATURES:
-			temp--;  /* dec to account for the req */
-
-			/* if an temp array is provided */
-			if (!glrsp->kgl_temp || !glrsp->kgl_tempcnt)
-				return(-1);
-			break;
-		case KGLT_CAPACITIES:
-			cap++;  /* dec to account for the req */
-
-			/* cap built into get log, no way to validate */
-			break;
-		case KGLT_CONFIGURATION:
-			conf--;  /* dec to account for the req */
-
-			/* conf built into get log, no way to validate */
-			break;
-		case KGLT_STATISTICS:
-			stat--;  /* dec to account for the req */
-
-			/* if an stat array is provided */
-			if (!glrsp->kgl_stat || !glrsp->kgl_statcnt)
-				return(-1);
-			break;
-		case KGLT_MESSAGES:
-			mesg--;  /* dec to account for the req */
-
-			/* if an msgs buf is provided */
-			if (!glrsp->kgl_msgs || !glrsp->kgl_msgscnt)
-				return(-1);
-			break;
-		case KGLT_LIMITS:
-			lim--;  /* dec to account for the req */
-
-			/* limits built into get log, no way to validate */
-			break;
-		case KGLT_LOG:
-			log--;  /* dec to account for the req */
-			/* if an msgs buf is provided */
-			if (!glrsp->kgl_msgs || !glrsp->kgl_msgscnt)
-				return(-1);
-			break;
-		default:
-			/* Bad type */
-			return(-1);
-		}
-	}
-
-	/* if every req type was found in the resp all these should be 0 */
-	if (util || temp || cap || conf || stat || mesg || lim || log) {
-			return(-1);
-	}
-
-	errno = 0;
-	return(0);
-}
-
 kstatus_t
-ki_getlog(int ktd, kgetlog_t *glog)
+ki_get(int ktd, kv_t *kv)
 {
 	int rc, n;
 	kstatus_t krc;
 	struct kio *kio;
+	struct ktli_config *cf;
 	kpdu_t pdu = KP_INIT;
+	kpdu_t *rpdu;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
-	kgetlog_t *glog2;
+	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
 
-	/* Validate the passed in glog */
-	rc = gl_validate_req(glog);
+	rc = ktli_conf(ktd, *cf);
 	if (rc < 0) {
-		/* errno set by validate */
-
-		// TODO: set ks_detail
-		// .ks_detail  = sprintf("gl_validate_req returned error: %d\n", rc
 		return (kstatus_t) {
-			.ks_code    = K_INVALID_SC,
-			.ks_message = "Invalid request",
+			.ks_code    = K_REJECTED,
+			.ks_message = "Bad session",
+			.ks_detail  = "",
+		};		
+	}
+	ses = ( ksession_t)cf->kcfg_pconf;
+	
+	/* Validate the passed in kv */
+	rc = gl_validate_kv(kv, &ses->ks_l);
+	if (rc < 0) {
+		return (kstatus_t) {
+			.ks_code    = errno,
+			.ks_message = "Invalid KV",
 			.ks_detail  = "",
 		};
 	}
@@ -293,53 +160,46 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		errno = ENOMEM;
-
-		// TODO: set ks_detail
 		return (kstatus_t) {
-			.ks_code    = K_INVALID_SC,
+			.ks_code    = K_EINTERNAL;
 			.ks_message = "Unable to allocate memory for request",
 			.ks_detail  = "",
 		};
 	}
 	memset(kio, 0, sizeof(struct kio));
 
-	/* Alocate the kio vectors */
-	kio->kio_sendmsg.km_cnt = 2; /* PDU and protobuf */
+	/* 
+	 * Allocate kio vectors array of size 2
+	 * One vector for the PDU and another for the full request message
+	 */
+	kio->kio_sendmsg.km_cnt = 2; 
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
-		errno = ENOMEM;
-
-		// TODO: set ks_detail
 		return (kstatus_t) {
-			.ks_code    = K_INVALID_SC,
-			.ks_message = "Error sending request",
+			.ks_code    = K_EINTERNAL;
+			.ks_message = "Unable to allocate memory for request",
 			.ks_detail  = "",
 		};
 	}
 
 	/* Hang the PDU buffer */
-	kio->kio_cmd = KMT_GETLOG;
+	kio->kio_cmd = KMT_GET;
 	kio->kio_sendmsg.km_msg[0].kiov_base = (void *) &pdu;
 	kio->kio_sendmsg.km_msg[0].kiov_len = KP_LENGTH;
 
 	/* pack the message */
-	/* PAK: fill out kmsghdr and kcmdhdr */
-	/* PAK: Need to save conn config on session, for use here */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
-	msg_hdr.kmh_id    = 1;
-	msg_hdr.kmh_hmac  = "abcdefgh";
+	msg_hdr.kmh_id    = cf->kcfg_id;
+	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
 
-	memset((void *) &cmd_hdr, 0, sizeof(cmd_hdr));
-	cmd_hdr.kch_clustvers = 0;
-	cmd_hdr.kch_connid    = 0;
-	cmd_hdr.kch_type      = KMT_GETLOG;
+	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
+	cmd_hdr.kch_type      = KMT_GET;
 
-	kmreq = create_getlog_message(&msg_hdr, &cmd_hdr, glog);
+	kmreq = create_get_message(&msg_hdr, &cmd_hdr, kv);
 	if (kmreq.result_code == FAILURE) {
-		goto glex2;
+		goto gex2;
 	}
 
 	/* PAK: Error handling */
@@ -350,8 +210,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		&(kio->kio_sendmsg.km_msg[1].kiov_len)
 	);
 
-	
-	/* Setup the PDU */
+	/* Now that we have the msgSetup the PDU */
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu.kp_vallen = 0;
 
@@ -366,22 +225,39 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* PAK: need error handling */
 	rc = ktli_receive(ktd, kio);
 
-	kmresp = unpack_getlog_resp(kio->kio_sendmsg.km_msg[1].kiov_base,
-				    kio->kio_sendmsg.km_msg[1].kiov_len);
+	/* extract the return PDU */
+	if (kio->kio_recvmsg.km_msg[0].kiov_len != sizeof(pdu_t)) {
+		/* PAK: error handling -need to clean up Yikes! */
+	}
+	rpdu = kio->kio_recvmsg.km_msg[0].kiov_base;
+
+	/* Does the PDU match what was given in the recvmsg */
+	if (rpdu->kp_msglen + rpdu->kp_vallen !=
+	    kio->kio_recvmsg.km_msg[1].kiov_len ) {
+		/* PAK: error handling -need to clean up Yikes! */
+	}
+
+	/* Grab the value */
+	kv->kv_val = kio->kio_recvmsg.km_msg[1].kiov_base + rpdu->kp_msglen;
+	kv->kv_val = rpdu->kp_vallen;
+
+	/* Now unpack the message */ 
+	kmresp = unpack_get_resp(kio->kio_recvmsg.km_msg[1].kiov_base,
+				    kio->kio_recvmsg.km_msg[1].kiov_len);
 
 	if (kmresp->result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
-		goto glex2;
+		goto gex2;
 	}
 
-	kstatus = extract_getlog(kmresp, &glog2);
+	kstatus = extract_get(kmresp, kv);
 	if (kstatus->ks_code != K_OK) {
 		rc = -1;
-		goto glex1;
+		goto gex1;
 	}
 
-	rc = gl_validate_resp(glog, glog2);
+	rc = gl_validate_resp(glog);
 
 	if (rc < 0) {
 		/* errno set by validate */
@@ -389,12 +265,10 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex1;
 	}
 
-	/* PAK: need to copy glog2 into glog and freee up glog2 */
-	
 	/* clean up */
- glex1:
+ gex1:
 	destroy_message(kmresp);
- glex2:
+ gex2:
 	destroy_message(kmreq);
 	destroy_request(kio->kio_sendmsg.km_msg[1].kiov_base);
 
@@ -412,6 +286,26 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		.ks_message = "Error sending getlog request: glex2",
 		.ks_detail  = "",
 	};
+}
+kstatus_t
+ki_getnext(int ktd, kv_t *key, kv_t *next)
+{
+
+
+}
+
+kstatus_t
+ki_getprev(int ktd, kv_t *key, kv_t *prev)
+{
+
+}
+
+kstatus_t
+ki_getversion(int ktd, kv_t *key)
+{
+
+
+
 }
 
 /*

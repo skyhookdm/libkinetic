@@ -62,6 +62,17 @@ enum {
 	K_ESHUTDOWN	= CSSC(SHUTDOWN),
 };
 
+typedef struct kv {
+	struct kiovec	*kv_key;
+	size_t		*kv_keycnt;
+	struct kiovec	*kv_val;
+	size_t		*kv_valcnt;
+	void		*kv_vers;
+	size_t		kv_verslen;
+	void		*kv_tag;
+	size_t		kv_taglen;
+	kditype_t	kv_ditype;
+} kv_t;
 
 /* ------------------------------
  * Types for interfacing with API
@@ -103,8 +114,13 @@ int ki_close(int ktd);
 
 kstatus_t ki_setclustervers(int ktd, int64_t vers);
 
-kstatus_t ki_get(int ktd, char *key, void **value,
-		 char **vers, char **tag, kditype_t **di);
+kstatus_t ki_put(int ktd, kv_t *key, kcachepolicy_t policy);
+kstatus_t ki_cas(int ktd, kv_t *key, kcachepolicy_t policy);
+
+kstatus_t ki_get(int ktd, kv_t *key);
+kstatus_t ki_getnext(int ktd, kv_t *key, kv_t *next);
+kstatus_t ki_getprev(int ktd, kv_t *key, kv_t *prev);
+kstatus_t ki_getversion(int ktd, kv_t *key);
 
 kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
