@@ -10,8 +10,6 @@
 #include <pthread.h>
 #include <sys/types.h>
 
-#include "list.h"
-
 #include "ktli.h"
 #include "ktli_session.h"
 
@@ -864,7 +862,7 @@ ktli_drain_match(int kts, struct kio *kio)
  *
 */
 int
-ktli_config(int kts, struct ktli_config *cf)
+ktli_config(int kts, struct ktli_config **cf)
 {
 	if (!kts_isvalid(kts)) {
 		errno = EBADF;

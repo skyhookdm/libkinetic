@@ -139,7 +139,7 @@ typedef struct klimits {
 //NOTE: should this have a length? see getlog.c:31
 typedef struct kdevicelog {
 	char   *kdl_name;
-	size_t	len;
+	size_t	kdl_len;
 } kdevicelog_t;
 
 
@@ -160,7 +160,7 @@ struct kgetlog {
 	uint32_t		  kgl_statcnt;
 
 	char			 *kgl_msgs;
-	size_t			  kgl_msglen;
+	size_t			  kgl_msgslen;
 
 	klimits_t		  kgl_limits;
 	kdevicelog_t	  kgl_log;
