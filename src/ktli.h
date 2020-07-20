@@ -199,7 +199,7 @@ struct ktli_helpers {
 	void	(*kh_setseq_fn)(struct kiovec *msg, int msgcnt, int64_t seq);
 
 	/* Returns total length of a message given a header in one kiovec */
-	int32_t (*kh_msglen_fn)(struct kiovec *msg_hdr);
+	uint32_t (*kh_msglen_fn)(struct kiovec *msg_hdr);
 };
 
 /* Exposed API */
