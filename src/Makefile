@@ -9,22 +9,29 @@ OBJS =		ktli.o ktli_socket.o ktli_session.o	\
 		getlog.o open.o protocol_interface.o	\
 		$(PROTOBUF)
 
-INC_PUB=	kinetic.h getlog.h protocol_types.h	\
-		protocol/kinetic.pb-c.h
+INC_KPUB =	kinetic.h getlog.h protocol_types.h
 
-INC_PRIV=	kio.h ktli.h ktli_session.h kinetic.h	\
+INC_PPUB =	protocol/kinetic.pb-c.h
+
+INC_PRIV =	kio.h ktli.h ktli_session.h kinetic.h	\
 		kinetic_internal.h message.h session.h
 
 CFLAGS =	-g -I$(BUILDDIR)/include -I.
 LDFLAGS =	-L$(BUILDDIR)/lib
 LDLIBS =	-llist -lprotobuf-c 
 
+MKDIR =		/bin/mkdir
+INSTALL = 	/usr/bin/install
+
 all:	$(KINETIC)
 
 install: all
-	/bin/mkdir -p $(BUILDDIR)/include/kinetic $(BUILDDIR)/lib
-	/usr/bin/install -c -m 644 $(INC_PUB) $(BUILDDIR)/include/kinetic
-	/usr/bin/install -c -m 755 $(KINETIC) $(BUILDDIR)/lib
+	$(MKDIR) -p $(BUILDDIR)/include/kinetic
+	$(MKDIR) -p $(BUILDDIR)/include/kinetic/protocol
+	$(MKDIR) -p $(BUILDDIR)/lib
+	$(INSTALL) -D -m 644 $(INC_KPUB) $(BUILDDIR)/include/kinetic
+	$(INSTALL) -D -m 644 $(INC_PPUB) $(BUILDDIR)/include/kinetic/protocol
+	$(INSTALL) -D -m 755 $(KINETIC)  $(BUILDDIR)/lib
 
 $(KINETIC):	$(OBJS)
 	ld -r -o $(KOBJ) $(OBJS) $(LDFLAGS) $(LDLIBS)
@@ -34,7 +41,7 @@ clean:
 	rm -rf $(KINETIC) a.out *.o
 
 
-$(OBJS): $(INC_PUB) $(INC_PRIV)
+$(OBJS): $(INC_KPUB) $(INC_PPUB) $(INC_PRIV)
 
 $(PROTOBUF): $(PROTODIR)/$(PROTOBUF_C)
 	$(CC) $(CFLAGS)   -c -o $@ $<
