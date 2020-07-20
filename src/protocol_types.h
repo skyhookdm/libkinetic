@@ -38,6 +38,13 @@
 
 
 /* ------------------------------
+ * Forward declarations
+ */
+
+struct kiovec;
+
+
+/* ------------------------------
  * Aliases for Message types
  */
 typedef Com__Seagate__Kinetic__Proto__Command		  kproto_cmd_t;
@@ -136,6 +143,11 @@ enum header_field_type {
 /* ------------------------------
  * General protocol API
  */
+
+// helpers for directly accessing fields
+int64_t ki_getaseq(struct kiovec *msg, int msgcnt);
+void    ki_setseq(struct kiovec *msg, int msgcnt, int64_t seq);
+int32_t ki_msglen(struct kiovec *msg_hdr);
 
 struct kresult_message  create_header(uint8_t header_field_bitmap, ...);
 ProtobufCBinaryData     pack_kinetic_command(kproto_cmd_t *cmd_data);

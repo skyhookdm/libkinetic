@@ -13,10 +13,6 @@
 
 #include "ktli.h"
 
-int64_t ki_getaseq(struct kiovec *msg, int msgcnt);
-void    ki_setseq(struct kiovec *msg, int msgcnt, int64_t seq);
-int32_t ki_msglen(struct kiovec *msg_hdr);
-
 /* Kinetic API helpers */
 static struct ktli_helpers ki_kh = {
 	.kh_recvhdr_len = KP_LENGTH,
