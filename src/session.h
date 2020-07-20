@@ -1,9 +1,13 @@
 #ifndef _SESSION_H
 #define _SESSION_H
+
+
 /*
  * Session details user does not need to see
  */
-#include "kinetic.h"
+
+#include "message.h"
+#include "getlog.h"
 
 typedef struct ksession {
 	klimits_t	ks_l;
