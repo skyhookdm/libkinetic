@@ -653,6 +653,7 @@ ktli_receive(int kts, struct kio *kio)
 	/* list_traverse defaults to starting the traverse at the front */
 	rc = list_traverse(cq->ktq_list, (char *)kio, ktli_kiomatch, LIST_ALTR);
 	if (rc == LIST_EXTENT) {
+		errno = ENOENT;
 		rc = -1;
 	} else {
 		/* Found the requested kio */
@@ -1096,7 +1097,13 @@ ktli_recvmsg(int kts)
 
 	/* call helper fn to get the total message length */
 	msg.km_msg[1].kiov_len = (kh->kh_msglen_fn)(&msg.km_msg[0]);
-
+	if (msg.km_msg[1].kiov_len < 0) {
+		/* PAK: HANDLE - Yikes, errors down here suck */
+		printf("%s:%d: Helper msglen failed failed\n",
+		       __FILE__, __LINE__);
+		goto recvmsgerr;
+	}
+		
 	/* Now reduce by the header we already received */
 	msg.km_msg[1].kiov_len -= kh->kh_recvhdr_len; 
 

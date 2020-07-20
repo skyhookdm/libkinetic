@@ -40,7 +40,7 @@ struct kresult_message create_get_message(kmsghdr_t *,
 					     kcmdhdr_t *, kgetlog_t *);
 
 /**
- * g_validate_kv(kv_t *kv, limit_t *lim)
+ * ki_validate_kv(kv_t *kv, limit_t *lim)
  *
  *  kv		Always contains a key, but optionally may have a value
  *		However there must always value kiovec array of at least 
@@ -51,8 +51,8 @@ struct kresult_message create_get_message(kmsghdr_t *,
  * Validate that the user is passing a valid kv structure
  *
  */
-static int
-g_validate_kv(kv_t *kv, limit_t *lim)
+int
+ki_validate_kv(kv_t *kv, limit_t *lim)
 {
 	int i;
 	size_t len;
@@ -105,13 +105,14 @@ g_validate_kv(kv_t *kv, limit_t *lim)
 		break;
 	default:
 		return(-1);
+	}
 		
 	errno = 0;
 	return(0);
 }
 
 /**
- * ki_get(int ktd, kv_t *kv)
+ * g_get_generic(int ktd, kv_t *kv, kv_t *altkv, uint32_t cmd)
  *
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
@@ -119,18 +120,21 @@ g_validate_kv(kv_t *kv, limit_t *lim)
  * 		kv_tag and kv_taglen are optional. 
  *		kv_ditype is returned by the server, but it should 
  * 		have either a 0 or a valid ditype in it to start with
+ *  altkv	used for holding prev or next kv
+ *  cmd		Can be KMT_GET, KMT_GETNEXT, KMT_GETPREV, KMT_GETVERS
  *
- * Get the value specified by the given key, tag, and version. 
+ * The get APIs share about 95% of the same code. This routine Consolidates
+ * the code.
  *
  */
 kstatus_t
-ki_get(int ktd, kv_t *kv)
+g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 {
 	int rc, n;
 	kstatus_t krc;
 	struct kio *kio;
 	struct ktli_config *cf;
-	kpdu_t pdu = KP_INIT;
+	kpdu_t pdu;
 	kpdu_t *rpdu;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
@@ -149,7 +153,7 @@ ki_get(int ktd, kv_t *kv)
 	ses = ( ksession_t)cf->kcfg_pconf;
 	
 	/* Validate the passed in kv */
-	rc = gl_validate_kv(kv, &ses->ks_l);
+	rc = ki_validate_kv(kv, &ses->ks_l);
 	if (rc < 0) {
 		return (kstatus_t) {
 			.ks_code    = errno,
@@ -158,6 +162,24 @@ ki_get(int ktd, kv_t *kv)
 		};
 	}
 
+	/* Clear altkv, data will come from the server */
+	memset((void *)altkv, 0, sizeof(kv_t));
+
+	/* Validate command */
+	switch (cmd) {
+	case KMT_GET:
+	case KMT_GETNEXT:
+	case KMT_GETPREV:
+	case KMT_GETVERS:
+		break;
+	default:
+		return (kstatus_t) {
+			.ks_code    = K_REJECTED,
+			.ks_message = "Bad Command",
+			.ks_detail  = "",
+		};
+	}
+		
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
@@ -185,33 +207,36 @@ ki_get(int ktd, kv_t *kv)
 	}
 
 	/* Hang the PDU buffer */
-	kio->kio_cmd = KMT_GET;
+	kio->kio_cmd = cmd;
 	kio->kio_sendmsg.km_msg[0].kiov_base = (void *) &pdu;
 	kio->kio_sendmsg.km_msg[0].kiov_len = KP_LENGTH;
 
-	/* pack the message */
+	/* Setup msg_hdr */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
 
+	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
-	cmd_hdr.kch_type      = KMT_GET;
+	cmd_hdr.kch_type  = cmd;
 
 	kmreq = create_get_message(&msg_hdr, &cmd_hdr, kv);
 	if (kmreq.result_code == FAILURE) {
 		goto gex2;
 	}
 
+	/* pack the message and hang it on the kio */
 	/* PAK: Error handling */
-	// success: rc = 0; failure: rc = 1 (see enum kresult_code)
+	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
 		(kproto_msg_t *) &(kmreq.result_message),
 		&(kio->kio_sendmsg.km_msg[1].kiov_base),
 		&(kio->kio_sendmsg.km_msg[1].kiov_len)
 	);
 
-	/* Now that we have the msgSetup the PDU */
+	/* Now that the message length is known, setup the PDU */
+	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu.kp_vallen = 0;
 
@@ -244,7 +269,7 @@ ki_get(int ktd, kv_t *kv)
 
 	/* Now unpack the message */ 
 	kmresp = unpack_get_resp(kio->kio_recvmsg.km_msg[1].kiov_base,
-				    kio->kio_recvmsg.km_msg[1].kiov_len);
+				 kio->kio_recvmsg.km_msg[1].kiov_len);
 
 	if (kmresp->result_code == FAILURE) {
 		/* cleanup and return error */
@@ -258,7 +283,7 @@ ki_get(int ktd, kv_t *kv)
 		goto gex1;
 	}
 
-	rc = gl_validate_resp(glog);
+	rc = ki_validate_kv(kv);
 
 	if (rc < 0) {
 		/* errno set by validate */
@@ -288,6 +313,40 @@ ki_get(int ktd, kv_t *kv)
 		.ks_detail  = "",
 	};
 }
+
+/**
+ * ki_get(int ktd, kv_t *kv)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_tag and kv_taglen are optional. 
+ *		kv_ditype is returned by the server, but it should 
+ * 		have either a 0 or a valid ditype in it to start with
+ *
+ * Get the value specified by the given key, tag, and version. 
+ *
+ */
+kstatus_t
+ki_get(int ktd, kv_t *key, kv_t *next)
+{
+
+
+}
+
+/**
+ * ki_getnext(int ktd, kv_t *kv)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_tag and kv_taglen are optional. 
+ *		kv_ditype is returned by the server, but it should 
+ * 		have either a 0 or a valid ditype in it to start with
+ *
+ * Get the key value that follows the given key, tag, and version in kv. 
+ *
+ */
 kstatus_t
 ki_getnext(int ktd, kv_t *key, kv_t *next)
 {
@@ -295,12 +354,39 @@ ki_getnext(int ktd, kv_t *key, kv_t *next)
 
 }
 
+/**
+ * ki_getprev(int ktd, kv_t *kv, kv_t *prev)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_tag and kv_taglen are optional. 
+ *		kv_ditype is returned by the server, but it should 
+ * 		have either a 0 or a valid ditype in it to start with
+ *  prev	Returned key 
+ *
+ * Get the key value that is prior the given key, tag, and version in kv. 
+ *
+ */
 kstatus_t
 ki_getprev(int ktd, kv_t *key, kv_t *prev)
 {
 
 }
 
+/**
+ * ki_getversion(int ktd, kv_t *kv)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_tag and kv_taglen are optional. 
+ *		kv_ditype is returned by the server, but it should 
+ * 		have either a 0 or a valid ditype in it to start with
+ *
+ * Get the version specified by the given key kv.  Do not return the value.
+ *
+ */
 kstatus_t
 ki_getversion(int ktd, kv_t *key)
 {
