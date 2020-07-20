@@ -312,8 +312,14 @@ struct protobuf_loc {
 int64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 	int64_t ack_seq = -1;
 
+	//ERROR: not enough messages
+	if (KIOV_MSG >= msgcnt) { return; }
+
 	// walk the message first
-	struct kresult_message unpack_result = unpack_kinetic_message(msg->kiov_base, msg->kiov_len);
+	struct kresult_message unpack_result = unpack_kinetic_message(
+		msg[KIOV_MSG].kiov_base, msg[KIOV_MSG].kiov_len
+	);
+
 	if (unpack_result.result_code == FAILURE) {
 		//TODO: we won't allocate in the future, but we should figure out what to do for errors
 		return -1;
@@ -340,9 +346,16 @@ int64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 
 // TODO: it's really painful, but this is implemented for functionality first. will remove
 // unnecessary allocations later
-void ki_setseq(struct kiovec *msg, int msgcnt, int64_t seq) {
+void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
+
+	// ERROR: not enough messages
+	if (KIOV_MSG >= msgcnt) { return; }
+
 	// walk the message first
-	struct kresult_message unpack_result = unpack_kinetic_message(msg->kiov_base, msg->kiov_len);
+	struct kresult_message unpack_result = unpack_kinetic_message(
+		msg[KIOV_MSG].kiov_base, msg[KIOV_MSG].kiov_len
+	);
+
 	if (unpack_result.result_code == FAILURE) {
 		//TODO: we won't allocate in the future, but we should figure out what to do for errors
 		//return -1;
@@ -356,8 +369,8 @@ void ki_setseq(struct kiovec *msg, int msgcnt, int64_t seq) {
 	kproto_cmd_t *tmp_cmd = unpack_kinetic_command(tmp_msg->commandbytes);
 
 	// extract the ack sequence field
-	tmp_cmd->header->has_acksequence = 1;
-	tmp_cmd->header->acksequence     = seq;
+	tmp_cmd->header->has_sequence = 1;
+	tmp_cmd->header->sequence     = seq;
 
 	// pack field (TODO: currently this packs the whole thing, but eventually we would like to pack
 	// just the new field)
