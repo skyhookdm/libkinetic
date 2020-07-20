@@ -2,11 +2,6 @@
 #define _KIO_H
 #include <stdint.h>
 
-struct kiovec {
-	size_t  kiov_len;     /* Number of bytes to transfer */
-	void   *kiov_base;    /* Starting address */
-};
-
 enum kio_state {
 	KIO_NEW      = 0,
 	KIO_SENT        ,

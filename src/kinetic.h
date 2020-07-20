@@ -105,6 +105,11 @@ typedef struct kstatus {
 	char		*ks_detail;
 } kstatus_t;
 
+struct kiovec {
+	size_t  kiov_len;     /* Number of bytes to transfer */
+	void   *kiov_base;    /* Starting address */
+};
+
 
 /**
  * The API.
