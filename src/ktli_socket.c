@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "kinetic.h"
 #include "ktli.h"
 
 static void * ktli_socket_open();

@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <sys/types.h>
 
+#include "kinetic.h"
 #include "ktli.h"
 #include "ktli_session.h"
 
