@@ -14,6 +14,8 @@
 
 #include "ktli.h"
 
+static int32_t ki_msglen(struct kiovec *msg_hdr);
+
 /* Kinetic API helpers */
 static struct ktli_helpers ki_kh = {
 	.kh_recvhdr_len = KP_LENGTH,
@@ -21,6 +23,19 @@ static struct ktli_helpers ki_kh = {
 	.kh_setseq_fn	= ki_setseq,
 	.kh_msglen_fn	= ki_msglen,
 };
+
+static int32_t
+ki_msglen (struct kiovec *msg_hdr)
+{
+	kpdu_t *pdu;
+
+	if (!msg_hdr || (msg_hdr->kiov_len !=  KP_LENGTH)) {
+		return(-1);
+	}
+
+	pdu = (kpdu_t *)msg_hdr->kiov_base;
+	return (pdu->kp_msglen + pdu->kp_vallen);
+}
 
 /**
  * ki_open

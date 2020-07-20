@@ -373,9 +373,3 @@ void ki_setseq(struct kiovec *msg, int msgcnt, int64_t seq) {
 	destroy_command(tmp_cmd);
 	destroy_message(tmp_msg);
 }
-
-uint32_t ki_msglen(struct kiovec *msg_hdr) {
-	kpdu_t *pdu = (kpdu_t *) msg_hdr->kiov_base;
-
-	return pdu->kp_msglen;
-}

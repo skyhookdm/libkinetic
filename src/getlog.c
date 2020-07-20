@@ -280,6 +280,15 @@ gl_validate_resp(kgetlog_t *glrq, kgetlog_t *glrsp)
 	return(0);
 }
 
+/**
+ * ki_getlog(int ktd, kgetlog_t *glog)
+ *
+ *  ktd 	contains the an opened and connected KTLI session descriptor
+ *  glog	contains the requested glog types and is filled in with
+ *		the getlog data from the server
+ *
+ * Issue and return a kinetic getlog request
+ */
 kstatus_t
 ki_getlog(int ktd, kgetlog_t *glog)
 {
@@ -287,7 +296,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kstatus_t krc;
 	struct kio *kio;
 	struct ktli_config *cf;
-	kpdu_t pdu = KP_INIT;
+	kpdu_t pdu;
+	kpdu_t *rpdu;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
 	kgetlog_t *glog2;
@@ -343,18 +353,15 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kio->kio_sendmsg.km_msg[0].kiov_base = (void *) &pdu;
 	kio->kio_sendmsg.km_msg[0].kiov_len = KP_LENGTH;
 
-	/* pack the message */
-	/* PAK: fill out kmsghdr and kcmdhdr */
-	/* PAK: Need to save conn config on session, for use here */
+
+	/* Setup msg_hdr */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
 
-	memset((void *) &cmd_hdr, 0, sizeof(cmd_hdr));
-	/* PAK: fix to use saved command header */
-	cmd_hdr.kch_clustvers = 0;
-	cmd_hdr.kch_connid    = 0;
+	/* Setup cmd_hdr */
+	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type      = KMT_GETLOG;
 
 	kmreq = create_getlog_message(&msg_hdr, &cmd_hdr, glog);
@@ -362,16 +369,17 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex2;
 	}
 
+	/* pack the message and hang it on the kio */
 	/* PAK: Error handling */
-	// success: rc = 0; failure: rc = 1 (see enum kresult_code)
+	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
 		(kproto_msg_t *) &(kmreq.result_message),
 		&(kio->kio_sendmsg.km_msg[1].kiov_base),
 		&(kio->kio_sendmsg.km_msg[1].kiov_len)
 	);
-
 	
-	/* Setup the PDU */
+	/* Now that the message length is known, setup the PDU */
+	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu.kp_vallen = 0;
 
@@ -380,11 +388,23 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	printf ("Sent Kio: %p\n", kio);
 
 	/* Wait for the response */
-	ktli_poll(ktd, 0);
+	do {
+		/* wait for something to come in */
+		ktli_poll(ktd, 0);
 
-	/* Receive the response */
-	/* PAK: need error handling */
-	rc = ktli_receive(ktd, kio);
+		/* Check to see if it our response */
+		rc = ktli_receive(ktd, kio);
+		if (rc < 0)
+			if (errno == ENOENT)
+				/* Not our response, so try again */
+				continue;
+			else {
+				/* PAK: need to exit, receive failed */
+			}
+		else
+			/* Got our response */
+			break;
+	} while (1);
 
 	kmresp = unpack_kinetic_message(kio->kio_recvmsg.km_msg[1].kiov_base,
 					kio->kio_recvmsg.km_msg[1].kiov_len);
@@ -394,6 +414,9 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		rc = -1;
 		goto glex2;
 	}
+
+	/* PAK: if first time through fill out kmsghdr and kcmdhdr */
+	/* PAK: Need to save conn config on session, for use here */
 
 	kstatus_t command_status = extract_getlog(&kmresp, glog2);
 	if (command_status.ks_code != K_OK) {
@@ -409,7 +432,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex1;
 	}
 
-	/* PAK: need to copy glog2 into glog and freee up glog2 */
+	/* PAK: need to copy glog2 into glog and free up glog2 */
 	
 	/* clean up */
  glex1:
@@ -425,7 +448,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	KI_FREE(kio->kio_sendmsg.km_msg);
 	KI_FREE(kio);
 
-	// TODO: translae rc error code into kstatus_t
+	// TODO: translate rc error code into kstatus_t
 	// return (rc);
 	return (kstatus_t) {
 		.ks_code    = K_INVALID_SC,
