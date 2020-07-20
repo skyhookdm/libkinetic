@@ -137,6 +137,7 @@ ki_get(int ktd, kv_t *kv)
 	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
 
+	/* Get KTLI config */
 	rc = ktli_conf(ktd, *cf);
 	if (rc < 0) {
 		return (kstatus_t) {

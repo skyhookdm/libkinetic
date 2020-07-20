@@ -1,26 +1,63 @@
-CC=gcc
-CFLAGS=-g
-LDFLAGS=-Ivendor/list/ -Ivendor/protobuf-c
+TLD :=		$(shell pwd)
+BUILDDIR =	$(TLD)/build
+BUILDINC =	$(BUILDDIR)/include
+BUILDLIB =	$(BUILDDIR)/lib
 
-# directories
-BIN_DIR=bin
-TOOLBOX_DIR=toolbox
+LISTDIR =	$(TLD)/vendor/list
+PROTOBUFDIR =	$(TLD)/vendor/protobuf-c
+SRCDIR =	$(TLD)/src
+TBDIR =		$(TLD)/toolbox
 
-# source files for external dependencies (separated by project or repo)
-LIBPROTOBUF_SRC=vendor/protobuf-c/protobuf-c/protobuf-c.c
-LIBLIST_SRC=vendor/list/list.c
-KINETIC_PROTO_SRC=src/protocol/kinetic.pb-c.c
+LPROTOBUF = 	$(BUILDLIB)/libprotobuf-c.so
+LLIST =		$(BUILDLIB)/liblist.a
+LKINETIC =	$(BUILDLIB)/libkinetic.a
 
-# source files containing main functions (entrypoints)
-READ_UTIL=${TOOLBOX_DIR}/read_request.c
-WRITE_UTIL=${TOOLBOX_DIR}/write_request.c
+CC =		gcc
+CFLAGS =	-g -I$(BUILDDIR)/include
+LDFLAGS =	-L$(BUILDDIR)/lib
 
-# source files for library and dependency code
-LIB_SRC_FILES=src/getlog.c src/protocol_interface.c ${LIBLIST_SRC} ${LIBPROTOBUF_SRC}
-DEP_SRC_FILES=${KINETIC_PROTO_SRC} ${LIBPROTOBUF_SRC} ${LIBLIST_SRC}
+all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(TBDIR)
 
-test_read:
-	${CC} ${CFLAGS} ${LDFLAGS} -o ${BIN_DIR}/test_read ${READ_UTIL} ${LIB_SRC_FILES} ${DEP_SRC_FILES}
+$(BUILDDIR):
+	@mkdir -p $(BUILDDIR)
 
-test_write:
-	${CC} ${CFLAGS} ${LDFLAGS} -o ${BIN_DIR}/test_write ${WRITE_UTIL} ${LIB_SRC_FILES} ${DEP_SRC_FILES}
+$(TBDIR): FORCE
+	(cd $@; BUILDDIR=$(BUILDDIR) make -e all install)
+
+$(LPROTOBUF): 
+	(cd $(PROTOBUFDIR); [ ! -f ./configure ] && ./autogen.sh; true)
+	(cd $(PROTOBUFDIR); [ ! -f ./Makefile  ] && ./configure --prefix=$(BUILDDIR); true)
+	(cd $(PROTOBUFDIR); make install)
+
+$(LLIST): 
+	(cd $(LISTDIR); INCDIR=$(BUILDINC) LIBDIR=$(BUILDLIB) make -e)
+	(cd $(LISTDIR); INCDIR=$(BUILDINC) LIBDIR=$(BUILDLIB) make -e install)
+
+$(LKINETIC): FORCE
+	(cd $(SRCDIR); BUILDDIR=$(BUILDDIR) make -e all install)
+
+clean:	protobufclean listclean kineticclean toolboxclean
+	rm -rf $(BUILDDIR)
+
+protobufclean:
+	(cd $(PROTOBUFDIR);  [ -f ./Makefile ] && make clean; true)
+
+listclean:
+	(cd $(LISTDIR); make clean)
+
+kineticclean:
+	(cd $(SRCDIR); make clean)
+
+toolboxclean:
+	(cd $(TBDIR); make clean)
+
+distclean:
+	(cd $(PROTOBUFDIR);  [ -f ./Makefile ] && make distclean; true)
+	(cd $(LISTDIR); make clean)
+	(cd $(SRCDIR); make clean)
+	(cd $(TBDIR); make clean)	
+	rm -rf $(BUILDDIR)
+
+.PHONY: FORCE
+FORCE:
+

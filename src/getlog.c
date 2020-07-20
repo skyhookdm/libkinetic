@@ -78,7 +78,7 @@ gl_validate_req(kgetlog_t *glrq)
 
 	/*
 	 * PAK: what if LOG and MESSAGES are set? does log use messages
-	 *  for its data?
+	 *      for its data?
 	 */
 	/* track how many times a type is in the array */
 	util = temp = cap = conf = stat = mesg = lim = log = 0;
@@ -113,9 +113,10 @@ gl_validate_req(kgetlog_t *glrq)
 
 	/* If log expect a logname, if not then there shouldn't be a name */
 	if (log) {
-		if (glrq->kgl_log.kdl_name)
+		if (glrq->kgl_log.kdl_name) {
+			/* do a range check on the length of the name */
 			if (!glrq->kgl_log.kdl_len ||
-			    (glrq->kgl_log.kdl_len > 1024) {
+			    (glrq->kgl_log.kdl_len > 1024)) {
 				return(-1);
 			}
 		} else {
@@ -131,7 +132,7 @@ gl_validate_req(kgetlog_t *glrq)
 	if (glrq->kgl_util	|| glrq->kgl_utilcnt	||
 	    glrq->kgl_temp	|| glrq->kgl_tempcnt	||
 	    glrq->kgl_stat	|| glrq->kgl_statcnt	||
-	    glrq->kgl_msgs	|| glrq->kgl_msgscnt) {
+	    glrq->kgl_msgs	|| glrq->kgl_msgslen) {
 		return(-1);
 	}
 
@@ -149,7 +150,7 @@ gl_validate_req(kgetlog_t *glrq)
  * correct.
  */
 static int
-gl_validate_resp(kgetlog_t *glrq, *glrsp)
+gl_validate_resp(kgetlog_t *glrq, kgetlog_t *glrsp)
 {
 	int i, j;
 	int util, temp, cap, conf, stat, mesg, lim, log;
@@ -250,7 +251,7 @@ gl_validate_resp(kgetlog_t *glrq, *glrsp)
 			mesg--;  /* dec to account for the req */
 
 			/* if an msgs buf is provided */
-			if (!glrsp->kgl_msgs || !glrsp->kgl_msgscnt)
+			if (!glrsp->kgl_msgs || !glrsp->kgl_msgslen)
 				return(-1);
 			break;
 		case KGLT_LIMITS:
@@ -261,7 +262,7 @@ gl_validate_resp(kgetlog_t *glrq, *glrsp)
 		case KGLT_LOG:
 			log--;  /* dec to account for the req */
 			/* if an msgs buf is provided */
-			if (!glrsp->kgl_msgs || !glrsp->kgl_msgscnt)
+			if (!glrsp->kgl_msgs || !glrsp->kgl_msgslen)
 				return(-1);
 			break;
 		default:
@@ -285,22 +286,31 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	int rc, n;
 	kstatus_t krc;
 	struct kio *kio;
+	struct ktli_config *cf;
 	kpdu_t pdu = KP_INIT;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
 	kgetlog_t *glog2;
+	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
+
+	/* Get KTLI config */ 
+	rc = ktli_conf(ktd, &cf);
+	if (rc < 0) {
+		return (kstatus_t) {
+			.ks_code    = K_EREJECTED,
+			.ks_message = "Bad session",
+			.ks_detail  = "",
+		};		
+	}
+	ses = (ksession_t *)cf->kcfg_pconf;
 
 	/* Validate the passed in glog */
 	rc = gl_validate_req(glog);
 	if (rc < 0) {
-		/* errno set by validate */
-
-		// TODO: set ks_detail
-		// .ks_detail  = sprintf("gl_validate_req returned error: %d\n", rc
 		return (kstatus_t) {
-			.ks_code    = K_INVALID_SC,
-			.ks_message = "Invalid request",
+			.ks_code    = errno,
+			.ks_message = "Invalid getlog request",
 			.ks_detail  = "",
 		};
 	}
@@ -308,11 +318,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		errno = ENOMEM;
-
-		// TODO: set ks_detail
 		return (kstatus_t) {
-			.ks_code    = K_INVALID_SC,
+			.ks_code    = K_EINTERNAL,
 			.ks_message = "Unable to allocate memory for request",
 			.ks_detail  = "",
 		};
@@ -324,12 +331,9 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
-		errno = ENOMEM;
-
-		// TODO: set ks_detail
 		return (kstatus_t) {
-			.ks_code    = K_INVALID_SC,
-			.ks_message = "Error sending request",
+			.ks_code    = K_EINTERNAL,
+			.ks_message = "Unable to allocate memory for request",
 			.ks_detail  = "",
 		};
 	}
@@ -344,10 +348,11 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* PAK: Need to save conn config on session, for use here */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
-	msg_hdr.kmh_id    = 1;
-	msg_hdr.kmh_hmac  = "abcdefgh";
+	msg_hdr.kmh_id    = cf->kcfg_id;
+	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
 
 	memset((void *) &cmd_hdr, 0, sizeof(cmd_hdr));
+	/* PAK: fix to use saved command header */
 	cmd_hdr.kch_clustvers = 0;
 	cmd_hdr.kch_connid    = 0;
 	cmd_hdr.kch_type      = KMT_GETLOG;
@@ -381,8 +386,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* PAK: need error handling */
 	rc = ktli_receive(ktd, kio);
 
-	kmresp = unpack_kinetic_message(kio->kio_sendmsg.km_msg[1].kiov_base,
-									kio->kio_sendmsg.km_msg[1].kiov_len);
+	kmresp = unpack_kinetic_message(kio->kio_recvmsg.km_msg[1].kiov_base,
+					kio->kio_recvmsg.km_msg[1].kiov_len);
 
 	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
@@ -682,8 +687,8 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 
 	// then optional fields (can't use macro because the field needs to be decomposed)
 	if (response->has_messages) {
-		getlog_data->kgl_msgs   = (char *) response->messages.data;
-		getlog_data->kgl_msglen = response->messages.len;
+		getlog_data->kgl_msgs    = (char *) response->messages.data;
+		getlog_data->kgl_msgslen = response->messages.len;
 	}
 
 	// then other fields

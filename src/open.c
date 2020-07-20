@@ -9,6 +9,7 @@
 
 #include "kinetic.h"
 #include "getlog.h"
+#include "message.h"
 #include "session.h"
 
 #include "ktli.h"

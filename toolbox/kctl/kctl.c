@@ -8,7 +8,7 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
-#include <kinetic.h>
+#include <kinetic/kinetic.h>
 #include "kctl.h"
 
 
