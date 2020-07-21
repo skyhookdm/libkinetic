@@ -38,7 +38,6 @@
 ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
 void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
 struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
-kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
 
 /**
  * gl_validate_req(kgetlog_t *glrq)
@@ -683,7 +682,7 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	int extract_result = 0;
 
 	// repeated fields first
-	extract_result += extract_types(getlog_data, response->n_types, response.types);
+	extract_result += extract_types(getlog_data, response->n_types, response->types);
 	extract_result += extract_utilizations(getlog_data, response->n_utilizations, response->utilizations);
 	extract_result += extract_temperatures(getlog_data, response->n_temperatures, response->temperatures);
 	extract_result += extract_statistics(getlog_data, response->n_statistics, response->statistics);

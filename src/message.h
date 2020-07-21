@@ -149,6 +149,7 @@ struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cm
 void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data);
 //void extract_from_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data);
 kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data);
+kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
 
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
 
