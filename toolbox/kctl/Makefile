@@ -7,7 +7,7 @@ OBJS = 		kctl.o util.o
 KCTL=		kctl
 CFLAGS =	-g -I$(BUILDDIR)/include
 LDFLAGS =	-L$(BUILDDIR)/lib
-LDLIBS = 	-lkinetic -lpthread
+LDLIBS = 	-lkinetic -lpthread -lssl -lcrypto
 
 all:		$(KCTL)
 

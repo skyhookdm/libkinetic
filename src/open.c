@@ -8,12 +8,13 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 
+#include "kio.h"
+#include "ktli.h"
 #include "kinetic.h"
+#include "kinetic_internal.h"
 #include "getlog.h"
 #include "message.h"
 #include "session.h"
-
-#include "ktli.h"
 
 static int32_t ki_msglen(struct kiovec *msg_hdr);
 
@@ -50,10 +51,10 @@ ki_msglen (struct kiovec *msg_hdr)
  * priorty, quanta, quick exit flag need to be preserved and used on each
  * RPC.  
  * As part of the connection establishment, kinetic issues an unsolicited 
- * getlog::limits response that contains the current cluster version and 
- * connection ID in the command header as well as a limits structure in the
- * body. This needs to be saved on the session for future reference. 
- * 
+ * getlog::limits,configuration response that contains the current cluster 
+ * version and connection ID in the command header as well as a limits 
+ * structure in the body. This needs to be saved on the session for future 
+ * reference. 
  */
 int
 ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
@@ -61,9 +62,11 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	int ktd, rc;
 	struct ktli_config *cf;
 	struct kio *kio;
+	struct kiovec *kiov;
+	struct kresult_message kmresp;
 	ksession_t *ks;
 	kgetlog_t glog;
-	kgltype_t glt;
+	kcmdhdr_t cmd_hdr;
 	kstatus_t kstatus;
 	/*
 	 * these ktli and session configs get hung on the ktli session
@@ -131,16 +134,29 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 			break;
 	} while (1);
 
-	memset(&glog, 0, sizeof(kgetlog_t));
-	glt = KGLT_LIMITS;
-	glog.kgl_type = &glt;
-	glog.kgl_typecnt = 1;
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
+	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 
-	kstatus = ki_getlog(ktd, &glog);
-	memcpy(&ks->ks_l, &glog.kgl_limits, sizeof(klimits_t));
-	
-	/* PAK: Getversion call() to set session cluster version */
-	
+	if (kmresp.result_code == FAILURE) {
+		/* cleanup and return error */
+		rc = -1;
+		goto glex2;
+	}
+
+	kstatus_t command_status = extract_getlog(&kmresp, &glog);
+	if (command_status.ks_code != K_OK) {
+		rc = -1;
+		goto glex1;
+	}
+
+	kstatus_t command_status = extract_cmdhdr(&kmresp, &cmd_hdr);
+	if (command_status.ks_code != K_OK) {
+		rc = -1;
+		goto glex1;
+	}
+
+	memcpy(
+
 	return(ktd);
 }
 

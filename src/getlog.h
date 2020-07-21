@@ -144,26 +144,26 @@ typedef struct kdevicelog {
 
 
 struct kgetlog {
-	kgltype_t		 *kgl_type;
-	size_t			  kgl_typecnt;
+	kgltype_t		*kgl_type;
+	size_t			kgl_typecnt;
 
-	kutilization_t	 *kgl_util;
-	uint32_t		  kgl_utilcnt;
+	kutilization_t		*kgl_util;
+	uint32_t		kgl_utilcnt;
 
-	ktemperature_t	 *kgl_temp;
-	uint32_t		  kgl_tempcnt;
+	ktemperature_t		*kgl_temp;
+	uint32_t		kgl_tempcnt;
 
-	kcapacity_t		  kgl_cap;
-	kconfiguration_t  kgl_conf;
+	kcapacity_t		kgl_cap;
+	kconfiguration_t  	kgl_conf;
 
-	kstatistics_t	 *kgl_stat;
-	uint32_t		  kgl_statcnt;
+	kstatistics_t		*kgl_stat;
+	uint32_t		kgl_statcnt;
 
-	char			 *kgl_msgs;
-	size_t			  kgl_msgslen;
+	char			*kgl_msgs;
+	size_t			kgl_msgslen;
 
-	klimits_t		  kgl_limits;
-	kdevicelog_t	  kgl_log;
+	klimits_t		kgl_limits;
+	kdevicelog_t		kgl_log;
 };
 
 #endif /* _GETLOG_H */

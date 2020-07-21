@@ -163,7 +163,7 @@ gl_validate_resp(kgetlog_t *glrq, kgetlog_t *glrsp)
 	 */
 	if (!glrq || glrsp  ||
 	    !glrq->kgl_type || !glrsp->kgl_type ||
-	    (glrq->kgl_typecnt != glrq->kgl_typecnt)) {
+	    (glrq->kgl_typecnt != glrsp->kgl_typecnt)) {
 		return(-1);
 	}
 
@@ -296,12 +296,13 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kstatus_t krc;
 	struct kio *kio;
 	struct ktli_config *cf;
+	struct kiovec *kiov;
 	uint8_t ppdu[KP_PLENGTH];
 	kpdu_t pdu;
 	kpdu_t *rpdu;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
-	kgetlog_t *glog2;
+	kgetlog_t glog2;
 	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
 
@@ -409,8 +410,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 			break;
 	} while (1);
 
-	kmresp = unpack_kinetic_message(kio->kio_recvmsg.km_msg[1].kiov_base,
-					kio->kio_recvmsg.km_msg[1].kiov_len);
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
+	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 
 	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
@@ -418,16 +419,13 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex2;
 	}
 
-	/* PAK: if first time through fill out kmsghdr and kcmdhdr */
-	/* PAK: Need to save conn config on session, for use here */
-
-	kstatus_t command_status = extract_getlog(&kmresp, glog2);
+	kstatus_t command_status = extract_getlog(&kmresp, &glog2);
 	if (command_status.ks_code != K_OK) {
 		rc = -1;
 		goto glex1;
 	}
 
-	rc = gl_validate_resp(glog, glog2);
+	rc = gl_validate_resp(glog, &glog2);
 
 	if (rc < 0) {
 		/* errno set by validate */

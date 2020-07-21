@@ -10,8 +10,9 @@
 #include "getlog.h"
 
 typedef struct ksession {
-	klimits_t	ks_l;
-	kcmdhdr_t	ks_ch;		
+	klimits_t		ks_l;
+	kconfiguration_t	ks_conf;
+	kcmdhdr_t		ks_ch;		
 } ksession_t;
 
 #endif /* _SESSION_H */
