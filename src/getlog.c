@@ -506,7 +506,28 @@ struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	return create_message(msg_hdr, command_bytes);
 }
 
+int extract_types(kgetlog_t *getlog_data, size_t n_types, kgltype_t *type_data) {
+	// no types to extract
+	if (!n_types) { return 0; }
+
+	getlog_data->kgl_type    = (kgltype_t *) malloc(sizeof(kgltype_t) * n_types);
+	if (getlog_data->kgl_type == NULL) {
+		return -1;
+	}
+
+	// TODO: maybe memcopy can be used here instead?
+	getlog_data->kgl_typecnt = n_types;
+	for (int ndx = 0; ndx < n_types; ndx++) {
+		getlog_data->kgl_type[ndx] = type_data[ndx];
+	}
+
+	return 0;
+}
+
 int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilization_t **util_data) {
+	// no utilizations to extract
+	if (!n_utils) { return 0; }
+
 	getlog_data->kgl_util    = (kutilization_t *) malloc(sizeof(kutilization_t) * n_utils);
 	if (getlog_data->kgl_util == NULL) {
 		return -1;
@@ -523,6 +544,9 @@ int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilizat
 }
 
 int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperature_t **temp_data) {
+	// no temperatures to extract
+	if (!n_temps) { return 0; }
+
 	getlog_data->kgl_temp    = (ktemperature_t *) malloc(sizeof(ktemperature_t) * n_temps);
 	if (getlog_data->kgl_temp == NULL) {
 		return -1;
@@ -543,6 +567,9 @@ int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperat
 }
 
 int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics_t **stat_data) {
+	// no stats to extract
+	if (!n_stats) { return 0; }
+
 	getlog_data->kgl_stat = (kstatistics_t *) malloc(sizeof(kstatistics_t) * n_stats);
 	if (getlog_data->kgl_stat == NULL) {
 		return -1;
@@ -643,13 +670,13 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	kproto_getlog_t *response = response_cmd->body->getlog;
 
 	// 0 is success, < 0 is failure. Use this for all the extract functions
-	// TODO: check all of the return codes
 	int extract_result = 0;
 
 	// repeated fields first
-	extract_result = extract_utilizations(getlog_data, response->n_utilizations, response->utilizations);
-	extract_result = extract_temperatures(getlog_data, response->n_temperatures, response->temperatures);
-	extract_result = extract_statistics(getlog_data, response->n_statistics, response->statistics);
+	extract_result += extract_types(getlog_data, response->n_types, response->types);
+	extract_result += extract_utilizations(getlog_data, response->n_utilizations, response->utilizations);
+	extract_result += extract_temperatures(getlog_data, response->n_temperatures, response->temperatures);
+	extract_result += extract_statistics(getlog_data, response->n_statistics, response->statistics);
 
 	// then optional fields (can't use macro because the field needs to be decomposed)
 	if (response->has_messages) {
@@ -660,8 +687,8 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	// then other fields
 	assign_if_set(getlog_data->kgl_cap.kc_total, response->capacity, nominalcapacityinbytes);
 	assign_if_set(getlog_data->kgl_cap.kc_used , response->capacity, portionfull);
-	extract_result = extract_configuration(getlog_data, response->configuration);
-	extract_result = extract_limits(getlog_data, response->limits);
+	extract_result += extract_configuration(getlog_data, response->configuration);
+	extract_result += extract_limits(getlog_data, response->limits);
 
 	// ------------------------------
 	// propagate the response status to the caller
