@@ -646,11 +646,11 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	}
 
 	// unpack the command bytes into a command structure
-	kproto_cmd_t *cmd_response = unpack_kinetic_command(getlog_response_msg->commandbytes);
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(getlog_response_msg->commandbytes);
 
 	// ------------------------------
 	// populate getlog_data from command body
-	kproto_getlog_t *response = cmd_response->body->getlog;
+	kproto_getlog_t *response = response_cmd->body->getlog;
 
 	// 0 is success, < 0 is failure. Use this for all the extract functions
 	// TODO: check all of the return codes
@@ -675,7 +675,7 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 
 	// ------------------------------
 	// propagate the response status to the caller
-	kproto_status_t *response_status = cmd_response->status;
+	kproto_status_t *response_status = response_cmd->status;
 
 	char *status_detail_msg = response_status->has_detailedmessage ?
 		  (char *) response_status->detailedmessage.data
