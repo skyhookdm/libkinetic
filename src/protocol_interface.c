@@ -449,13 +449,14 @@ struct protobuf_loc {
 struct protobuf_loc *
 protobuf_c_field_seek(const ProtobufCMessageDescriptor *desc, size_t len, const uint8_t *data)
 {
-	ProtobufCMessage *rv;
 
 	const ProtobufCFieldDescriptor *last_field = desc->fields + 0;
 
-	// scanned_member_slabs is an array of arrays ([0] is a pointer to first_member_slab)
 	ScannedMember first_member_slab[1UL << FIRST_SCANNED_MEMBER_SLAB_SIZE_LOG2];
+
+	// scanned_member_slabs is an array of arrays
 	ScannedMember *scanned_member_slabs[MAX_SCANNED_MEMBER_SLAB + 1];
+	scanned_member_slabs[0] = first_member_slab;
 
 	unsigned which_slab       = 0; // the slab we are currently populating
 	unsigned in_slab_index    = 0; // number of members in the slab
@@ -464,31 +465,10 @@ protobuf_c_field_seek(const ProtobufCMessageDescriptor *desc, size_t len, const 
 	unsigned f;
 	unsigned j;
 	unsigned i_slab;
-	unsigned required_fields_bitmap_len;
 
-	unsigned char required_fields_bitmap_stack[16];
-	unsigned char *required_fields_bitmap = required_fields_bitmap_stack;
-
-	protobuf_c_boolean required_fields_bitmap_alloced = FALSE;
-
-	rv = do_alloc(allocator, desc->sizeof_message);
+	ProtobufCMessage *rv;
+	rv = malloc(desc->sizeof_message);
 	if (!rv) { return (NULL); }
-
-	scanned_member_slabs[0] = first_member_slab;
-
-	required_fields_bitmap_len = (desc->n_fields + 7) / 8;
-	if (required_fields_bitmap_len > sizeof(required_fields_bitmap_stack)) {
-		required_fields_bitmap = do_alloc(allocator, required_fields_bitmap_len);
-
-		if (!required_fields_bitmap) {
-			do_free(allocator, rv);
-			return (NULL);
-		}
-
-		required_fields_bitmap_alloced = TRUE;
-	}
-
-	memset(required_fields_bitmap, 0, required_fields_bitmap_len);
 
 	// Generated code always defines "message_init". However, we provide a
 	// fallback for (1) users of old protobuf-c generated-code that do not
@@ -502,20 +482,16 @@ protobuf_c_field_seek(const ProtobufCMessageDescriptor *desc, size_t len, const 
 	const uint8_t *at = data;
 
 	while (rem > 0) {
-		uint32_t tag;
+		// parse the tag and type of the next field
+		uint32_t          tag;
 		ProtobufCWireType wire_type;
 		size_t used = parse_tag_and_wiretype(rem, at, &tag, &wire_type);
+
 		const ProtobufCFieldDescriptor *field;
 		ScannedMember tmp;
 
-		if (used == 0) {
-			PROTOBUF_C_UNPACK_ERROR(
-				"error parsing tag/wiretype at offset %u",
-				(unsigned) (at - data)
-			);
-
-			goto error_cleanup_during_scan;
-		}
+		// Halt iteration due to error
+		if (used == 0) { return NULL; }
 
 		// TODO: Consider optimizing for field[1].id == tag, if field[1]
 		if (last_field == NULL || last_field->id != tag) {
@@ -627,7 +603,7 @@ protobuf_c_field_seek(const ProtobufCMessageDescriptor *desc, size_t len, const 
 			which_slab++;
 			size = sizeof(ScannedMember) << (which_slab + FIRST_SCANNED_MEMBER_SLAB_SIZE_LOG2);
 
-			scanned_member_slabs[which_slab] = do_alloc(allocator, size);
+			scanned_member_slabs[which_slab] = malloc(size);
 			if (scanned_member_slabs[which_slab] == NULL) {
 				goto error_cleanup_during_scan;
 			}
