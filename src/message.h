@@ -152,6 +152,10 @@ enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **msg_buffer
 struct kresult_message unpack_kinetic_message(void *response_buffer, size_t response_size);
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes);
 
+void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data);
+//void extract_from_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data);
+kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data);
+
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
 
 

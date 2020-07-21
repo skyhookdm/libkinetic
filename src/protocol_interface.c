@@ -22,6 +22,7 @@
 #include <openssl/sha.h>
 
 #include "kinetic.h"
+#include "kinetic_internal.h"
 #include "protocol_types.h"
 #include "message.h"
 #include "kio.h"
@@ -296,6 +297,80 @@ void destroy_command(void *unpacked_cmd) {
 		(kproto_cmd_t *) unpacked_cmd,
 		mem_allocator
 	);
+}
+
+void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data) {
+
+	com__seagate__kinetic__proto__command__header__init(proto_cmdhdr);
+
+	if (cmdhdr_data->kch_clustvers) {
+		proto_cmdhdr->has_clusterversion = 1;
+		proto_cmdhdr->clusterversion     = cmdhdr_data->kch_clustvers;
+	}
+
+	if (cmdhdr_data->kch_connid) {
+		proto_cmdhdr->connectionid	   = cmdhdr_data->kch_connid;
+		proto_cmdhdr->has_connectionid = 1;
+	}
+
+	if (cmdhdr_data->kch_timeout) {
+		proto_cmdhdr->timeout	  = cmdhdr_data->kch_timeout;
+		proto_cmdhdr->has_timeout = 1;
+	}
+
+	if (cmdhdr_data->kch_pri) {
+		proto_cmdhdr->priority	   = cmdhdr_data->kch_pri;
+		proto_cmdhdr->has_priority = 1;
+	}
+
+	if (cmdhdr_data->kch_quanta) {
+		proto_cmdhdr->timequanta	 = cmdhdr_data->kch_quanta;
+		proto_cmdhdr->has_timequanta = 1;
+	}
+
+	if (cmdhdr_data->kch_batid) {
+		proto_cmdhdr->batchid	  = cmdhdr_data->kch_batid;
+		proto_cmdhdr->has_batchid = 1;
+	}
+}
+
+kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data) {
+	kproto_msg_t *response_msg = (kproto_msg_t *) response_result->result_message;
+
+	// commandbytes should exist, but we should probably be thorough
+	if (!response_msg->has_commandbytes) {
+		return (kstatus_t) {
+			.ks_code    = K_INVALID_SC,
+			.ks_message = "Response message has no command bytes",
+			.ks_detail  = NULL
+		};
+	}
+
+	// unpack the command bytes into a command structure
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(response_msg->commandbytes);
+	kproto_cmdhdr_t *response_cmd_hdr = response_cmd->header;
+
+	assign_if_set(cmdhdr_data->kch_clustvers, response_cmd_hdr, clusterversion);
+	assign_if_set(cmdhdr_data->kch_connid   , response_cmd_hdr, connectionid);
+	assign_if_set(cmdhdr_data->kch_timeout  , response_cmd_hdr, timeout);
+	assign_if_set(cmdhdr_data->kch_pri      , response_cmd_hdr, priority);
+	assign_if_set(cmdhdr_data->kch_quanta   , response_cmd_hdr, timequanta);
+	assign_if_set(cmdhdr_data->kch_batid    , response_cmd_hdr, batchid);
+
+	// ------------------------------
+	// propagate the response status to the caller
+	kproto_status_t *response_status = response_cmd->status;
+
+	char *status_detail_msg = response_status->has_detailedmessage ?
+		  (char *) response_status->detailedmessage.data
+		: NULL
+	;
+
+	return (kstatus_t) {
+		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
+		.ks_message = response_status->statusmessage,
+		.ks_detail  = status_detail_msg
+	};
 }
 
 // TODO: this is a helper fn, picked from protobuf-c source, to assist in walking protobuf code
