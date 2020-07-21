@@ -158,5 +158,10 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
 
+ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
+void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
+struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
+kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
+
 
 #endif /* _MESSAGE_H */

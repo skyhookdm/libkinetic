@@ -117,11 +117,15 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	/* Get the limits structure and save it on the session */
 	/* Wait for the response */
 	do {
+		printf("Polling\n");
 		/* wait for something to come in */
 		ktli_poll(ktd, 0);
+		
+		printf("Done Polling\n");		
 
 		/* Check to see if it our response */
 		rc = ktli_receive_unsolicited(ktd, &kio);
+		printf("Received\n");
 		if (rc < 0)
 			if (errno == ENOENT)
 				/* Not our response, so try again */
@@ -140,22 +144,29 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
-		goto glex2;
+		goto oex2;
 	}
+
+	memset(&glog, 0, sizeof(kgetlog_t));
 
 	kstatus_t command_status = extract_getlog(&kmresp, &glog);
 	if (command_status.ks_code != K_OK) {
 		rc = -1;
-		goto glex1;
+		goto oex1;
 	}
+	memcpy(&ks->ks_l, &glog.kgl_limits, sizeof(klimits_t));
+	memcpy(&ks->ks_conf, &glog.kgl_conf, sizeof(kconfiguration_t));
 
-	kstatus_t command_status = extract_cmdhdr(&kmresp, &cmd_hdr);
+	command_status = extract_cmdhdr(&kmresp, &cmd_hdr);
 	if (command_status.ks_code != K_OK) {
 		rc = -1;
-		goto glex1;
+		goto oex1;
 	}
+	memcpy(&ks->ks_ch, &cmd_hdr, sizeof(kcmdhdr_t));
 
-	memcpy(
+ oex1:
+ oex2:
+	
 
 	return(ktd);
 }

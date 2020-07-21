@@ -672,7 +672,7 @@ ktli_receive(int kts, struct kio *kio)
 
 	/* list_traverse defaults to starting the traverse at the front */
 	rc = list_traverse(cq->ktq_list, (char *)kio, ktli_kiomatch, LIST_ALTR);
-	if (rc == LIST_EXTENT) {
+	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 		errno = ENOENT;
 		rc = -1;
 	} else {
@@ -738,7 +738,7 @@ ktli_receive_unsolicited(int kts, struct kio **kio)
 
 	/* list_traverse defaults to starting the traverse at the front */
 	rc = list_traverse(cq->ktq_list, (char *)kio, ktli_kionoreq, LIST_ALTR);
-	if (rc == LIST_EXTENT) {
+	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 		errno = ENOENT;
 		rc = -1;
 	} else {
@@ -918,7 +918,7 @@ ktli_drain_match(int kts, struct kio *kio)
 		rc = list_traverse(q->ktq_list, (char *)kio,
 				   ktli_kiomatch, LIST_ALTR);
 
-		if (rc != LIST_EXTENT) {
+		if (rc != LIST_EXTENT && rc != LIST_EMPTY) {
 			/* Found the requested kio */
 			lkio = (struct kio **)list_remove_curr(q->ktq_list);
 			assert(kio = *lkio);
@@ -1141,23 +1141,6 @@ ktli_recvmsg(int kts)
 	cq = kts_compq(kts);
 
 	/* 
-	 * call the corresponding driver poll fn, 
-	 * wait for 500ms, arbitrary delay
-	 */ 
-	rc = (de->ktlid_fns->ktli_dfns_poll)(dh, 500);
-	printf("BE Poll returned: %d\n", rc);
-	
-	/* -1 error, 0 timeout, 1 need to receive data */
-	if (rc == 0) {
-		return(rc);
-	}
-	
-	if (rc < 0) {
-		printf("%s:%d: poll failed %d\n", __FILE__, __LINE__, errno);
-		goto recvmsgerr;
-	}
-
-	/* 
 	 * We have a message, time to receive it. 
 	 * Need to allocate a 2 element kiovec array, 
 	 * one kiovec for the header[0] and 
@@ -1224,7 +1207,7 @@ ktli_recvmsg(int kts)
 	pthread_mutex_lock(&rq->ktq_m);
 	rc = list_traverse(rq->ktq_list,
 			   (char *)&aseq, ktli_seqmatch, LIST_ALTR);
-	if (rc == LIST_EXTENT) {
+	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 		/*
 		 * No matching kio.  Allocate a kio, set it up and mark it as
 		 * received. Let the upper layers deal with it.
@@ -1356,28 +1339,49 @@ ktli_receiver(void *p)
 	assert(de->ktlid_fns->ktli_dfns_receive);
 	assert(de->ktlid_fns->ktli_dfns_poll);
 
+	printf("Receiver: waiting %d (%p)\n", kts, p);
+	sleep(1); /* let the connection establish */
 	printf("Receiver: starting %d (%p)\n", kts, p);
 
 	do {
+		/* 
+		 * call the corresponding driver poll fn, 
+		 * wait for 500ms, arbitrary delay
+		 */ 
+		rc = (de->ktlid_fns->ktli_dfns_poll)(dh, 500);
+		printf("BE Poll returned: %d\n", rc);
+	
+		/* -1 error, 0 timeout, 1 need to receive data */
+		if (rc < 0) {
+			printf("%s:%d: poll failed %d\n",
+			       __FILE__, __LINE__, errno);
+			perror("Poll:");
+			continue;
+		}
+		if (!rc )
+			continue;
+#if 0		
 		/* wait for work */
 		pthread_mutex_lock(&rq->ktq_m);
 		if (!rq->ktq_exit) {
 			pthread_cond_wait(&rq->ktq_cv, &rq->ktq_m);
 		}
 		pthread_mutex_unlock(&rq->ktq_m);
-		printf("Receiver: caught signal\n");
+ 		printf("Receiver: caught signal\n");
+#endif
 
-		/* PAK need a kio timeout mechanism 
+		/* PAK: need a kio timeout mechanism 
 		 * Maybe after 30 or 60 500ms polls */
 
 		
+		ktli_recvmsg(kts);
+#if 0
 		/* if the receive q is not empty, get active */
 		while (list_size(rq->ktq_list)) {
 			if (rq->ktq_exit) break;
-			ktli_recvmsg(kts);
 			printf("Received Message\n");
 		}
-
+#endif
 		if (rq->ktq_exit) break;
 	
 	} while (1);
