@@ -15,7 +15,7 @@
 
 #include "ktli.h"
 
-static int32_t ki_msglen(struct kiovec *msg_hdr);
+static uint32_t ki_msglen(struct kiovec *msg_hdr);
 
 /* Kinetic API helpers */
 static struct ktli_helpers ki_kh = {
@@ -25,7 +25,7 @@ static struct ktli_helpers ki_kh = {
 	.kh_msglen_fn	= ki_msglen,
 };
 
-static int32_t
+static uint32_t
 ki_msglen (struct kiovec *msg_hdr)
 {
 	kpdu_t pdu;
