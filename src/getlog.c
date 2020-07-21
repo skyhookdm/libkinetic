@@ -31,26 +31,11 @@
 #include "kinetic_internal.h"
 #include "getlog.h"
 
-// macro for extracting optional fields
-#define assign_if_set(lvar, field_container, field) { \
-	if (field_container->has_##field) {               \
-		lvar = field_container->field;                \
-	}                                                 \
-}
-
-// macro for extracting optional field that is a ProtobufCBinaryData struct
-#define assign_if_set_charbuf(lvar, field_container, field) { \
-	if (field_container->has_##field) {                       \
-		lvar = (char *) field_container->field.data;          \
-	}                                                         \
-}
-
 
 /**
  * Internal prototypes
  */
 ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
-void extract_to_command_header(kproto_cmdhdr_t *, kcmdhdr_t *);
 void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
 struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
 kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
@@ -506,41 +491,6 @@ void extract_to_command_body(kproto_getlog_t *proto_getlog, kgetlog_t *cmd_data)
 		};
 
 		proto_getlog->device = getlog_msg_device;
-	}
-}
-
-void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data) {
-
-	com__seagate__kinetic__proto__command__header__init(proto_cmdhdr);
-
-	if (cmdhdr_data->kch_clustvers) {
-		proto_cmdhdr->has_clusterversion = 1;
-		proto_cmdhdr->clusterversion     = cmdhdr_data->kch_clustvers;
-	}
-
-	if (cmdhdr_data->kch_connid) {
-		proto_cmdhdr->connectionid	   = cmdhdr_data->kch_connid;
-		proto_cmdhdr->has_connectionid = 1;
-	}
-
-	if (cmdhdr_data->kch_timeout) {
-		proto_cmdhdr->timeout	  = cmdhdr_data->kch_timeout;
-		proto_cmdhdr->has_timeout = 1;
-	}
-
-	if (cmdhdr_data->kch_pri) {
-		proto_cmdhdr->priority	   = cmdhdr_data->kch_pri;
-		proto_cmdhdr->has_priority = 1;
-	}
-
-	if (cmdhdr_data->kch_quanta) {
-		proto_cmdhdr->timequanta	 = cmdhdr_data->kch_quanta;
-		proto_cmdhdr->has_timequanta = 1;
-	}
-
-	if (cmdhdr_data->kch_batid) {
-		proto_cmdhdr->batchid	  = cmdhdr_data->kch_batid;
-		proto_cmdhdr->has_batchid = 1;
 	}
 }
 

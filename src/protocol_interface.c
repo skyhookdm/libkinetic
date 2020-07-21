@@ -22,6 +22,7 @@
 #include <openssl/sha.h>
 
 #include "kinetic.h"
+#include "kinetic_internal.h"
 #include "protocol_types.h"
 #include "message.h"
 #include "kio.h"
@@ -296,6 +297,51 @@ void destroy_command(void *unpacked_cmd) {
 		(kproto_cmd_t *) unpacked_cmd,
 		mem_allocator
 	);
+}
+
+void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data) {
+
+	com__seagate__kinetic__proto__command__header__init(proto_cmdhdr);
+
+	if (cmdhdr_data->kch_clustvers) {
+		proto_cmdhdr->has_clusterversion = 1;
+		proto_cmdhdr->clusterversion     = cmdhdr_data->kch_clustvers;
+	}
+
+	if (cmdhdr_data->kch_connid) {
+		proto_cmdhdr->connectionid	   = cmdhdr_data->kch_connid;
+		proto_cmdhdr->has_connectionid = 1;
+	}
+
+	if (cmdhdr_data->kch_timeout) {
+		proto_cmdhdr->timeout	  = cmdhdr_data->kch_timeout;
+		proto_cmdhdr->has_timeout = 1;
+	}
+
+	if (cmdhdr_data->kch_pri) {
+		proto_cmdhdr->priority	   = cmdhdr_data->kch_pri;
+		proto_cmdhdr->has_priority = 1;
+	}
+
+	if (cmdhdr_data->kch_quanta) {
+		proto_cmdhdr->timequanta	 = cmdhdr_data->kch_quanta;
+		proto_cmdhdr->has_timequanta = 1;
+	}
+
+	if (cmdhdr_data->kch_batid) {
+		proto_cmdhdr->batchid	  = cmdhdr_data->kch_batid;
+		proto_cmdhdr->has_batchid = 1;
+	}
+}
+
+void extract_from_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data) {
+
+	assign_if_set(cmdhdr_data->kch_clustvers, proto_cmdhdr, clusterversion);
+	assign_if_set(cmdhdr_data->kch_connid   , proto_cmdhdr, connectionid);
+	assign_if_set(cmdhdr_data->kch_timeout  , proto_cmdhdr, timeout);
+	assign_if_set(cmdhdr_data->kch_pri      , proto_cmdhdr, priority);
+	assign_if_set(cmdhdr_data->kch_quanta   , proto_cmdhdr, timequanta);
+	assign_if_set(cmdhdr_data->kch_batid    , proto_cmdhdr, batchid);
 }
 
 // TODO: this is a helper fn, picked from protobuf-c source, to assist in walking protobuf code
