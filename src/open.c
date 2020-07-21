@@ -83,6 +83,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	/* Setup the session config structure */
 	cf->kcfg_host = strdup(host);
 	cf->kcfg_port = strdup(port);
+	cf->kcfg_id   = id;
 	cf->kcfg_hmac = strdup(hmac);
 	cf->kcfg_flags = KCFF_NOFLAGS;
 	if (usetls) cf->kcfg_flags |= KCFF_TLS;
@@ -157,6 +158,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	memcpy(&ks->ks_l, &glog.kgl_limits, sizeof(klimits_t));
 	memcpy(&ks->ks_conf, &glog.kgl_conf, sizeof(kconfiguration_t));
 
+	memset(&cmd_hdr, 0, sizeof(kcmdhdr_t));
 	command_status = extract_cmdhdr(&kmresp, &cmd_hdr);
 	if (command_status.ks_code != K_OK) {
 		rc = -1;
@@ -165,9 +167,9 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	memcpy(&ks->ks_ch, &cmd_hdr, sizeof(kcmdhdr_t));
 
  oex1:
+	destroy_message(kmresp.result_message);
  oex2:
 	
-
 	return(ktd);
 }
 
