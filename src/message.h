@@ -146,11 +146,13 @@ typedef struct kcmdhdr {
  * General protocol API
  */
 
-struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes);
-struct kresult_message unpack_kinetic_message(void *response_buffer, size_t response_size);
+void destroy_message(void *unpacked_msg);
 
 enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **msg_buffer, size_t *msg_size);
+struct kresult_message unpack_kinetic_message(void *response_buffer, size_t response_size);
+struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes);
 
-void destroy_message(void *unpacked_msg);
+int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
+
 
 #endif /* _MESSAGE_H */
