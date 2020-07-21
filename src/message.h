@@ -1,13 +1,10 @@
 #ifndef _MESSAGE_H
 #define _MESSAGE_H
-
-
 /*
  * Message details user does not need to see
  */
 // #include "kinetic.h"
 #include "protocol_types.h"
-
 
 // Type aliases
 typedef Com__Seagate__Kinetic__Proto__Message kproto_msg_t;
@@ -21,35 +18,44 @@ typedef Com__Seagate__Kinetic__Proto__Message kproto_msg_t;
  *	  2	(optional)The value
  * In bound messages:
  *	  0	The Kinetic PDU
- *	  1	The packed Kinetic response message and an option value
+ *	  1	The packed Kinetic response message and an optional value
  */ 
 enum kio_index {
-	KIOV_PDU = 0,
-	KIOV_MSG = 1,
-	KIOV_MSGVAL = 1,
-	KIOV_VAL = 2,
+	KIOV_PDU	= 0,
+	KIOV_MSG	= 1,
+	KIOV_MSGVAL	= 1,
+	KIOV_VAL	= 2,
 };
 
 /**
  * Kinetic PDU structure
- * The pdu structure is the first bits on the wire and defines the total
+ * The Kinetic pdu are the first bits on the wire and defines the total
  * length of the elements that follow.  The first element is a magic byte
  * that defines the beginning of the PDU - it is set to 'F' or 0x46, then 
  * the length of the kinetic protobuf message and then finally the length 
  * of the value, if any. 
  *
- *        +------------------------------------------------+
- *        |  Kinetic Magic   - Must be 'F' 0x46            |
- *        +------------------------------------------------+
- *        |  Protobuf Length - BE, Bounded 0 <  L <= 1024k |
- *        +------------------------------------------------+
- *        |  Value Length    - BE, Bounded 0 <= L <= 1024k |
- *        +------------------------------------------------+
+ *    offset   Description                                    length
+ *   +------+------------------------------------------------+------+
+ *   |  0   |  Kinetic Magic   - Must be 'F' 0x46            |  1   |
+ *   +------+------------------------------------------------+------+
+ *   |  1   |  Protobuf Length - BE, Bounded 0 <  L <= 1024k |  4   |
+ *   +------+------------------------------------------------+------+
+ *   |  5   |  Value Length    - BE, Bounded 0 <= L <= 1024k |  4   |
+ *   +------+------------------------------------------------+------+
+ *
+ * This is the layout on the wire and consequently a C data structure
+ * cannot be overlayed due to C's padding of structures. So PACK and UNPACK 
+ * macros are provided to move the header in and out of the kpdu_t structure
+ * below. The UNPACK macros pull the bytes out of the packed buffer and 
+ * then apply the local ntohl() macros to convert to the local endianness. 
+ * The same two step process is used for the PACK macros as well. The two 
+ * step process is for portability between big and little endian architectures
  */
 typedef struct kpdu {
-	uint8_t		kp_magic;	/* Always 'F' 0x46 */
-	uint32_t	kp_msglen;	/* Length of protobuf message */
-	uint32_t	kp_vallen;	/* Length of the value */
+	uint8_t		kp_magic;	/* 0x00, Always 'F' 0x46 */
+	uint32_t	kp_msglen;	/* 0x04, Length of protobuf message */
+	uint32_t	kp_vallen;	/* 0x08, Length of the value */
 } kpdu_t; 	
 
 #define KP_MAGIC 	0x46

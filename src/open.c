@@ -49,13 +49,10 @@ ki_msglen (struct kiovec *msg_hdr)
  * after first RPC. Second is the cluster version. Eventually timeouts,
  * priorty, quanta, quick exit flag need to be preserved and used on each
  * RPC.  
- * This code will also issue getlog limits and get version RPCs to get the 
- * connection ID, the cluster version, and to setup the session limits. 
- *
- * A kinetic command header and limits structure is filled out and 
- * preserved on the session config. It can then be referenced by each 
- * future RPC call. 
- *
+ * As part of the connection establishment, kinetic issues an unsolicited 
+ * getlog::limits response that contains the current cluster version and 
+ * connection ID in the command header as well as a limits structure in the
+ * body. This needs to be saved on the session for future reference. 
  * 
  */
 int
