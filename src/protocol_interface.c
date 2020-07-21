@@ -17,6 +17,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#include <arpa/inet.h>
+#include <openssl/hmac.h>
+#include <openssl/sha.h>
+
 #include "kinetic.h"
 #include "protocol_types.h"
 #include "message.h"
@@ -58,6 +62,53 @@
 
 typedef Com__Seagate__Kinetic__Proto__Message__HMACauth kauth_hmac;
 typedef Com__Seagate__Kinetic__Proto__Message__PINauth	kauth_pin;
+
+
+/* ------------------------------
+ * Auth Functions
+ */
+
+int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
+	int result_status;
+
+	// to self-document that we are using the default ENGINE (or whatever this param is used for)
+	ENGINE *hash_impl = NULL;
+
+	HMAC_CTX *hmac_context = HMAC_CTX_new();
+
+	result_status = HMAC_Init_ex(hmac_context, key, key_len, EVP_sha1(), hash_impl);
+	if (!result_status) { return -1; }
+
+	if (msg_data->has_commandbytes) {
+		uint32_t msg_len_bigendian = htonl(key_len);
+
+		result_status = HMAC_Update(hmac_context, (char *) &msg_len_bigendian, sizeof(uint32_t));
+		if (!result_status) { return -1; }
+
+		result_status = HMAC_Update(hmac_context, key, key_len);
+		if (!result_status) { return -1; }
+	}
+
+	void *hmac_digest = malloc(sizeof(char) * SHA_DIGEST_LENGTH);
+
+	msg_data->hmacauth->has_hmac = 1;
+	msg_data->hmacauth->hmac     = (ProtobufCBinaryData) {
+		.len  =             SHA_DIGEST_LENGTH,
+		.data = (uint8_t *) hmac_digest,
+	};
+
+	result_status = HMAC_Final(
+		hmac_context,
+		(unsigned char *) hmac_digest,
+		(unsigned int *) &msg_data->hmacauth->hmac.len
+	);
+	if (!result_status) { return -1; }
+
+
+	HMAC_CTX_free(hmac_context);
+
+	return result_status;
+}
 
 
 struct kresult_message unpack_response(struct kbuffer response_buffer) {
@@ -185,16 +236,12 @@ struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cm
 			kauth_hmac *msg_auth_hmac = (kauth_hmac *) malloc(sizeof(kauth_hmac));
 			com__seagate__kinetic__proto__message__hmacauth__init(msg_auth_hmac);
 
+			kinetic_msg->hmacauth = msg_auth_hmac;
+
 			msg_auth_hmac->has_identity = 1;
 			msg_auth_hmac->identity		= msg_hdr->kmh_id;
 
-			msg_auth_hmac->has_hmac = 1;
-			msg_auth_hmac->hmac		= (ProtobufCBinaryData) {
-				.len  =             msg_hdr->kmh_hmaclen,
-				.data = (uint8_t *) msg_hdr->kmh_hmac
-			};
-
-			kinetic_msg->hmacauth = msg_auth_hmac;
+			int hmac_result = compute_hmac(kinetic_msg, (char *) msg_hdr->kmh_hmac, msg_hdr->kmh_hmaclen);
 
 			break;
 
@@ -309,11 +356,11 @@ struct protobuf_loc {
 
 // TODO: it's really painful, but this is implemented for functionality first. will remove
 // unnecessary allocations later
-int64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
-	int64_t ack_seq = -1;
+uint64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
+	uint64_t ack_seq = -1;
 
 	//ERROR: not enough messages
-	if (KIOV_MSG >= msgcnt) { return; }
+	if (KIOV_MSG >= msgcnt) { return -1; }
 
 	// walk the message first
 	struct kresult_message unpack_result = unpack_kinetic_message(
