@@ -65,6 +65,9 @@ struct ktable {
 	{ KCTL_DEL,     "del",     "Delete key value or range of key values",
 	  &kctl_del},
 	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_info},
+#endif
+	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_nohandler},
+#if 0
 	{ KCTL_SETCLUSTERV,
 	                "cluster", "Set device cluster version", &kctl_cluster},
 	{ KCTL_SETLOCKPIN,
@@ -94,7 +97,7 @@ usage()
 #define US_ARG_WIDTH "-14"
 	
 	/* Loop through the table and print the available commands */
-	for(i=0; i<KCTL_EOT; i++) {
+	for(i=0; ktable[i].ktab_cmd != KCTL_EOT; i++) {
 		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
 			ktable[i].ktab_cmdstr,
 			ktable[i].ktab_cmdhelp);

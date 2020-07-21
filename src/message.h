@@ -12,6 +12,23 @@
 // Type aliases
 typedef Com__Seagate__Kinetic__Proto__Message kproto_msg_t;
 
+/*
+ * This library uses KIO vectors using the following convention.
+ * Out bound messages:
+ * 	Vector	Contents
+ * 	  0	The Kinetic PDU
+ *	  1	The packed Kinetic request message
+ *	  2	(optional)The value
+ * In bound messages:
+ *	  0	The Kinetic PDU
+ *	  1	The packed Kinetic response message and an option value
+ */ 
+enum kio_index {
+	KIOV_PDU = 0,
+	KIOV_MSG = 1,
+	KIOV_MSGVAL = 1,
+	KIOV_VAL = 2,
+};
 
 /**
  * Kinetic PDU structure
@@ -33,11 +50,41 @@ typedef struct kpdu {
 	uint8_t		kp_magic;	/* Always 'F' 0x46 */
 	uint32_t	kp_msglen;	/* Length of protobuf message */
 	uint32_t	kp_vallen;	/* Length of the value */
-} kpdu_t; 
+} kpdu_t; 	
 
 #define KP_MAGIC 	0x46
-#define KP_LENGTH 	sizeof(kpdu_t)	
-#define KP_INIT 	{ KP_MAGIC, 0, 0 }
+
+/* Packed length */
+#define KP_PLENGTH 9
+
+/* this macro unpacks a Kinetic PDU from a sequential set of KP_LENGTH bytes */
+#define UNPACK_PDU(_pdu, _p)						    \
+	do {								    \
+		(_pdu)->kp_magic  = (char)(_p)[0];			    \
+		(_pdu)->kp_msglen = (uint32_t)((_p)[4]<<24 | (_p)[3]<<16 |  \
+					       (_p)[2]<< 8 | (_p)[1]      );\
+		(_pdu)->kp_msglen = ntohl((_pdu)->kp_msglen);		    \
+		(_pdu)->kp_vallen = (uint32_t)((_p)[8]<<24 | (_p)[7]<<16 |  \
+					       (_p)[6]<< 8 | (_p)[5]      );\
+		(_pdu)->kp_vallen = ntohl((_pdu)->kp_vallen);		    \
+	} while(0);
+
+/* this macro packs a Kinetic PDU into a sequential set of KP_LENGTH bytes */
+#define PACK_PDU(_pdu, _p)						    \
+	do {								    \
+		uint32_t d;						    \
+		(_p)[0] = (char)(_pdu)->kp_magic;			    \
+		d = htonl((_pdu)->kp_msglen);				    \
+		(_p)[4] = (d & 0xff000000)>>24;				    \
+		(_p)[3] = (d & 0x00ff0000)>>16;				    \
+		(_p)[2] = (d & 0x0000ff00)>> 8;				    \
+		(_p)[1] = (d & 0x000000ff);				    \
+		d = htonl((_pdu)->kp_vallen);				    \
+		(_p)[8] = (d & 0xff000000)>>24;				    \
+		(_p)[7] = (d & 0x00ff0000)>>16;				    \
+		(_p)[6] = (d & 0x0000ff00)>> 8;				    \
+		(_p)[5] = (d & 0x000000ff);				    \
+	} while(0);
 
 // Authorization types (`AuthType`)
 #define KMAT(ka) COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__##ka

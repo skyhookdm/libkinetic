@@ -193,13 +193,13 @@ struct ktli_helpers {
 	int kh_recvhdr_len;			
 
 	/* Extracts the ackSequence from a full message in a single kiovec */
-	int64_t (*kh_getaseq_fn)(struct kiovec *msg, int msgcnt);
+	uint64_t (*kh_getaseq_fn)(struct kiovec *msg, int msgcnt);
 
 	/* Sets the sequence in a full message in a single kiovec */
-	void	(*kh_setseq_fn)(struct kiovec *msg, int msgcnt, int64_t seq);
+	void	(*kh_setseq_fn)(struct kiovec *msg, int msgcnt, uint64_t seq);
 
 	/* Returns total length of a message given a header in one kiovec */
-	uint32_t (*kh_msglen_fn)(struct kiovec *msg_hdr);
+	int32_t (*kh_msglen_fn)(struct kiovec *msg_hdr);
 };
 
 /* Exposed API */
@@ -210,9 +210,10 @@ extern int ktli_connect(int ktd);
 extern int ktli_disconnect(int ktd);
 extern int ktli_send(int ktd, struct kio *kio);
 extern int ktli_receive(int ktd, struct kio *kio);
+extern int ktli_receive_unsolicited(int ktd, struct kio **kio);
 extern int ktli_poll(int ktd, int timeout);
 extern int ktli_drain(int ktd, struct kio **kio);
 extern int ktli_drain_match(int ktd, struct kio *kio);
-extern int ktli_conf(int ktd, struct ktli_config **cf);
+extern int ktli_config(int ktd, struct ktli_config **cf);
 
 #endif /* _KTLI_H */

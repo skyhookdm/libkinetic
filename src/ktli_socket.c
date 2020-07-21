@@ -264,6 +264,8 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 
 	/* PAK: need to loop continuing to read if br < kiov_len */
 	if (br !=  msg[0].kiov_len) {
+		printf("FAILED Read: br(%d) != msg[0].kiov_len(%ld)\n",
+		       br, msg[0].kiov_len);
 		errno = ECOMM;
 		return(-1);
 	}

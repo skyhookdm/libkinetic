@@ -145,7 +145,7 @@ enum header_field_type {
  */
 
 // helpers for directly accessing fields
-int64_t ki_getaseq(struct kiovec *msg, int msgcnt);
+uint64_t ki_getaseq(struct kiovec *msg, int msgcnt);
 void    ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq);
 
 struct kresult_message  create_header(uint8_t header_field_bitmap, ...);

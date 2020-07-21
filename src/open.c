@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <sys/types.h>
+#include <arpa/inet.h>
 
 #include "kinetic.h"
 #include "getlog.h"
@@ -18,7 +19,7 @@ static int32_t ki_msglen(struct kiovec *msg_hdr);
 
 /* Kinetic API helpers */
 static struct ktli_helpers ki_kh = {
-	.kh_recvhdr_len = KP_LENGTH,
+	.kh_recvhdr_len = KP_PLENGTH,
 	.kh_getaseq_fn	= ki_getaseq,
 	.kh_setseq_fn	= ki_setseq,
 	.kh_msglen_fn	= ki_msglen,
@@ -27,14 +28,16 @@ static struct ktli_helpers ki_kh = {
 static int32_t
 ki_msglen (struct kiovec *msg_hdr)
 {
-	kpdu_t *pdu;
+	kpdu_t pdu;
 
-	if (!msg_hdr || (msg_hdr->kiov_len !=  KP_LENGTH)) {
+	if (!msg_hdr || (msg_hdr->kiov_len !=  KP_PLENGTH)) {
 		return(-1);
 	}
 
-	pdu = (kpdu_t *)msg_hdr->kiov_base;
-	return (pdu->kp_msglen + pdu->kp_vallen);
+	/* pull these off in network byte order then convert to host order */
+	UNPACK_PDU(&pdu, (unsigned char *)msg_hdr->kiov_base);
+		
+	return (pdu.kp_msglen + pdu.kp_vallen);
 }
 
 /**
@@ -60,6 +63,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 {
 	int ktd, rc;
 	struct ktli_config *cf;
+	struct kio *kio;
 	ksession_t *ks;
 	kgetlog_t glog;
 	kgltype_t glt;
@@ -111,6 +115,25 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	}
 
 	/* Get the limits structure and save it on the session */
+	/* Wait for the response */
+	do {
+		/* wait for something to come in */
+		ktli_poll(ktd, 0);
+
+		/* Check to see if it our response */
+		rc = ktli_receive_unsolicited(ktd, &kio);
+		if (rc < 0)
+			if (errno == ENOENT)
+				/* Not our response, so try again */
+				continue;
+			else {
+				/* PAK: need to exit, receive failed */
+			}
+		else
+			/* Got our response */
+			break;
+	} while (1);
+
 	memset(&glog, 0, sizeof(kgetlog_t));
 	glt = KGLT_LIMITS;
 	glog.kgl_type = &glt;

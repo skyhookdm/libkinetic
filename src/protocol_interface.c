@@ -309,11 +309,11 @@ struct protobuf_loc {
 
 // TODO: it's really painful, but this is implemented for functionality first. will remove
 // unnecessary allocations later
-int64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
+uint64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 	int64_t ack_seq = -1;
 
 	//ERROR: not enough messages
-	if (KIOV_MSG >= msgcnt) { return; }
+	if (KIOV_MSG >= msgcnt) { return 0; }
 
 	// walk the message first
 	struct kresult_message unpack_result = unpack_kinetic_message(

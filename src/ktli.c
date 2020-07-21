@@ -591,14 +591,33 @@ ktli_send(int kts, struct kio *kio)
 
 /* 
  * List helper function to find a matching kio given a seq number
+ * Return 0 for true or a match
  */
 static int
 ktli_kiomatch(char *data, char *ldata)
 {
+	int match = -1;
 	struct kio *kio = (struct kio *)data;
-	struct kio *lkio = (struct kio *)ldata;
+	struct kio *lkio = *(struct kio **)ldata;
 
-	return (kio == lkio);
+	if (kio == lkio)
+		match = 0;
+	return (match);
+}
+
+/* 
+ * List helper function to find a kio with no req sendmsg
+ * Return 0 for true or a match
+ */
+static int
+ktli_kionoreq(char *data, char *ldata)
+{
+	int match = -1;
+	struct kio *lkio = *(struct kio **)ldata;
+
+	if (lkio->kio_sendmsg.km_cnt == 0) /* sendmsg vector - no req */
+		match = 0;
+	return (match);
 }
 
 /**
@@ -660,6 +679,72 @@ ktli_receive(int kts, struct kio *kio)
 		/* Found the requested kio */
 		lkio = (struct kio **)list_remove_curr(cq->ktq_list);
 		assert(kio = *lkio);
+		KTLI_FREE(lkio);
+		rc = 0;
+	}
+	/* leave the list ready for an insert */
+	(void)list_mvrear(cq->ktq_list);
+
+	/* if there are still messages wakeup the next */
+	if (list_size(cq->ktq_list)) {
+		pthread_cond_broadcast(&cq->ktq_cv);
+	}
+
+	pthread_mutex_unlock(&cq->ktq_m);
+	
+	return(rc);
+}
+
+/**
+ * int ktli_receive(int kts, struct kio *kio)
+ *
+ * This function receives any completed kio. If no kio are completed it
+ * immediately returns back to the caller. A received kio is hung on
+ * the caller provided kio ptr. 
+ * 
+ * @param kts An opened and connected kinetic session descriptor. 
+ * @param kio A kio ptr. The completed queue is searched for the passed in kio 
+ *            if found, it is removed and success returned, failure otherwise.
+ *
+ */ 
+int
+ktli_receive_unsolicited(int kts, struct kio **kio)
+{
+	int rc = 0;
+	enum ktli_sstate st;
+	struct ktli_queue *cq;
+	struct kio **lkio;
+	
+	if (!kts_isvalid(kts)) {
+		errno = EBADF;
+		return(-1);
+	}
+
+	/* 
+	 * verify kts is connected or in draining, receives can drain
+	 * as well as ktli_drain, the difference is that the receive must 
+	 * match a kio to drain and since we are unconnected a draining
+	 * receive can receive from all queues in compq, recvq, sendq order.  
+	 */
+	st = kts_state(kts);
+	if ((st != KTLI_SSTATE_CONNECTED) && (st != KTLI_SSTATE_DRAINING)) {
+		errno = ENOTCONN;
+		return(-1);
+	}
+
+	cq = kts_compq(kts);
+
+	pthread_mutex_lock(&cq->ktq_m);
+
+	/* list_traverse defaults to starting the traverse at the front */
+	rc = list_traverse(cq->ktq_list, (char *)kio, ktli_kionoreq, LIST_ALTR);
+	if (rc == LIST_EXTENT) {
+		errno = ENOENT;
+		rc = -1;
+	} else {
+		/* Found the requested kio */
+		lkio = (struct kio **)list_remove_curr(cq->ktq_list);
+		*kio = *lkio;
 		KTLI_FREE(lkio);
 		rc = 0;
 	}
@@ -962,6 +1047,7 @@ ktli_sender(void *p)
 
 			if (rc < 0) {
 				/* Error, hang it on the completed Q */
+				printf("KTLI Send Error\n");
 				kio->kio_state = KIO_FAILED;
 				
 				pthread_mutex_lock(&cq->ktq_m);
@@ -997,14 +1083,18 @@ ktli_sender(void *p)
 
 /* 
  * List helper function to find a matching kio given a seq number
+ * Return 0 for true or a match
  */
 static int
 ktli_seqmatch(char *data, char *ldata)
 {
+	int match = -1;
 	int64_t *aseq = (int64_t *)data;
-	struct kio *lkio = (struct kio *)ldata;
+	struct kio *lkio = *(struct kio **)ldata;
 
-	return (*aseq == lkio->kio_seq);
+	if (*aseq == lkio->kio_seq)
+		match = 0;
+	return (match);
 }
 
 /**
@@ -1063,6 +1153,7 @@ ktli_recvmsg(int kts)
 	}
 	
 	if (rc < 0) {
+		printf("%s:%d: poll failed %d\n", __FILE__, __LINE__, errno);
 		goto recvmsgerr;
 	}
 
@@ -1106,7 +1197,7 @@ ktli_recvmsg(int kts)
 	}
 		
 	/* Now reduce by the header we already received */
-	msg.km_msg[1].kiov_len -= kh->kh_recvhdr_len; 
+	/* msg.km_msg[1].kiov_len -= kh->kh_recvhdr_len; */
 
 	/* Allocate the message buffer */
 	msg.km_msg[1].kiov_base = KTLI_MALLOC(msg.km_msg[1].kiov_len);
@@ -1120,7 +1211,8 @@ ktli_recvmsg(int kts)
 	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[1], 1);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		printf("%s:%d: receive failed %d\n", __FILE__, __LINE__, rc);
+		printf("%s:%d: receive failed %d\n", __FILE__, __LINE__, errno);
+		perror("");
 		goto recvmsgerr;
 		assert(0);
 	}
@@ -1133,12 +1225,18 @@ ktli_recvmsg(int kts)
 	rc = list_traverse(rq->ktq_list,
 			   (char *)&aseq, ktli_seqmatch, LIST_ALTR);
 	if (rc == LIST_EXTENT) {
-		/* PAK: Handle no matching request 
-		   still have buffers allocated  */
-		/* HOLDING MUTEX - don't just return*/
-		printf("%s:%d: received unsolicted response\n",
-		       __FILE__, __LINE__);
-		kio = NULL;
+		/*
+		 * No matching kio.  Allocate a kio, set it up and mark it as
+		 * received. Let the upper layers deal with it.
+		 */
+		kio = KTLI_MALLOC(sizeof(struct kio));
+		if (!kio) {
+			printf("%s:%d: KTLI_MALLOC failed\n",
+			       __FILE__, __LINE__);
+			goto recvmsgerr;
+		}
+		memset((void *)kio, 0, sizeof(struct kio));
+		kio->kio_seq = aseq;
 	} else {
 		lkio = (struct kio **)list_remove_curr(rq->ktq_list);
 		kio = *lkio;

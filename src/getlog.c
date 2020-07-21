@@ -296,6 +296,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kstatus_t krc;
 	struct kio *kio;
 	struct ktli_config *cf;
+	uint8_t ppdu[KP_PLENGTH];
 	kpdu_t pdu;
 	kpdu_t *rpdu;
 	kmsghdr_t msg_hdr;
@@ -305,7 +306,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	struct kresult_message kmreq, kmresp;
 
 	/* Get KTLI config */ 
-	rc = ktli_conf(ktd, &cf);
+	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
 		return (kstatus_t) {
 			.ks_code    = K_EREJECTED,
@@ -350,8 +351,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	/* Hang the PDU buffer */
 	kio->kio_cmd = KMT_GETLOG;
-	kio->kio_sendmsg.km_msg[0].kiov_base = (void *) &pdu;
-	kio->kio_sendmsg.km_msg[0].kiov_len = KP_LENGTH;
+	kio->kio_sendmsg.km_msg[0].kiov_base = (void *) ppdu;
+	kio->kio_sendmsg.km_msg[0].kiov_len = KP_PLENGTH;
 
 
 	/* Setup msg_hdr */
@@ -359,6 +360,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	msg_hdr.kmh_atype = KA_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
+	
 
 	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
@@ -373,15 +375,16 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
-		(kproto_msg_t *) &(kmreq.result_message),
+		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[1].kiov_base),
 		&(kio->kio_sendmsg.km_msg[1].kiov_len)
 	);
 	
-	/* Now that the message length is known, setup the PDU */
+	/* Now that the message length is known, setup the PDU and pack it */
 	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu.kp_vallen = 0;
+	PACK_PDU(&pdu, ppdu);
 
 	/* Send the request */
 	ktli_send(ktd, kio);
