@@ -373,7 +373,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
-		(kproto_msg_t *) &(kmreq.result_message),
+		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[1].kiov_base),
 		&(kio->kio_sendmsg.km_msg[1].kiov_len)
 	);
