@@ -374,13 +374,12 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 }
 
 // TODO: this is a helper fn, picked from protobuf-c source, to assist in walking protobuf code
-/* NOTE: not yet used, so just commenting out
 static size_t
 parse_tag_and_wiretype(size_t len, const uint8_t *data, uint32_t *tag_out, ProtobufCWireType *wiretype_out) {
 	/* Bit fields for reference
 	 *     0xf8: 1111 1000    0x80: 1000 0000
 	 *     0x07: 0000 0111    0x7f: 0111 1111
-	 *
+	 */
 	unsigned max_rv          = len > 5 ? 5 : len;
 	uint32_t tag             = (data[0] & 0x7f) >> 3;
 	unsigned half_byte_width = 4;
@@ -418,7 +417,6 @@ parse_tag_and_wiretype(size_t len, const uint8_t *data, uint32_t *tag_out, Proto
 	// error: bad header
 	return 0;
 }
-*/
 
 // TODO: this is going to be used for results of walking the protobuf data
 struct protobuf_loc {
@@ -427,6 +425,264 @@ struct protobuf_loc {
 	uint8_t (*unpack_field)(uint8_t *data_buffer, size_t byte_offset, size_t len);
 	uint8_t (*pack_field)(uint8_t *data_buffer, size_t byte_offset, size_t len);
 };
+
+
+#define BOUND_SIZEOF_SCANNED_MEMBER_LOG2    5
+#define FIRST_SCANNED_MEMBER_SLAB_SIZE_LOG2 4
+
+#define MAX_SCANNED_MEMBER_SLAB (                           \
+	  sizeof(unsigned int) * 8 - 1			                \
+	- BOUND_SIZEOF_SCANNED_MEMBER_LOG2	                    \
+	- FIRST_SCANNED_MEMBER_SLAB_SIZE_LOG2                   \
+)
+
+#define REQUIRED_FIELD_BITMAP_SET(index) (                  \
+	required_fields_bitmap[(index)/8] |= (1UL<<((index)%8)) \
+)
+
+#define REQUIRED_FIELD_BITMAP_IS_SET(index) (               \
+	  required_fields_bitmap[(index)/8]                     \
+	& ( 1UL << ((index) % 8) )                              \
+)
+
+
+struct protobuf_loc *
+protobuf_c_field_seek(const ProtobufCMessageDescriptor *desc, size_t len, const uint8_t *data)
+{
+	ProtobufCMessage *rv;
+
+	const ProtobufCFieldDescriptor *last_field = desc->fields + 0;
+
+	// scanned_member_slabs is an array of arrays ([0] is a pointer to first_member_slab)
+	ScannedMember first_member_slab[1UL << FIRST_SCANNED_MEMBER_SLAB_SIZE_LOG2];
+	ScannedMember *scanned_member_slabs[MAX_SCANNED_MEMBER_SLAB + 1];
+
+	unsigned which_slab       = 0; // the slab we are currently populating
+	unsigned in_slab_index    = 0; // number of members in the slab
+	size_t   n_unknown        = 0;
+	unsigned last_field_index = 0;
+	unsigned f;
+	unsigned j;
+	unsigned i_slab;
+	unsigned required_fields_bitmap_len;
+
+	unsigned char required_fields_bitmap_stack[16];
+	unsigned char *required_fields_bitmap = required_fields_bitmap_stack;
+
+	protobuf_c_boolean required_fields_bitmap_alloced = FALSE;
+
+	rv = do_alloc(allocator, desc->sizeof_message);
+	if (!rv) { return (NULL); }
+
+	scanned_member_slabs[0] = first_member_slab;
+
+	required_fields_bitmap_len = (desc->n_fields + 7) / 8;
+	if (required_fields_bitmap_len > sizeof(required_fields_bitmap_stack)) {
+		required_fields_bitmap = do_alloc(allocator, required_fields_bitmap_len);
+
+		if (!required_fields_bitmap) {
+			do_free(allocator, rv);
+			return (NULL);
+		}
+
+		required_fields_bitmap_alloced = TRUE;
+	}
+
+	memset(required_fields_bitmap, 0, required_fields_bitmap_len);
+
+	// Generated code always defines "message_init". However, we provide a
+	// fallback for (1) users of old protobuf-c generated-code that do not
+	// provide the function, and (2) descriptors constructed from some other
+	// source (most likely, direct construction from the .proto file).
+	if (desc->message_init != NULL) { protobuf_c_message_init(desc, rv); }
+	else { message_init_generic(desc, rv); }
+
+	// rem is the number of bytes remaining; at is the byte we're on
+	size_t rem        = len;
+	const uint8_t *at = data;
+
+	while (rem > 0) {
+		uint32_t tag;
+		ProtobufCWireType wire_type;
+		size_t used = parse_tag_and_wiretype(rem, at, &tag, &wire_type);
+		const ProtobufCFieldDescriptor *field;
+		ScannedMember tmp;
+
+		if (used == 0) {
+			PROTOBUF_C_UNPACK_ERROR(
+				"error parsing tag/wiretype at offset %u",
+				(unsigned) (at - data)
+			);
+
+			goto error_cleanup_during_scan;
+		}
+
+		// TODO: Consider optimizing for field[1].id == tag, if field[1]
+		if (last_field == NULL || last_field->id != tag) {
+			// lookup field
+			int field_index = int_range_lookup(
+				desc->n_field_ranges, desc->field_ranges, tag
+			);
+
+			if (field_index < 0) {
+				field = NULL;
+				n_unknown++;
+			}
+
+			else {
+				field = desc->fields + field_index;
+				last_field = field;
+				last_field_index = field_index;
+			}
+
+		}
+		
+		else { field = last_field; }
+
+		if (field != NULL && field->label == PROTOBUF_C_LABEL_REQUIRED) {
+			REQUIRED_FIELD_BITMAP_SET(last_field_index);
+		}
+
+		at                    += used;
+		rem                   -= used;
+		tmp.tag                = tag;
+		tmp.wire_type          = wire_type;
+		tmp.field              = field;
+		tmp.data               = at;
+		tmp.length_prefix_len  = 0;
+
+		switch (wire_type) {
+		case PROTOBUF_C_WIRE_TYPE_VARINT: {
+			unsigned max_len = rem < 10 ? rem : 10;
+			unsigned i;
+
+			for (i = 0; i < max_len; i++) {
+				if ((at[i] & 0x80) == 0) { break; }
+			}
+
+			if (i == max_len) {
+				PROTOBUF_C_UNPACK_ERROR(
+					"unterminated varint at offset %u", (unsigned) (at - data)
+				);
+
+				goto error_cleanup_during_scan;
+			}
+
+			tmp.len = i + 1;
+			break;
+		}
+
+		case PROTOBUF_C_WIRE_TYPE_64BIT:
+			if (rem < 8) {
+				PROTOBUF_C_UNPACK_ERROR(
+					"too short after 64bit wiretype at offset %u", (unsigned) (at - data)
+				);
+
+				goto error_cleanup_during_scan;
+			}
+
+			tmp.len = 8;
+			break;
+
+		case PROTOBUF_C_WIRE_TYPE_LENGTH_PREFIXED: {
+			size_t pref_len;
+
+			tmp.len = scan_length_prefixed_data(rem, at, &pref_len);
+			if (tmp.len == 0) {
+				// NOTE: scan_length_prefixed_data calls UNPACK_ERROR
+				goto error_cleanup_during_scan;
+			}
+
+			tmp.length_prefix_len = pref_len;
+			break;
+		}
+
+		case PROTOBUF_C_WIRE_TYPE_32BIT:
+			if (rem < 4) {
+				PROTOBUF_C_UNPACK_ERROR(
+					"too short after 32bit wiretype at offset %u", (unsigned) (at - data)
+				);
+
+				goto error_cleanup_during_scan;
+			}
+
+			tmp.len = 4;
+			break;
+
+		default:
+			PROTOBUF_C_UNPACK_ERROR("unsupported tag %u at offset %u",
+						wire_type, (unsigned) (at - data));
+			goto error_cleanup_during_scan;
+		}
+
+		if (in_slab_index == (1UL << (which_slab + FIRST_SCANNED_MEMBER_SLAB_SIZE_LOG2))) {
+			size_t size;
+
+			in_slab_index = 0;
+			if (which_slab == MAX_SCANNED_MEMBER_SLAB) {
+				PROTOBUF_C_UNPACK_ERROR("too many fields");
+				goto error_cleanup_during_scan;
+			}
+
+			which_slab++;
+			size = sizeof(ScannedMember) << (which_slab + FIRST_SCANNED_MEMBER_SLAB_SIZE_LOG2);
+
+			scanned_member_slabs[which_slab] = do_alloc(allocator, size);
+			if (scanned_member_slabs[which_slab] == NULL) {
+				goto error_cleanup_during_scan;
+			}
+		}
+
+		scanned_member_slabs[which_slab][in_slab_index++] = tmp;
+
+		if (field != NULL && field->label == PROTOBUF_C_LABEL_REPEATED) {
+			size_t *n = STRUCT_MEMBER_PTR(size_t, rv, field->quantifier_offset);
+
+			int is_packable_or_packed = (
+				0 != (field->flags & PROTOBUF_C_FIELD_FLAG_PACKED) || is_packable_type(field->type)
+			);
+
+			int is_wiretype_prefixed = wire_type == PROTOBUF_C_WIRE_TYPE_LENGTH_PREFIXED;
+
+			if (is_wiretype_prefixed && is_packable_or_packed) {
+				size_t count;
+				size_t field_bytelen           = tmp.len  - tmp.length_prefix_len;
+				const uint8_t *packed_elements = tmp.data + tmp.length_prefix_len;
+				if (!count_packed_elements(field->type, field_bytelen, packed_elements, &count))
+				{
+					PROTOBUF_C_UNPACK_ERROR("counting packed elements");
+					goto error_cleanup_during_scan;
+				}
+				*n += count;
+			}
+			else {
+				*n += 1;
+			}
+		}
+
+		at += tmp.len;
+		rem -= tmp.len;
+	}
+
+	// do real parsing
+	for (i_slab = 0; i_slab <= which_slab; i_slab++) {
+		unsigned max = (i_slab == which_slab) ?
+			in_slab_index : (1UL << (i_slab + 4));
+		ScannedMember *slab = scanned_member_slabs[i_slab];
+
+		for (j = 0; j < max; j++) {
+			if (!parse_member(slab + j, rv, allocator)) {
+				PROTOBUF_C_UNPACK_ERROR("error parsing member %s of %s",
+							slab->field ? slab->field->name : "*unknown-field*",
+					desc->name);
+				goto error_cleanup;
+			}
+		}
+	}
+
+	// cleanup
+	return rv;
+}
 
 
 // TODO: it's really painful, but this is implemented for functionality first. will remove
