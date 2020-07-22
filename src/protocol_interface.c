@@ -73,32 +73,35 @@ typedef Com__Seagate__Kinetic__Proto__Message__PINauth	kauth_pin;
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
 	int result_status;
 
+	HMAC_CTX *hmac_context = HMAC_CTX_new();
+
 	// to self-document that we are using the default ENGINE (or whatever this param is used for)
 	ENGINE *hash_impl = NULL;
-
-	HMAC_CTX *hmac_context = HMAC_CTX_new();
 
 	result_status = HMAC_Init_ex(hmac_context, key, key_len, EVP_sha1(), hash_impl);
 	if (!result_status) { return -1; }
 
+	// TODO: what if the message has no command bytes?
 	if (msg_data->has_commandbytes) {
-		uint32_t msg_len_bigendian = htonl(key_len);
+		uint32_t msg_len_bigendian = htonl(msg_data->commandbytes.len);
 
-		result_status = HMAC_Update(hmac_context, (char *) &msg_len_bigendian, sizeof(uint32_t));
+		result_status = HMAC_Update(
+			hmac_context,
+			(unsigned char *) &msg_len_bigendian,
+			sizeof(uint32_t)
+		);
 		if (!result_status) { return -1; }
 
-		result_status = HMAC_Update(hmac_context, key, key_len);
+		result_status = HMAC_Update(
+			hmac_context,
+			(unsigned char *) msg_data->commandbytes.data,
+			msg_data->commandbytes.len
+		);
 		if (!result_status) { return -1; }
 	}
 
+	// finalize the digest into a string (allocated)
 	void *hmac_digest = malloc(sizeof(char) * SHA_DIGEST_LENGTH);
-
-	msg_data->hmacauth->has_hmac = 1;
-	msg_data->hmacauth->hmac     = (ProtobufCBinaryData) {
-		.len  =             SHA_DIGEST_LENGTH,
-		.data = (uint8_t *) hmac_digest,
-	};
-
 	result_status = HMAC_Final(
 		hmac_context,
 		(unsigned char *) hmac_digest,
@@ -106,8 +109,15 @@ int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
 	);
 	if (!result_status) { return -1; }
 
-
+	// free the HMAC context (leaves the result intact)
 	HMAC_CTX_free(hmac_context);
+
+	// set the hmac auth to the result
+	msg_data->hmacauth->has_hmac = 1;
+	msg_data->hmacauth->hmac     = (ProtobufCBinaryData) {
+		.len  =             SHA_DIGEST_LENGTH,
+		.data = (uint8_t *) hmac_digest,
+	};
 
 	return result_status;
 }
