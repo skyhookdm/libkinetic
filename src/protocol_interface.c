@@ -73,32 +73,35 @@ typedef Com__Seagate__Kinetic__Proto__Message__PINauth	kauth_pin;
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
 	int result_status;
 
+	HMAC_CTX *hmac_context = HMAC_CTX_new();
+
 	// to self-document that we are using the default ENGINE (or whatever this param is used for)
 	ENGINE *hash_impl = NULL;
-
-	HMAC_CTX *hmac_context = HMAC_CTX_new();
 
 	result_status = HMAC_Init_ex(hmac_context, key, key_len, EVP_sha1(), hash_impl);
 	if (!result_status) { return -1; }
 
+	// TODO: what if the message has no command bytes?
 	if (msg_data->has_commandbytes) {
-		uint32_t msg_len_bigendian = htonl(key_len);
+		uint32_t msg_len_bigendian = htonl(msg_data->commandbytes.len);
 
-		result_status = HMAC_Update(hmac_context, (char *) &msg_len_bigendian, sizeof(uint32_t));
+		result_status = HMAC_Update(
+			hmac_context,
+			(unsigned char *) &msg_len_bigendian,
+			sizeof(uint32_t)
+		);
 		if (!result_status) { return -1; }
 
-		result_status = HMAC_Update(hmac_context, key, key_len);
+		result_status = HMAC_Update(
+			hmac_context,
+			(unsigned char *) msg_data->commandbytes.data,
+			msg_data->commandbytes.len
+		);
 		if (!result_status) { return -1; }
 	}
 
+	// finalize the digest into a string (allocated)
 	void *hmac_digest = malloc(sizeof(char) * SHA_DIGEST_LENGTH);
-
-	msg_data->hmacauth->has_hmac = 1;
-	msg_data->hmacauth->hmac     = (ProtobufCBinaryData) {
-		.len  =             SHA_DIGEST_LENGTH,
-		.data = (uint8_t *) hmac_digest,
-	};
-
 	result_status = HMAC_Final(
 		hmac_context,
 		(unsigned char *) hmac_digest,
@@ -106,8 +109,15 @@ int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
 	);
 	if (!result_status) { return -1; }
 
-
+	// free the HMAC context (leaves the result intact)
 	HMAC_CTX_free(hmac_context);
+
+	// set the hmac auth to the result
+	msg_data->hmacauth->has_hmac = 1;
+	msg_data->hmacauth->hmac     = (ProtobufCBinaryData) {
+		.len  =             SHA_DIGEST_LENGTH,
+		.data = (uint8_t *) hmac_digest,
+	};
 
 	return result_status;
 }
@@ -368,15 +378,28 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	// propagate the response status to the caller
 	kproto_status_t *response_status = response_cmd->status;
 
-	char *status_detail_msg = response_status->has_detailedmessage ?
-		  (char *) response_status->detailedmessage.data
-		: NULL
-	;
+	// copy the status message so that destroying the unpacked command doesn't get weird
+	size_t statusmsg_len     = strlen(response_status->statusmessage);
+	char *response_statusmsg = (char *) malloc(sizeof(char) * statusmsg_len);
+	strcpy(response_statusmsg, response_status->statusmessage);
+
+	char *response_detailmsg = NULL;
+	if (response_status->has_detailedmessage) {
+		response_detailmsg = (char *) malloc(sizeof(char) * response_status->detailedmessage.len);
+		memcpy(
+			response_detailmsg,
+			response_status->detailedmessage.data,
+			response_status->detailedmessage.len
+		);
+	}
+
+	// cleanup before we return the status data
+	destroy_command(response_cmd);
 
 	return (kstatus_t) {
 		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
-		.ks_message = response_status->statusmessage,
-		.ks_detail  = status_detail_msg
+		.ks_message = response_statusmsg,
+		.ks_detail  = response_detailmsg,
 	};
 }
 

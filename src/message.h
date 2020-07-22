@@ -7,7 +7,9 @@
 #include "protocol_types.h"
 
 // Type aliases
-typedef Com__Seagate__Kinetic__Proto__Message kproto_msg_t;
+typedef Com__Seagate__Kinetic__Proto__Message           kproto_msg_t;
+typedef Com__Seagate__Kinetic__Proto__Message__HMACauth kproto_hmacauth_t;
+typedef Com__Seagate__Kinetic__Proto__Message__PINauth  kproto_pinauth_t;
 
 /*
  * This library uses KIO vectors using the following convention.
