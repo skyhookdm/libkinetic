@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <arpa/inet.h>
 #include <openssl/hmac.h>
@@ -361,15 +362,28 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	// propagate the response status to the caller
 	kproto_status_t *response_status = response_cmd->status;
 
-	char *status_detail_msg = response_status->has_detailedmessage ?
-		  (char *) response_status->detailedmessage.data
-		: NULL
-	;
+	// copy the status message so that destroying the unpacked command doesn't get weird
+	size_t statusmsg_len     = strlen(response_status->statusmessage);
+	char *response_statusmsg = (char *) malloc(sizeof(char) * statusmsg_len);
+	strcpy(response_statusmsg, response_status->statusmessage);
+
+	char *response_detailmsg = NULL;
+	if (response_status->has_detailedmessage) {
+		response_detailmsg = (char *) malloc(sizeof(char) * response_status->detailedmessage.len);
+		memcpy(
+			response_detailmsg,
+			response_status->detailedmessage.data,
+			response_status->detailedmessage.len
+		);
+	}
+
+	// cleanup before we return the status data
+	destroy_command(response_cmd);
 
 	return (kstatus_t) {
 		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
-		.ks_message = response_status->statusmessage,
-		.ks_detail  = status_detail_msg
+		.ks_message = response_statusmsg,
+		.ks_detail  = response_detailmsg,
 	};
 }
 
