@@ -1,4 +1,3 @@
-
 KINETIC =	libkinetic.a
 BUILDDIR =	../build
 PROTOBUF_C =	kinetic.pb-c.c
@@ -24,6 +23,10 @@ MKDIR =		/bin/mkdir
 INSTALL = 	/usr/bin/install
 
 all:	$(KINETIC)
+
+test:	test/src/test_hmac.c $(OBJS)
+	$(MKDIR) -p test/bin
+	$(CC) $(CFLAGS) -o test/bin/test_hmac test/src/test_hmac.c $(OBJS) $(LDFLAGS) $(LDLIBS) -lssl -lcrypto -lpthread
 
 install: all
 	$(MKDIR) -p $(BUILDDIR)/include/kinetic
