@@ -39,7 +39,9 @@ struct kargs kargs = {
 extern int kctl_get(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_put(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_del(int argc, char *argv[], int kts, struct kargs *ka);
+#endif
 extern int kctl_info(int argc, char *argv[], int kts, struct kargs *ka);
+#if 0
 extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_lock(int argc, char *argv[], int kts, struct kargs *ka);
@@ -64,9 +66,8 @@ struct ktable {
 	{ KCTL_PUT,     "put",     "Put key value", &kctl_put},
 	{ KCTL_DEL,     "del",     "Delete key value or range of key values",
 	  &kctl_del},
-	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_info},
 #endif
-	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_nohandler},
+	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_info},
 #if 0
 	{ KCTL_SETCLUSTERV,
 	                "cluster", "Set device cluster version", &kctl_cluster},
@@ -250,15 +251,13 @@ kctl(int argc, char *argv[], struct kargs *ka)
 		return(EINVAL);
 	}
 
-#if 0
 	for(i=0; i<KCTL_EOT; i++) {
 		if (ktable[i].ktab_cmd == kargs.ka_cmd) {
 			/* Found a good command, call it */
-			rc = (*ktable[i].ktab_handler)(argc, argv, kcon, ka);
+			rc = (*ktable[i].ktab_handler)(argc, argv, ktd, ka);
 			break;
 		}
 	}
-#endif
 	
 	ki_close(ktd);
 	

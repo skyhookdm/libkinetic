@@ -159,8 +159,6 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 	   setsockopt(sfd, IPPROTO_TCP, TCP_CORK, &on, sizeof(on));
 #endif
 
-#if 0
-NONBLOCK OFF
 	   flags = fcntl(sfd, F_GETFL, 0);
 	   if (flags == -1) {
 		   return(-1);
@@ -168,7 +166,6 @@ NONBLOCK OFF
 	   if (fcntl(sfd, F_SETFL, flags | O_NONBLOCK) < 0) {
 		   return(-1);
 	   }
-#endif
 	   
 	   /* Dup over sfd to placeholder descriptor dd */
 	   if (dup2(sfd, dd) < 0) {
@@ -223,7 +220,7 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		/* Return the error */
 		return(bw);
 	}
-	
+	printf("socket_send: %d == %d \n", bw, len);
 	if (bw != len) {
 		errno = ECOMM;
 		return(-1);

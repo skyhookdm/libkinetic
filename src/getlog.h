@@ -78,19 +78,19 @@ typedef struct kinterface {
 
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Configuration kproto_configuration_t;
 typedef struct kconfiguration {
-	char		  *kcf_vendor;		  /* Device Vendor Name  */
-	char		  *kcf_model;		  /* Device Model Number */
-	char		  *kcf_serial;		  /* Device Serial Number */
-	char		  *kcf_wwn;			  /* Device World Wide Name */
-	char		  *kcf_version;		  /* Device Version */
-	char		  *kcf_compdate;	  /* Device Firmware Compilation Date */
-	char		  *kcf_srchash;		  /* Firmware Source Code Hash */
-	char		  *kcf_proto;		  /* Kinetic Protocol Version Number */
-	char		  *kcf_protocompdate; /* Kinetic Protocol Compilation Date */
-	char		  *kcf_protosrchash;  /* Kinetic Protocol Source Code Hash */
-	kinterface_t  *kcf_interfaces;	  /* Device Interface List */
-	uint32_t	   kcf_port;		  /* Device Unencrypted Port */
-	uint32_t	   kcf_tlsport;		  /* Device Encrypted Port */
+	char		*kcf_vendor;	  /* Device Vendor Name  */
+	char		*kcf_model;	  /* Device Model Number */
+	char		*kcf_serial;	  /* Device Serial Number */
+	char		*kcf_wwn;	  /* Device World Wide Name */
+	char		*kcf_version;	  /* Device Version */
+	char		*kcf_compdate;	  /* Device Firmware Compilation Date */
+	char		*kcf_srchash;	  /* Firmware Source Code Hash */
+	char		*kcf_proto;	  /* Kinetic Protocol Version Number */
+	char		*kcf_protocompdate; /* Kinetic Proto Compilation Date */
+	char		*kcf_protosrchash;  /* Kinetic Proto Source Code Hash */
+	kinterface_t	*kcf_interfaces;  /* Device Interface List */
+	uint32_t	kcf_port;	  /* Device Unencrypted Port */
+	uint32_t	kcf_tlsport;	  /* Device Encrypted Port */
 
 	/* Device Current Power Level */
 	Com__Seagate__Kinetic__Proto__Command__PowerLevel kcf_power;

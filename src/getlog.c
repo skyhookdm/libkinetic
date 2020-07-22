@@ -329,8 +329,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	/* Hang the PDU buffer */
 	kio->kio_cmd = KMT_GETLOG;
-	kio->kio_sendmsg.km_msg[0].kiov_base = (void *) ppdu;
-	kio->kio_sendmsg.km_msg[0].kiov_len = KP_PLENGTH;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) ppdu;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 
 
 	/* Setup msg_hdr */
@@ -354,8 +354,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
 		(kproto_msg_t *) kmreq.result_message,
-		&(kio->kio_sendmsg.km_msg[1].kiov_base),
-		&(kio->kio_sendmsg.km_msg[1].kiov_len)
+		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
+		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
 	
 	/* Now that the message length is known, setup the PDU and pack it */
@@ -363,7 +363,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, ppdu);
-
+	
+	printf("getlog: PDU(x%2x, %d, %d)\n", pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 	/* Send the request */
 	ktli_send(ktd, kio);
 	printf ("Sent Kio: %p\n", kio);

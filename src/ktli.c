@@ -999,8 +999,8 @@ ktli_sender(void *p)
 		pthread_mutex_lock(&sq->ktq_m);
 		
 		/* 
-		 * a kio could be added after the process queue while loop
-		 * terminated and this point. Also the exit flag could have
+		 * a kio could be added after the while loop below terminated
+		 * and this point. Also the exit flag could have
 		 * been raised. So only if the send queue is empty and no 
 		 * exit is signalled, should we wait
 		 */
@@ -1358,6 +1358,7 @@ ktli_receiver(void *p)
 			perror("Poll:");
 			continue;
 		}
+
 		if (!rc )
 			continue;
 #if 0		

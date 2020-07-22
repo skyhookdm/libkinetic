@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include <arpa/inet.h>
 #include <openssl/hmac.h>
@@ -242,8 +243,12 @@ struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cm
 			msg_auth_hmac->has_identity = 1;
 			msg_auth_hmac->identity		= msg_hdr->kmh_id;
 
+			kinetic_msg->hmacauth->has_hmac = 1;
+			kinetic_msg->hmacauth->hmac.data = msg_hdr->kmh_hmac;
+			kinetic_msg->hmacauth->hmac.len  = strlen(msg_hdr->kmh_hmac);
+#if 0
 			int hmac_result = compute_hmac(kinetic_msg, (char *) msg_hdr->kmh_hmac, msg_hdr->kmh_hmaclen);
-
+#endif
 			break;
 
 		case KA_PIN:
@@ -303,15 +308,17 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 
 	com__seagate__kinetic__proto__command__header__init(proto_cmdhdr);
 
-	if (cmdhdr_data->kch_clustvers) {
-		proto_cmdhdr->has_clusterversion = 1;
-		proto_cmdhdr->clusterversion     = cmdhdr_data->kch_clustvers;
-	}
+	proto_cmdhdr->has_clusterversion = 1;
+	proto_cmdhdr->clusterversion     = cmdhdr_data->kch_clustvers;
 
-	if (cmdhdr_data->kch_connid) {
-		proto_cmdhdr->connectionid	   = cmdhdr_data->kch_connid;
-		proto_cmdhdr->has_connectionid = 1;
-	}
+	proto_cmdhdr->connectionid	 = cmdhdr_data->kch_connid;
+	proto_cmdhdr->has_connectionid   = 1;
+
+	proto_cmdhdr->messagetype	 = cmdhdr_data->kch_type;
+	proto_cmdhdr->has_messagetype    = 1;
+
+	proto_cmdhdr->sequence   	 = cmdhdr_data->kch_seq;
+	proto_cmdhdr->has_sequence       = 1;
 
 	if (cmdhdr_data->kch_timeout) {
 		proto_cmdhdr->timeout	  = cmdhdr_data->kch_timeout;
@@ -498,10 +505,14 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	// just the new field)
 	tmp_msg->commandbytes = pack_kinetic_command(tmp_cmd);
 
+	int hmac_result = compute_hmac(tmp_msg,
+				       (char *) tmp_msg->hmacauth->hmac.data,
+				       tmp_msg->hmacauth->hmac.len);
+
 	enum kresult_code repack_result = pack_kinetic_message(
 		tmp_msg,
-		&(msg->kiov_base),
-		&(msg->kiov_len)
+		&(msg[KIOV_MSG].kiov_base),
+		&(msg[KIOV_MSG].kiov_len)
 	);
 
 	// TODO: since we allocate currently, we need to clean up
