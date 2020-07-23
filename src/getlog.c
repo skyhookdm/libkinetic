@@ -652,7 +652,7 @@ int extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config
 	);
 	if (extract_result < 0) { return -1; }
 
-	getlog_data->kgl_conf.kcf_interfacescnt = (uint32_t)config->n_interface;
+	getlog_data->kgl_conf.kcf_interfacescnt = config->n_interface;
 
 	return 0;
 }
