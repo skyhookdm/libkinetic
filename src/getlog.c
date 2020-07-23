@@ -507,37 +507,19 @@ struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	return create_message(msg_hdr, command_bytes);
 }
 
-int extract_types(kgetlog_t *getlog_data, size_t n_types, kgltype_t *type_data) {
-	// no types to extract
-	if (!n_types || !type_data) { return 0; }
-
-	getlog_data->kgl_type    = (kgltype_t *) malloc(sizeof(kgltype_t) * n_types);
-	if (getlog_data->kgl_type == NULL) {
-		return -1;
-	}
-
-	// TODO: maybe memcopy can be used here instead?
-	getlog_data->kgl_typecnt = n_types;
-	for (int ndx = 0; ndx < n_types; ndx++) {
-		getlog_data->kgl_type[ndx] = type_data[ndx];
-	}
-
-	return 0;
-}
-
 int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilization_t **util_data) {
-	// no utilizations to extract
-	if (!n_utils || !util_data) { return 0; }
+	getlog_data->kgl_utilcnt = n_utils;
 
-	getlog_data->kgl_util    = (kutilization_t *) malloc(sizeof(kutilization_t) * n_utils);
-	if (getlog_data->kgl_util == NULL) {
-		return -1;
+	if (!n_utils) {
+		getlog_data->kgl_util = NULL;
+		return 0;
 	}
 
-	getlog_data->kgl_utilcnt = n_utils;
+	getlog_data->kgl_util = (kutilization_t *) malloc(sizeof(kutilization_t) * n_utils);
+	if (getlog_data->kgl_util == NULL) { return -1; }
+
 	for (int ndx = 0; ndx < n_utils; ndx++) {
 		getlog_data->kgl_util[ndx].ku_name = util_data[ndx]->name;
-
 		assign_if_set(getlog_data->kgl_util[ndx].ku_value, util_data[ndx], value);
 	}
 
@@ -545,15 +527,17 @@ int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilizat
 }
 
 int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperature_t **temp_data) {
-	// no temperatures to extract
-	if (!n_temps || !temp_data) { return 0; }
+	getlog_data->kgl_tempcnt = n_temps;
 
-	getlog_data->kgl_temp    = (ktemperature_t *) malloc(sizeof(ktemperature_t) * n_temps);
-	if (getlog_data->kgl_temp == NULL) {
-		return -1;
+	// no temperatures to extract
+	if (!n_temps) {
+		getlog_data->kgl_temp = NULL;
+		return 0;
 	}
 
-	getlog_data->kgl_tempcnt = n_temps;
+	getlog_data->kgl_temp = (ktemperature_t *) malloc(sizeof(ktemperature_t) * n_temps);
+	if (getlog_data->kgl_temp == NULL) { return -1; }
+
 	for (int ndx = 0; ndx < n_temps; ndx++) {
 		getlog_data->kgl_temp[ndx].kt_name = temp_data[ndx]->name;
 
@@ -568,15 +552,17 @@ int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperat
 }
 
 int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics_t **stat_data) {
-	// no stats to extract
-	if (!n_stats || !stat_data) { return 0; }
+	getlog_data->kgl_statcnt = n_stats;
 
-	getlog_data->kgl_stat = (kstatistics_t *) malloc(sizeof(kstatistics_t) * n_stats);
-	if (getlog_data->kgl_stat == NULL) {
-		return -1;
+	// no stats to extract
+	if (!n_stats || !stat_data) {
+		getlog_data->kgl_stat = NULL;
+		return 0;
 	}
 
-	getlog_data->kgl_statcnt = n_stats;
+	getlog_data->kgl_stat = (kstatistics_t *) malloc(sizeof(kstatistics_t) * n_stats);
+	if (getlog_data->kgl_stat == NULL) { return -1; }
+
 	for (int ndx = 0; ndx < n_stats; ndx++) {
 		// use convenience macros for optional fields
 		assign_if_set(getlog_data->kgl_stat[ndx].ks_mtype     , stat_data[ndx], messagetype);
@@ -588,18 +574,51 @@ int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics
 	return 0;
 }
 
+int extract_interfaces(kinterface_t **getlog_if_data, size_t n_ifs, kproto_interface_t **if_data) {
+	if (!n_ifs) {
+		*getlog_if_data = NULL;
+		return 0;
+	}
+
+	*getlog_if_data = (kinterface_t *) malloc(sizeof(kinterface_t) * n_ifs);
+	if (*getlog_if_data == NULL) { return -1; }
+
+	for (int if_ndx = 0; if_ndx < n_ifs; if_ndx++) {
+		getlog_if_data[if_ndx]->ki_name = if_data[if_ndx]->name;
+
+		if (if_data[if_ndx]->has_mac) {
+			getlog_if_data[if_ndx]->ki_mac = helper_bytes_to_str(if_data[if_ndx]->mac);
+		}
+		if (if_data[if_ndx]->has_ipv4address) {
+			getlog_if_data[if_ndx]->ki_ipv4 = helper_bytes_to_str(if_data[if_ndx]->ipv4address);
+		}
+		if (if_data[if_ndx]->has_ipv6address) {
+			getlog_if_data[if_ndx]->ki_ipv6 = helper_bytes_to_str(if_data[if_ndx]->ipv6address);
+		}
+	}
+
+	return 0;
+}
+
 int extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config) {
 	// nothing to extract
-	if (config == NULL) { return 0; }
+	if (config == NULL) {
+		// NOTE: this may be repetitive
+		memset(&(getlog_data->kgl_conf), 0, sizeof(kconfiguration_t));
+		return 0;
+	}
 
 	getlog_data->kgl_conf.kcf_vendor = config->vendor;
 	getlog_data->kgl_conf.kcf_model  = config->model;
 
+	// NOTE: we may want to have a different representation of `bytes` fields
+	// NOTE: serial and wwn are `free`d in `destroy_protobuf_getlog`
 	if (config->has_serialnumber) {
-		getlog_data->kgl_conf.kcf_serial = (char *) config->serialnumber.data;
+		getlog_data->kgl_conf.kcf_serial = helper_bytes_to_str(config->serialnumber);
 	}
+
 	if (config->has_worldwidename) {
-		getlog_data->kgl_conf.kcf_wwn = (char *) config->worldwidename.data;
+		getlog_data->kgl_conf.kcf_wwn = helper_bytes_to_str(config->worldwidename);
 	}
 
 	getlog_data->kgl_conf.kcf_version       = config->version;
@@ -614,27 +633,20 @@ int extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config
 	assign_if_set(getlog_data->kgl_conf.kcf_power  , config, currentpowerlevel);
 
 	// interfaces
-	size_t num_interface_bytes           = sizeof(kinterface_t) * config->n_interface;
-	getlog_data->kgl_conf.kcf_interfaces = (kinterface_t *) malloc(num_interface_bytes);
-
-	if (getlog_data->kgl_conf.kcf_interfaces == NULL) {
-		return -1;
-	}
-
-	for (int ndx = 0; ndx < config->n_interface; ndx++) {
-		kinterface_t getlog_if = getlog_data->kgl_conf.kcf_interfaces[ndx];
-
-		getlog_if.ki_name = config->interface[ndx]->name;
-
-		assign_if_set_charbuf(getlog_if.ki_mac , config->interface[ndx], mac);
-		assign_if_set_charbuf(getlog_if.ki_ipv4, config->interface[ndx], ipv4address);
-		assign_if_set_charbuf(getlog_if.ki_ipv6, config->interface[ndx], ipv6address);
-	}
+	int extract_result = extract_interfaces(
+		&(getlog_data->kgl_conf.kcf_interfaces),
+		config->n_interface,
+		config->interface
+	);
+	if (extract_result < 0) { return -1; }
 
 	return 0;
 }
 
-int extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
+void extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
+	// NOTE: This is probably repetitive
+	memset(&(getlog_data->kgl_limits), 0, sizeof(klimits_t));
+
 	if (limits) {
 		assign_if_set(getlog_data->kgl_limits.kl_keylen     , limits, maxkeysize                 );
 		assign_if_set(getlog_data->kgl_limits.kl_vallen     , limits, maxvaluesize               );
@@ -652,8 +664,38 @@ int extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
 		assign_if_set(getlog_data->kgl_limits.kl_batdelcnt  , limits, maxdeletesperbatch         );
 		assign_if_set(getlog_data->kgl_limits.kl_devbatcnt  , limits, maxbatchcountperdevice     );
 	}
+}
 
-	return 0;
+// This may get a partially defined structure if we hit an error during the construction.
+// NOTE: it's possible we will only want to set this function if getlog_data was successfully
+//       created (and so on errors, everything gets free'd immediately)
+void destroy_protobuf_getlog(kgetlog_t *getlog_data) {
+	// Don't do anything if we didn't get a valid pointer
+	if (!getlog_data) { return; }
+
+	// first destroy the allocated memory for the message data
+	destroy_message((kproto_getlog_t *) getlog_data->kgl_protobuf);
+
+	// then free arrays of pointers that point to the message data
+	if (getlog_data->kgl_util) { free(getlog_data->kgl_util); }
+	if (getlog_data->kgl_temp) { free(getlog_data->kgl_temp); }
+	if (getlog_data->kgl_stat) { free(getlog_data->kgl_stat); }
+
+	if (getlog_data->kgl_conf.kcf_serial) {
+		free(getlog_data->kgl_conf.kcf_serial);
+	}
+
+	if (getlog_data->kgl_conf.kcf_wwn) {
+		free(getlog_data->kgl_conf.kcf_wwn);
+	}
+
+	if (getlog_data->kgl_conf.kcf_interfaces) {
+		free(getlog_data->kgl_conf.kcf_interfaces);
+	}
+
+	// free the struct itself last
+	// NOTE: we may want to leave this to a caller?
+	free(getlog_data);
 }
 
 kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog_data) {
@@ -668,39 +710,10 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 		};
 	}
 
-	// unpack the command bytes into a command structure
+	// unpack the command bytes
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(getlog_response_msg->commandbytes);
 
-	// ------------------------------
-	// populate getlog_data from command body
-	kproto_getlog_t *response = response_cmd->body->getlog;
-
-	// 0 is success, < 0 is failure. Use this for all the extract functions
-	int extract_result = 0;
-
-	// repeated fields first
-	extract_result += extract_types(getlog_data, response->n_types, response->types);
-	extract_result += extract_utilizations(getlog_data, response->n_utilizations, response->utilizations);
-	extract_result += extract_temperatures(getlog_data, response->n_temperatures, response->temperatures);
-	extract_result += extract_statistics(getlog_data, response->n_statistics, response->statistics);
-
-	// then optional fields (can't use macro because the field needs to be decomposed)
-	if (response->has_messages) {
-		getlog_data->kgl_msgs    = (char *) response->messages.data;
-		getlog_data->kgl_msgslen = response->messages.len;
-	}
-
-	// then other fields
-	if (response->capacity) {
-		assign_if_set(getlog_data->kgl_cap.kc_total, response->capacity, nominalcapacityinbytes);
-		assign_if_set(getlog_data->kgl_cap.kc_used , response->capacity, portionfull);
-	}
-
-	extract_result += extract_configuration(getlog_data, response->configuration);
-	extract_result += extract_limits(getlog_data, response->limits);
-
-	// ------------------------------
-	// propagate the response status to the caller
+	// extract the response status to be returned. prepare this early to make cleanup easy
 	kproto_status_t *response_status = response_cmd->status;
 
 	// copy the status message so that destroying the unpacked command doesn't get weird
@@ -717,13 +730,78 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 			response_status->detailedmessage.len
 		);
 	}
-
-	// cleanup before we return the status data
-	destroy_command(response_cmd);
-
-	return (kstatus_t) {
+	kstatus_t getlog_status = (kstatus_t) {
 		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
 		.ks_message = response_statusmsg,
 		.ks_detail  = response_detailmsg,
 	};
+
+	// ------------------------------
+	// begin extraction of command body into getlog structure
+	getlog_data->kgl_protobuf     = NULL;
+	getlog_data->destroy_protobuf = NULL;
+
+	kproto_getlog_t *response = response_cmd->body->getlog;
+
+	// 0 is success, < 0 is failure. Use this for all the extract functions
+	int extract_result        = 0;
+	int num_successful_allocs = 0;
+
+	getlog_data->kgl_typecnt = response->n_types;
+	getlog_data->kgl_type    = response->types;
+
+	// repeated fields
+	extract_result = extract_utilizations(getlog_data, response->n_utilizations, response->utilizations);
+	if (extract_result < 0) { return getlog_status; }
+
+	extract_result = extract_temperatures(getlog_data, response->n_temperatures, response->temperatures);
+	if (extract_result < 0) {
+		free(getlog_data->kgl_util); 
+
+		return getlog_status;
+	}
+
+	extract_result = extract_statistics(getlog_data, response->n_statistics, response->statistics);
+	if (extract_result < 0) {
+		free(getlog_data->kgl_util); 
+		free(getlog_data->kgl_temp); 
+
+		return getlog_status;
+	}
+
+	// then optional fields (can't use macro because the field needs to be decomposed)
+	if (response->has_messages) {
+		getlog_data->kgl_msgs    = (char *) response->messages.data;
+		getlog_data->kgl_msgslen = response->messages.len;
+	}
+
+	// then other fields
+	if (response->capacity) {
+		assign_if_set(getlog_data->kgl_cap.kc_total, response->capacity, nominalcapacityinbytes);
+		assign_if_set(getlog_data->kgl_cap.kc_used , response->capacity, portionfull);
+	}
+
+	extract_result = extract_configuration(getlog_data, response->configuration);
+	if (extract_result < 0) {
+		free(getlog_data->kgl_util); 
+		free(getlog_data->kgl_temp); 
+		free(getlog_data->kgl_stat); 
+
+		return getlog_status;
+	}
+	num_successful_allocs++;
+
+	// no allocations, so this "can't fail"
+	extract_limits(getlog_data, response->limits);
+
+	if (response->device->has_name) {
+		getlog_data->kgl_log.kdl_name = response->device->name.data;
+		getlog_data->kgl_log.kdl_len  = response->device->name.len;
+	}
+
+	// only set these at the end, because failures force `free`s
+	getlog_data->kgl_protobuf     = response_cmd;
+	getlog_data->destroy_protobuf = destroy_protobuf_getlog;
+
+	return getlog_status;
 }

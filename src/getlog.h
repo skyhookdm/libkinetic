@@ -164,6 +164,9 @@ struct kgetlog {
 
 	klimits_t		kgl_limits;
 	kdevicelog_t		kgl_log;
+
+	void           *kgl_protobuf;
+	void           (*destroy_protobuf)(kgetlog_t *getlog_data);
 };
 
 #endif /* _GETLOG_H */
