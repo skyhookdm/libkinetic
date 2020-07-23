@@ -515,6 +515,8 @@ uint64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 // unnecessary allocations later
 void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 
+	kpdu_t pdu;
+
 	// ERROR: not enough messages
 	if (KIOV_MSG >= msgcnt) { return; }
 
@@ -552,6 +554,14 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 		&(msg[KIOV_MSG].kiov_base),
 		&(msg[KIOV_MSG].kiov_len)
 	);
+
+	/*
+	 * Adding the final seq and adding the real HMAC changes the 
+	 * message length, Unpack the pdu, update it and repack
+	*/
+	UNPACK_PDU(&pdu, (uint8_t *)msg[KIOV_PDU].kiov_base);
+	pdu.kp_msglen = msg[KIOV_MSG].kiov_len;
+	PACK_PDU(&pdu, (uint8_t *)msg[KIOV_PDU].kiov_base);
 
 	// TODO: since we allocate currently, we need to clean up
 	destroy_command(tmp_cmd);
