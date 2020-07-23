@@ -239,6 +239,7 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 {
 	struct iovec iov[2];
 	int i, len, dd, br;
+	char *p;
 
 	if (!dh || !msgcnt ) {
 		errno -EINVAL;
@@ -253,22 +254,34 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 	assert(msgcnt==1);
 	
 	/* do the read */
-	br = read(dd, msg[0].kiov_base, msg[0].kiov_len);
-	if (br < 0) {
-		/* Return the error */
-		return(br);
+	len = msg[0].kiov_len;
+	p = (char *)msg[0].kiov_base;
+	while (len) {
+		br = read(dd, p, len);
+		printf("ktli_socket_recv: read = %d, %d, %d\n",br, len, errno);
+		if (br < 0 && errno == EWOULDBLOCK) {\
+			printf("ktli_socket_recv: sleeping\n");
+			usleep(10000);
+		} else if (br < 0 || !br) {
+			printf("ktli_socket_recv: ERROR\n");
+			/* an error (-1) or EOF (0) ie conn lost */
+			break;
+		} else {
+			len -= br;
+			p += br;
+		}
 	}
 
-	/* PAK: need to loop continuing to read if br < kiov_len */
-	if (br !=  msg[0].kiov_len) {
-		printf("FAILED Read: br(%d) != msg[0].kiov_len(%ld)\n",
-		       br, msg[0].kiov_len);
-		errno = ECOMM;
+	if (len) {
+		/* Return the error */
+		printf("FAILED Read (%d): bytes read(%lu) != msg[0].kiov_len(%lu)\n", br,
+		       (msg[0].kiov_len - len), msg[0].kiov_len);
 		return(-1);
 	}
-	
-	return(br);
+	printf("ktli_socket_recv: bytes read(%lu) != msg[0].kiov_len(%lu)\n",
+		       (msg[0].kiov_len - len), msg[0].kiov_len);
 
+	return(msg[0].kiov_len);
 }
 
 int

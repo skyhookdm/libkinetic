@@ -403,6 +403,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex1;
 	}
 
+#if 0
 	rc = gl_validate_resp(glog, &glog2);
 
 	if (rc < 0) {
@@ -410,8 +411,15 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		rc = -1;
 		goto glex1;
 	}
+#endif
+	/* PAK: need to extract status */
+	memcpy(glog, &glog2, sizeof(kgetlog_t));
+	return (kstatus_t) {
+		.ks_code    = K_OK,
+			.ks_message = "Success",
+		.ks_detail  = "",
+	};
 
-	/* PAK: need to copy glog2 into glog and free up glog2 */
 	
 	/* clean up */
  glex1:

@@ -1202,6 +1202,7 @@ ktli_recvmsg(int kts)
 
 	/* We have the message. Find its matching request */
 	aseq = (kh->kh_getaseq_fn)(msg.km_msg, 2);
+	printf("KTLI Received ASeq: %ld\n", aseq);
 
 	/* search through the recvq, need the mutex */
 	pthread_mutex_lock(&rq->ktq_m);
@@ -1212,6 +1213,7 @@ ktli_recvmsg(int kts)
 		 * No matching kio.  Allocate a kio, set it up and mark it as
 		 * received. Let the upper layers deal with it.
 		 */
+		printf("KTLI Received Unsolicited\n");
 		kio = KTLI_MALLOC(sizeof(struct kio));
 		if (!kio) {
 			printf("%s:%d: KTLI_MALLOC failed\n",
@@ -1221,6 +1223,7 @@ ktli_recvmsg(int kts)
 		memset((void *)kio, 0, sizeof(struct kio));
 		kio->kio_seq = aseq;
 	} else {
+		printf("KTLI Received Matched KIO\n");
 		lkio = (struct kio **)list_remove_curr(rq->ktq_list);
 		kio = *lkio;
 		KTLI_FREE(lkio);
@@ -1374,7 +1377,7 @@ ktli_receiver(void *p)
 		/* PAK: need a kio timeout mechanism 
 		 * Maybe after 30 or 60 500ms polls */
 
-		
+		printf("calling ktli_recvmsg\n");
 		ktli_recvmsg(kts);
 #if 0
 		/* if the receive q is not empty, get active */
