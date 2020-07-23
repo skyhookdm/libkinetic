@@ -150,21 +150,21 @@ typedef struct kcmdhdr {
 
 void destroy_message(void *unpacked_msg);
 
-enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **msg_buffer, size_t *msg_size);
+enum kresult_code   pack_kinetic_message(kproto_msg_t *msg_data, void **msg_buffer, size_t *msg_size);
+ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
+
 struct kresult_message unpack_kinetic_message(void *response_buffer, size_t response_size);
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes);
 
 void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data);
-//void extract_from_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data);
+
 kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data);
 kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
+kstatus_t extract_get(struct kresult_message *get_response_msg, kgetlog_t *getlog_data);
 
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
 
-ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
-void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
 struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t *);
-kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
 
 
 #endif /* _MESSAGE_H */
