@@ -166,6 +166,8 @@ struct kgetlog {
 	kdevicelog_t		kgl_log;
 
 	void           *kgl_protobuf;
+
+	// NOTE: this also frees getlog_data, unless we don't want it to
 	void           (*destroy_protobuf)(kgetlog_t *getlog_data);
 };
 

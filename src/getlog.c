@@ -412,6 +412,11 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	}
 
 	/* PAK: need to copy glog2 into glog and free up glog2 */
+
+	/* NOTE: When free-ing glog2 or glog, it should be done as follows:
+	 * glog->destroy_protobuf(&glog);
+	 * glog2->destroy_protobuf(&glog2);
+	 */
 	
 	/* clean up */
  glex1:
