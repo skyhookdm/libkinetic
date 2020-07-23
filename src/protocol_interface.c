@@ -122,7 +122,22 @@ int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
 	return result_status;
 }
 
+// Data type helpers
+char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes) {
+	size_t proto_len = proto_bytes.len;
 
+	// allocate and copy byte data
+	char *str_buffer = (char *) malloc(sizeof(char) * (proto_len + 1));
+	memcpy(str_buffer, proto_bytes.data, proto_len);
+
+	// null terminate the string
+	str_buffer[proto_len] = '\0';
+
+	return str_buffer;
+}
+
+
+// Protobuf convenience functions
 struct kresult_message unpack_response(struct kbuffer response_buffer) {
 	kproto_cmd_t *response_command = com__seagate__kinetic__proto__command__unpack(
 		NULL,

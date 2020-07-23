@@ -27,5 +27,6 @@
 /* Some utilities */
 int ki_validate_kv(kv_t *kv, klimits_t *lim);
 
+char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes);
 
 #endif /* _KINET_INT_H */
