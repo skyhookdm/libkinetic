@@ -1343,7 +1343,7 @@ ktli_receiver(void *p)
 	assert(de->ktlid_fns->ktli_dfns_poll);
 
 	printf("Receiver: waiting %d (%p)\n", kts, p);
-	sleep(1); /* let the connection establish */
+	//sleep(1); /* let the connection establish */
 	printf("Receiver: starting %d (%p)\n", kts, p);
 
 	do {

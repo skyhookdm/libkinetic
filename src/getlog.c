@@ -622,21 +622,21 @@ int extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config
 	assign_if_set(getlog_data->kgl_conf.kcf_power  , config, currentpowerlevel);
 
 	// interfaces
-	size_t num_interface_bytes           = sizeof(kinterface_t) * config->n_interface;
+	size_t num_interface_bytes           = sizeof(kinterface_t) * config->n_interface+1;
 	getlog_data->kgl_conf.kcf_interfaces = (kinterface_t *) malloc(num_interface_bytes);
 
 	if (getlog_data->kgl_conf.kcf_interfaces == NULL) {
 		return -1;
 	}
-
+	getlog_data->kgl_conf.kcf_interfacescnt = (uint32_t)config->n_interface;
 	for (int ndx = 0; ndx < config->n_interface; ndx++) {
-		kinterface_t getlog_if = getlog_data->kgl_conf.kcf_interfaces[ndx];
+		kinterface_t *getlog_if = &getlog_data->kgl_conf.kcf_interfaces[ndx];
 
-		getlog_if.ki_name = config->interface[ndx]->name;
+		getlog_if->ki_name = config->interface[ndx]->name;
 
-		assign_if_set_charbuf(getlog_if.ki_mac , config->interface[ndx], mac);
-		assign_if_set_charbuf(getlog_if.ki_ipv4, config->interface[ndx], ipv4address);
-		assign_if_set_charbuf(getlog_if.ki_ipv6, config->interface[ndx], ipv6address);
+		assign_if_set_charbuf(getlog_if->ki_mac , config->interface[ndx], mac);
+		assign_if_set_charbuf(getlog_if->ki_ipv4, config->interface[ndx], ipv4address);
+		assign_if_set_charbuf(getlog_if->ki_ipv6, config->interface[ndx], ipv6address);
 	}
 
 	return 0;
@@ -727,7 +727,7 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	}
 
 	// cleanup before we return the status data
-	destroy_command(response_cmd);
+	//destroy_command(response_cmd);
 
 	return (kstatus_t) {
 		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
