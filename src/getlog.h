@@ -87,8 +87,9 @@ typedef struct kconfiguration {
 	char		*kcf_srchash;	  /* Firmware Source Code Hash */
 	char		*kcf_proto;	  /* Kinetic Protocol Version Number */
 	char		*kcf_protocompdate; /* Kinetic Proto Compilation Date */
-	char		*kcf_protosrchash;  /* Kinetic Proto Source Code Hash */
+	char		*kcf_protosrchash;/* Kinetic Proto Source Code Hash */
 	kinterface_t	*kcf_interfaces;  /* Device Interface List */
+	uint32_t	kcf_interfacescnt; /* Device Interface List Count */
 	uint32_t	kcf_port;	  /* Device Unencrypted Port */
 	uint32_t	kcf_tlsport;	  /* Device Encrypted Port */
 
