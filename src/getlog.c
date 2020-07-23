@@ -808,7 +808,7 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	// no allocations, so this "can't fail"
 	extract_limits(getlog_data, response->limits);
 
-	if (response->device->has_name) {
+	if (response->device && response->device->has_name) {
 		getlog_data->kgl_log.kdl_name = response->device->name.data;
 		getlog_data->kgl_log.kdl_len  = response->device->name.len;
 	}
