@@ -152,6 +152,7 @@ void destroy_message(void *unpacked_msg);
 
 enum kresult_code   pack_kinetic_message(kproto_msg_t *msg_data, void **msg_buffer, size_t *msg_size);
 ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
+ProtobufCBinaryData pack_cmd_keyval(kproto_cmdhdr_t *, kproto_getlog_t *, kmtype_t msgtype_keyval);
 
 struct kresult_message unpack_kinetic_message(void *response_buffer, size_t response_size);
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes);
