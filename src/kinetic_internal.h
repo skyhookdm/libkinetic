@@ -24,6 +24,54 @@
 	}                                                         \
 }
 
+/* ------------------------------
+ * Convenience macros for using generated protobuf code
+ */
+
+/* - From protobuf structs to custom structs - */
+// extract primitive, optional fields
+#define extract_primitive_optional(lvar, proto_struct, field) { \
+	if (proto_struct->has_##field) {                            \
+		lvar = proto_struct->field;                             \
+	}                                                           \
+}
+
+// extract bytes (ProtobufCBinaryData) to char * with size
+#define extract_bytes_optional(lptr, lsize, proto_struct, field) { \
+	if (proto_struct->has_##field) {                               \
+		lptr  = proto_struct->field.data;                          \
+		lsize = proto_struct->field.len;                           \
+	}                                                              \
+}
+
+// extract bytes (ProtobufCBinaryData) to char * (null-terminated string)
+#define copy_bytes_optional(lptr, proto_struct, field) { \
+	if (proto_struct->has_##field) {                     \
+		memcpy(                                          \
+			lptr,                                        \
+			proto_struct->field.data,                    \
+			proto_struct->field.len                      \
+		);                                               \
+	}                                                    \
+}
+
+/* - From custom structs to protobuf structs - */
+// set primitive, optional fields
+#define set_primitive_optional(proto_struct, field, rvar) { \
+	proto_struct->has_##field = 1;                          \
+	proto_struct->field       = rvar;                       \
+}
+
+// set bytes (ProtobufCBinaryData) from char * with size
+#define set_bytes_optional(proto_struct, field, rptr, rsize) { \
+	proto_struct->has_##field = 1;                             \
+	proto_struct->field       = (ProtobufCBinaryData) {        \
+		.data = (uint8_t *) rptr,                              \
+		.len  =             rsize,                             \
+	};                                                         \
+}
+
+
 /* Some utilities */
 int ki_validate_kv(kv_t *kv, klimits_t *lim);
 

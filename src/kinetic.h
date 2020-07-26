@@ -24,7 +24,7 @@ enum {
 	KDI_SHA1	= CA(SHA1)		   ,
 	KDI_SHA2	= CA(SHA2)		   ,
 	KDI_SHA3	= CA(SHA3)		   ,
-	KDI_CRC32C	= CA(CRC32C)		   ,
+	KDI_CRC32C	= CA(CRC32C)	   ,
 	KDI_CRC64	= CA(CRC64)		   ,
 	KDI_CRC32	= CA(CRC32)		   ,
 };
@@ -62,6 +62,15 @@ enum {
 	K_ESHUTDOWN	= CSSC(SHUTDOWN),
 };
 
+// A message type is kind of like an operation type; e.g. GET, GETNEXT, etc.
+typedef enum keyval_message_type {
+	GET_TYPE_FULL = 0,
+	GET_TYPE_META    ,
+	GET_TYPE_VERS    ,
+	GET_TYPE_NEXT    ,
+	GET_TYPE_PREV    ,
+} kv_optype_t;
+
 typedef struct kv {
 	struct kiovec	*kv_key;
 	size_t		*kv_keycnt;
@@ -69,10 +78,13 @@ typedef struct kv {
 	size_t		*kv_valcnt;
 	void		*kv_vers;
 	size_t		kv_verslen;
+	void		*kv_dbvers;
+	size_t		kv_dbverslen;
 	void		*kv_tag;
 	size_t		kv_taglen;
 	kditype_t	kv_ditype;
 } kv_t;
+
 
 /* ------------------------------
  * Types for interfacing with API
