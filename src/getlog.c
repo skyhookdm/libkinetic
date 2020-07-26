@@ -454,8 +454,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 //TODO: test
 ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *cmd_hdr, kproto_getlog_t *cmd_getlog) {
 	// Structs to use
-	kproto_cmd_t command_msg;
-	kproto_body_t  command_body;
+	kproto_cmd_t  command_msg;
+	kproto_body_t command_body;
 
 	// initialize the structs
 	com__seagate__kinetic__proto__command__init(&command_msg);

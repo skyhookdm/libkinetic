@@ -24,7 +24,7 @@ enum {
 	KDI_SHA1	= CA(SHA1)		   ,
 	KDI_SHA2	= CA(SHA2)		   ,
 	KDI_SHA3	= CA(SHA3)		   ,
-	KDI_CRC32C	= CA(CRC32C)		   ,
+	KDI_CRC32C	= CA(CRC32C)	   ,
 	KDI_CRC64	= CA(CRC64)		   ,
 	KDI_CRC32	= CA(CRC32)		   ,
 };
