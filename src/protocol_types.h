@@ -52,7 +52,7 @@ typedef Com__Seagate__Kinetic__Proto__Command__Header   kproto_cmdhdr_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Body     kproto_body_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Status   kproto_status_t;
 
-typedef Com__Seagate__Kinetic__Proto__Command__KeyValue kproto_keyval_t;
+typedef Com__Seagate__Kinetic__Proto__Command__KeyValue kproto_kv_t;
 
 
 /* ------------------------------
