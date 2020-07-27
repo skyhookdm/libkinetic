@@ -33,11 +33,7 @@
 /**
  * Internal prototypes
  */
-ProtobufCBinaryData pack_cmd_putt(kproto_cmdhdr_t *, kproto_getlog_t *);
-void extract_to_command_header(kproto_cmdhdr_t *, kcmdhdr_t *);
-void extract_to_command_body(kproto_getlog_t *, kgetlog_t *);
-struct kresult_message create_put_message(kmsghdr_t *,
-					     kcmdhdr_t *, kgetlog_t *);
+struct kresult_message create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kcachepolicy_t, int);
 
 /**
  * ki_put(int ktd, kv_t *kv)
@@ -128,7 +124,10 @@ ki_put(int ktd, kv_t *kv)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type      = KMT_PUT;
 
-	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv);
+	// hardcoding reasonable defaults: writeback with no force
+	kcachepolicy_t cache_opt = KC_WB;
+	int            bool_shouldforce = 0;
+	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, cache_opt, bool_shouldforce);
 	if (kmreq.result_code == FAILURE) {
 		goto gex2;
 	}
@@ -224,104 +223,18 @@ ki_put(int ktd, kv_t *kv)
 /*
  * Helper functions
  */
-//TODO: test
-ProtobufCBinaryData pack_cmd_put(kproto_cmdhdr_t *cmd_hdr, kproto_getlog_t *cmd_getlog) {
-	// Structs to use
-	kproto_cmd_t command_msg;
-	kproto_body_t  command_body;
 
-	// initialize the structs
-	com__seagate__kinetic__proto__command__init(&command_msg);
-	com__seagate__kinetic__proto__command__body__init(&command_body);
 
-	// update the header for the Put Message Body
-	cmd_hdr->messagetype = KMT_PUT;
 
-	// stitch the Command together
-	command_body.put = cmd_put;
 
-	command_msg.header	= cmd_hdr;
-	command_msg.body	= &command_body;
-
-	return pack_kinetic_command(&command_msg);
-}
-
-void extract_to_command_body(kproto_getlog_t *proto_getlog, kgetlog_t *cmd_data) {
-	com__seagate__kinetic__proto__command__get_log__init(proto_getlog);
-
-	// Populate `types` field using `getlog_types_buffer` argument.
-	proto_getlog->n_types = cmd_data->kgl_typecnt;
-	proto_getlog->types	= (kgltype_t *) cmd_data->kgl_type;
-
-	// Should device name have a length attribute?
-	if (cmd_data->kgl_log.kdl_name != NULL) {
-		kgetlog_device_info *getlog_msg_device = (kgetlog_device_info *) malloc(sizeof(kgetlog_device_info));
-		com__seagate__kinetic__proto__command__get_log__device__init(getlog_msg_device);
-
-		// TODO: see that kgl_log.len is used instead of computing strlen?
-		getlog_msg_device->has_name = 1;
-		getlog_msg_device->name		= (ProtobufCBinaryData) {
-			// .len  =				cmd_data->kgl_log.len,
-			.len  = (size_t)    strlen(cmd_data->kgl_log.kdl_name),
-			.data = (uint8_t *) cmd_data->kgl_log.kdl_name,
 		};
-
-		proto_getlog->device = getlog_msg_device;
-	}
-}
-
-void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data) {
-
-	com__seagate__kinetic__proto__command__header__init(proto_cmdhdr);
-
-	if (cmdhdr_data->kch_clustvers) {
-		proto_cmdhdr->has_clusterversion = 1;
-		proto_cmdhdr->clusterversion     = cmdhdr_data->kch_clustvers;
 	}
 
-	if (cmdhdr_data->kch_connid) {
-		proto_cmdhdr->connectionid	   = cmdhdr_data->kch_connid;
-		proto_cmdhdr->has_connectionid = 1;
 	}
 
-	if (cmdhdr_data->kch_timeout) {
-		proto_cmdhdr->timeout	  = cmdhdr_data->kch_timeout;
-		proto_cmdhdr->has_timeout = 1;
-	}
 
-	if (cmdhdr_data->kch_pri) {
-		proto_cmdhdr->priority	   = cmdhdr_data->kch_pri;
-		proto_cmdhdr->has_priority = 1;
-	}
-
-	if (cmdhdr_data->kch_quanta) {
-		proto_cmdhdr->timequanta	 = cmdhdr_data->kch_quanta;
-		proto_cmdhdr->has_timequanta = 1;
-	}
-
-	if (cmdhdr_data->kch_batid) {
-		proto_cmdhdr->batchid	  = cmdhdr_data->kch_batid;
-		proto_cmdhdr->has_batchid = 1;
-	}
-}
-
-
-/*
- * Externally accessible functions
- */
-// TODO: test
-struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kgetlog_t *cmd_body) {
-
-	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
-	kproto_getlog_t proto_cmd_body;
-
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
-	extract_to_command_body(&proto_cmd_body, cmd_body);
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = pack_cmd_getlog(&proto_cmd_header, &proto_cmd_body);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
