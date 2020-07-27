@@ -15,8 +15,8 @@ struct kgetlog;
 
 typedef struct kgetlog kgetlog_t;
 
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog							kproto_getlog_t;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device					kgetlog_device_info;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog		  kproto_getlog_t;
+typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device kgetlog_device_info;
 
 
 /* ------------------------------
