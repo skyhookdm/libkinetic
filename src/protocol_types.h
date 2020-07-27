@@ -154,7 +154,7 @@ enum header_field_type {
 
 /* creating and extracting to/from protobuf structures */
 struct kresult_message  create_header(uint8_t header_field_bitmap, ...);
-ProtobufCBinaryData     create_command_bytes(kproto_cmd_t *cmd_hdr, void *proto_cmd, kmtype_t msg_type);
+ProtobufCBinaryData     create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd, kmtype_t msg_type);
 int                     keyname_to_proto(kproto_kv_t *proto_keyval, struct kv *cmd_data);
 
 /* serialization/deserialization */
