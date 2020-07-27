@@ -390,68 +390,6 @@ ki_getversion(int ktd, kv_t *key)
 /*
  * Helper functions
  */
-ProtobufCBinaryData pack_cmd_keyval(kproto_cmdhdr_t *cmd_hdr, kproto_getlog_t *cmd_keyval,
-		                            kmtype_t msgtype_keyval) {
-	// Structs to use
-	kproto_cmd_t  command_msg;
-	kproto_body_t command_body;
-
-	// initialize the structs
-	com__seagate__kinetic__proto__command__init(&command_msg);
-	com__seagate__kinetic__proto__command__body__init(&command_body);
-
-	// set the message type
-	cmd_hdr->messagetype = msgtype_keyval;
-
-	// stitch the Command together
-	command_body.getlog = cmd_keyval;
-
-	command_msg.header	= cmd_hdr;
-	command_msg.body	= &command_body;
-
-	return pack_kinetic_command(&command_msg);
-}
-
-int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
-	// return error if params don't meet assumptions
-	if (proto_keyval == NULL || cmd_data == NULL) { return -1; }
-
-	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * cmd_data->kv_keycnt);
-	if (cumulative_offsets == NULL) { return -1; }
-
-	size_t total_keylen = 0;
-	for (size_t key_ndx = 0; key_ndx < cmd_data->kv_keycnt; key_ndx++) {
-		cumulative_offsets[key_ndx] = total_keylen;
-		total_keylen += cmd_data->kv_key[key_ndx].kiov_len;
-	}
-
-	// create a buffer containing the key name
-	char *key_buffer = (char *) malloc(sizeof(char) * total_keylen);
-
-	// cleanup on a malloc failure
-	if (key_buffer == NULL) {
-		free(cumulative_offsets);
-		return -1;
-	}
-
-	// gather key name fragments into key buffer
-	for (size_t key_ndx = 0; key_ndx < cmd_data->kv_keycnt; key_ndx++) {
-		memcpy(
-			key_buffer + cumulative_offsets[key_ndx],
-			cmd_data->kv_key[key_ndx].kiov_base,
-			cmd_data->kv_key[key_ndx].kiov_len
-		);
-	}
-
-	// this array was only needed for the gather
-	free(cumulative_offsets);
-
-	// key_buffer eventually needs to be `free`d
-	set_bytes_optional(proto_keyval, key, key_buffer, total_keylen);
-
-	return 0;
-}
-
 struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
 											 kv_t *cmd_data, kvgettype_t get_type) {
 
@@ -463,7 +401,6 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 
 	// populate protobuf structs
 	extract_to_command_header(&proto_cmd_header, cmd_hdr);
-	extract_to_command_body(&proto_cmd_body, cmd_data);
 
 	// GET only needs key name from cmd_data
 	int extract_result = keyname_to_proto(&proto_cmd_body, cmd_data);
@@ -499,132 +436,9 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	}
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = pack_cmd_keyval(&proto_cmd_header, &proto_cmd_body, msgtype_keyval);
-
-	// since the command structure goes away after this function, cleanup the allocated key buffer
-	// (see `keyname_to_proto` above)
-	free(proto_cmd_body.key.data);
-
-	// return the constructed getlog message (or failure)
-	return create_message(msg_hdr, command_bytes);
-}
-
-struct kresult_message create_putkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
-											 kv_t *cmd_data, kcachepolicy_t cache_opt,
-											 int bool_shouldforce) {
-
-	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
-	kproto_kv_t     proto_cmd_body;
-
-	com__seagate__kinetic__proto__command__key_value__init(&proto_cmd_body);
-
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
-	extract_to_command_body(&proto_cmd_body, cmd_data);
-
-	// extract from cmd_data into proto_cmd_body
-	int extract_result = keyname_to_proto(&proto_cmd_body, cmd_data);
-	if (extract_result < 0) {
-		return (struct kresult_message) {
-			.result_code    = FAILURE,
-			.result_message = NULL,
-		};
-	}
-
-	if (cmd_data->kv_vers != NULL && cmd_data->kv_verslen > 0) {
-		set_bytes_optional(&proto_cmd_body, newversion, cmd_data->kv_vers, cmd_data->kv_verslen);
-		set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_dbvers, cmd_data->kv_dbverslen);
-	}
-
-	// we could potentially compute tag here (based on integrity algorithm) if desirable
-	set_primitive_optional(&proto_cmd_body, algorithm, cmd_data->kv_ditype);
-	set_bytes_optional(&proto_cmd_body, tag, cmd_data->kv_tag, cmd_data->kv_taglen);
-
-	// options for PUT that need not be part of the struct
-	set_primitive_optional(&proto_cmd_body, force, bool_shouldforce ? 1 : 0);
-	set_primitive_optional(&proto_cmd_body, synchronization, cache_opt);
-
-	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = pack_cmd_keyval(&proto_cmd_header, &proto_cmd_body, KMT_PUT);
-
-	// since the command structure goes away after this function, cleanup the allocated key buffer
-	// (see `keyname_to_proto` above)
-	free(proto_cmd_body.key.data);
-
-	// return the constructed getlog message (or failure)
-	return create_message(msg_hdr, command_bytes);
-}
-
-struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
-											 kv_t *cmd_data, kcachepolicy_t cache_opt,
-											 int bool_shouldforce) {
-
-	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
-	kproto_kv_t     proto_cmd_body;
-
-	com__seagate__kinetic__proto__command__key_value__init(&proto_cmd_body);
-
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
-	extract_to_command_body(&proto_cmd_body, cmd_data);
-
-	// extract from cmd_data into proto_cmd_body
-	int extract_result = keyname_to_proto(&proto_cmd_body, cmd_data);
-	if (extract_result < 0) {
-		return (struct kresult_message) {
-			.result_code    = FAILURE,
-			.result_message = NULL,
-		};
-	}
-
-	set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_dbvers, cmd_data->kv_dbverslen);
-
-	// options for PUT that need not be part of the struct
-	set_primitive_optional(&proto_cmd_body, force, bool_shouldforce ? 1 : 0);
-	set_primitive_optional(&proto_cmd_body, synchronization, cache_opt);
-
-	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = pack_cmd_keyval(&proto_cmd_header, &proto_cmd_body, KMT_DEL);
-
-	// since the command structure goes away after this function, cleanup the allocated key buffer
-	// (see `keyname_to_proto` above)
-	free(proto_cmd_body.key.data);
-
-	// return the constructed getlog message (or failure)
-	return create_message(msg_hdr, command_bytes);
-}
-
-// TODO: not really started
-struct kresult_message create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kv_t *cmd_data) {
-	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
-	kproto_kv_t     proto_cmd_body;
-
-	com__seagate__kinetic__proto__command__key_value__init(&proto_cmd_body);
-
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
-	extract_to_command_body(&proto_cmd_body, cmd_data);
-
-	// extract from cmd_data into proto_cmd_body
-	int extract_result = keyname_to_proto(&proto_cmd_body, cmd_data);
-	if (extract_result < 0) {
-		return (struct kresult_message) {
-			.result_code    = FAILURE,
-			.result_message = NULL,
-		};
-	}
-
-	set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_dbvers, cmd_data->kv_dbverslen);
-
-	// options for PUT that need not be part of the struct
-	set_primitive_optional(&proto_cmd_body, force, bool_shouldforce ? 1 : 0);
-	set_primitive_optional(&proto_cmd_body, synchronization, cache_opt);
-
-	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = pack_cmd_keyval(&proto_cmd_header, &proto_cmd_body, KMT_DEL);
+	ProtobufCBinaryData command_bytes = create_command_bytes(
+		&proto_cmd_header, (void *) &proto_cmd_body, msgtype_keyval
+	);
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)
