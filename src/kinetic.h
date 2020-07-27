@@ -73,9 +73,9 @@ typedef enum keyval_message_type {
 
 typedef struct kv {
 	struct kiovec	*kv_key;
-	size_t		*kv_keycnt;
+	size_t		kv_keycnt;
 	struct kiovec	*kv_val;
-	size_t		*kv_valcnt;
+	size_t		kv_valcnt;
 	void		*kv_vers;
 	size_t		kv_verslen;
 	void		*kv_dbvers;

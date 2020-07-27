@@ -272,8 +272,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	int rc, n;
 	kstatus_t krc;
 	struct kio *kio;
-	struct ktli_config *cf;
 	struct kiovec *kiov;
+	struct ktli_config *cf;
 	uint8_t ppdu[KP_PLENGTH];
 	kpdu_t pdu;
 	kpdu_t *rpdu;
@@ -327,7 +327,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		};
 	}
 
-	/* Hang the PDU buffer */
+	/* Hang the Packed PDU buffer, packing occurs later */
 	kio->kio_cmd = KMT_GETLOG;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
@@ -363,8 +363,9 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, ppdu);
-	
-	printf("getlog: PDU(x%2x, %d, %d)\n", pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+	printf("getlog: PDU(x%2x, %d, %d)\n",
+	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+
 	/* Send the request */
 	ktli_send(ktd, kio);
 	printf ("Sent Kio: %p\n", kio);
@@ -390,29 +391,31 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
-
 	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
 		goto glex2;
 	}
 
-	kstatus_t command_status = extract_getlog(&kmresp, &glog2);
-	if (command_status.ks_code != K_OK) {
+	krc = extract_getlog(&kmresp, &glog2);
+	if (krc.ks_code != K_OK) {
 		rc = -1;
 		goto glex1;
 	}
 
 #if 0
+	/* PAK: Validate passed back structures */
 	rc = gl_validate_resp(glog, &glog2);
-
 	if (rc < 0) {
 		/* errno set by validate */
 		rc = -1;
 		goto glex1;
 	}
 #endif
-	/* PAK: need to extract status */
+	/* \
+	 * PAK: need to extract status 
+	 * PAK: Need to deallocate thinsg 
+	 */
 	memcpy(glog, &glog2, sizeof(kgetlog_t));
 	return (kstatus_t) {
 		.ks_code    = K_OK,
@@ -430,11 +433,11 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	destroy_message(kmresp.result_message);
  glex2:
 	destroy_message(kmreq.result_message);
-	destroy_message(kio->kio_sendmsg.km_msg[1].kiov_base);
+	destroy_message(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
-	KI_FREE(kio->kio_recvmsg.km_msg[0].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg[1].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg);
 	KI_FREE(kio->kio_sendmsg.km_msg);
 	KI_FREE(kio);
