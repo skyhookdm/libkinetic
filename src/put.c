@@ -223,18 +223,51 @@ ki_put(int ktd, kv_t *kv)
 /*
  * Helper functions
  */
+struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
+                                          kv_t *cmd_data, kcachepolicy_t cache_opt,
+                                          int bool_shouldforce) {
 
+	// declare protobuf structs on stack
+	kproto_cmdhdr_t proto_cmd_header;
+	kproto_kv_t     proto_cmd_body;
 
+	com__seagate__kinetic__proto__command__key_value__init(&proto_cmd_body);
 
+	// populate protobuf structs
+	extract_to_command_header(&proto_cmd_header, cmd_hdr);
 
+	// extract from cmd_data into proto_cmd_body
+	int extract_result = keyname_to_proto(&proto_cmd_body, cmd_data);
+	if (extract_result < 0) {
+		return (struct kresult_message) {
+			.result_code    = FAILURE,
+			.result_message = NULL,
 		};
 	}
 
+	// if the keyval has a version set, then it is passed as newversion and we need to pass the old
+	// version as dbversion
+	if (cmd_data->kv_vers != NULL && cmd_data->kv_verslen > 0) {
+		set_bytes_optional(&proto_cmd_body, newversion, cmd_data->kv_vers, cmd_data->kv_verslen);
+		set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_dbvers, cmd_data->kv_dbverslen);
 	}
 
+	// we could potentially compute tag here (based on integrity algorithm) if desirable
+	set_primitive_optional(&proto_cmd_body, algorithm, cmd_data->kv_ditype);
+	set_bytes_optional(&proto_cmd_body, tag, cmd_data->kv_tag, cmd_data->kv_taglen);
 
+	// if force is specified, then the dbversion is essentially ignored.
+	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce ? 1 : 0);
+	set_primitive_optional(&proto_cmd_body, synchronization, cache_opt               );
 
 	// construct command bytes to place into message
+	ProtobufCBinaryData command_bytes = create_command_bytes(
+		&proto_cmd_header, (void *) &proto_cmd_body, KMT_PUT
+	);
+
+	// since the command structure goes away after this function, cleanup the allocated key buffer
+	// (see `keyname_to_proto` above)
+	free(proto_cmd_body.key.data);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
