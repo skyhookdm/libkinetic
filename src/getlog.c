@@ -290,7 +290,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 			.ks_code    = K_EREJECTED,
 			.ks_message = "Bad session",
 			.ks_detail  = "",
-		};		
+		};
 	}
 	ses = (ksession_t *)cf->kcfg_pconf;
 
