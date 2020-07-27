@@ -248,8 +248,8 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 	// if the keyval has a version set, then it is passed as newversion and we need to pass the old
 	// version as dbversion
 	if (cmd_data->kv_vers != NULL && cmd_data->kv_verslen > 0) {
-		set_bytes_optional(&proto_cmd_body, newversion, cmd_data->kv_vers, cmd_data->kv_verslen);
-		set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_dbvers, cmd_data->kv_dbverslen);
+		set_bytes_optional(&proto_cmd_body, newversion, cmd_data->kv_vers  , cmd_data->kv_verslen  );
+		set_bytes_optional(&proto_cmd_body, dbversion , cmd_data->kv_dbvers, cmd_data->kv_dbverslen);
 	}
 
 	// we could potentially compute tag here (based on integrity algorithm) if desirable
