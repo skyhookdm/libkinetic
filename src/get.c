@@ -391,7 +391,7 @@ ki_getversion(int ktd, kv_t *key)
  * Helper functions
  */
 struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
-											 kv_t *cmd_data, kvgettype_t get_type) {
+											 kv_t *cmd_data, kv_gettype_t get_type) {
 
 	// declare protobuf structs on stack
 	kproto_cmdhdr_t proto_cmd_header;

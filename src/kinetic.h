@@ -69,7 +69,7 @@ typedef enum keyval_message_type {
 	GET_TYPE_VERS    ,
 	GET_TYPE_NEXT    ,
 	GET_TYPE_PREV    ,
-} kv_optype_t;
+} kv_gettype_t;
 
 typedef struct kv {
 	struct kiovec	*kv_key;
