@@ -190,6 +190,41 @@ pack_failure:
 	return (ProtobufCBinaryData) { .len = 0, .data = NULL };
 }
 
+ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd,
+		                                 kmtype_t msg_type) {
+	// Structs to use
+	kproto_cmd_t command_msg;
+	kproto_body_t  command_body;
+
+	// initialize the structs
+	com__seagate__kinetic__proto__command__init(&command_msg);
+	com__seagate__kinetic__proto__command__body__init(&command_body);
+
+	// update the header for the Put Message Body
+	cmd_hdr->messagetype = msg_type;
+
+	// stitch the Command together
+	switch(msg_type) {
+		case KMT_GET:
+		case KMT_GETVERS:
+		case KMT_GETNEXT:
+		case KMT_GETPREV:
+		case KMT_PUT:
+		case KMT_DEL:
+			command_body.keyvalue = (kproto_keyval_t *) proto_cmd;
+			break;
+
+		case KMT_GETLOG:
+			command_body.getlog   = (kproto_getlog_t *) proto_cmd;
+			break;
+	}
+
+	command_msg.header	= cmd_hdr;
+	command_msg.body	= &command_body;
+
+	return pack_kinetic_command(&command_msg);
+}
+
 kproto_cmd_t *unpack_kinetic_command(ProtobufCBinaryData commandbytes) {
 	// a NULL allocator defaults to system allocator (malloc)
 	ProtobufCAllocator *mem_allocator = NULL;
@@ -309,26 +344,6 @@ create_failure:
 	};
 }
 
-void destroy_message(void *unpacked_msg) {
-	// At some point, it would be best to make sure the allocator used in `unpack` is used here
-	ProtobufCAllocator *mem_allocator = NULL;
-
-	com__seagate__kinetic__proto__message__free_unpacked(
-		(kproto_msg_t *) unpacked_msg,
-		mem_allocator
-	);
-}
-
-void destroy_command(void *unpacked_cmd) {
-	// At some point, it would be best to make sure the allocator used in `unpack` is used here
-	ProtobufCAllocator *mem_allocator = NULL;
-
-	com__seagate__kinetic__proto__command__free_unpacked(
-		(kproto_cmd_t *) unpacked_cmd,
-		mem_allocator
-	);
-}
-
 void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data) {
 
 	com__seagate__kinetic__proto__command__header__init(proto_cmdhdr);
@@ -418,64 +433,52 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	};
 }
 
-// TODO: this is a helper fn, picked from protobuf-c source, to assist in walking protobuf code
-/* NOTE: not yet used, so just commenting out
-static size_t
-parse_tag_and_wiretype(size_t len, const uint8_t *data, uint32_t *tag_out, ProtobufCWireType *wiretype_out) {
-	/* Bit fields for reference
-	 *     0xf8: 1111 1000    0x80: 1000 0000
-	 *     0x07: 0000 0111    0x7f: 0111 1111
-	 *
-	unsigned max_rv          = len > 5 ? 5 : len;
-	uint32_t tag             = (data[0] & 0x7f) >> 3;
-	unsigned half_byte_width = 4;
-	unsigned rv;
+int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
+	// return error if params don't meet assumptions
+	if (proto_keyval == NULL || cmd_data == NULL) { return -1; }
 
-	// 0 is not a valid tag value
-	if ((data[0] & 0xf8) == 0) { return 0; }
+	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * cmd_data->kv_keycnt);
+	if (cumulative_offsets == NULL) { return -1; }
 
-	// grab the field's wiretype (type used for serializing to the wire)
-	*wiretype_out = data[0] & 7;
-
-	// significant bit tells us if the next byte is part of the tag
-	if ((data[0] & 0x80) == 0) {
-		*tag_out = tag;
-		return 1;
+	size_t total_keylen = 0;
+	for (size_t key_ndx = 0; key_ndx < cmd_data->kv_keycnt; key_ndx++) {
+		cumulative_offsets[key_ndx] = total_keylen;
+		total_keylen += cmd_data->kv_key[key_ndx].kiov_len;
 	}
 
-	// for each byte, up to max_rv (max of 5 and len)
-	for (rv = 1; rv < max_rv; rv++) {
+	// create a buffer containing the key name
+	char *key_buffer = (char *) malloc(sizeof(char) * total_keylen);
 
-		// if the significant bit is set, accumulate into the tag
-		if (data[rv] & 0x80) {
-			tag |= (data[rv] & 0x7f) << half_byte_width;
-			half_byte_width += 7;
-		}
-
-		// otherwise, accumulate this one and return how many bytes were accumulated
-		else {
-			tag |= data[rv] << half_byte_width;
-			*tag_out = tag;
-			return rv + 1;
-		}
+	// cleanup on a malloc failure
+	if (key_buffer == NULL) {
+		free(cumulative_offsets);
+		return -1;
 	}
 
-	// error: bad header
+	// gather key name fragments into key buffer
+	for (size_t key_ndx = 0; key_ndx < cmd_data->kv_keycnt; key_ndx++) {
+		memcpy(
+			key_buffer + cumulative_offsets[key_ndx],
+			cmd_data->kv_key[key_ndx].kiov_base,
+			cmd_data->kv_key[key_ndx].kiov_len
+		);
+	}
+
+	// this array was only needed for the gather
+	free(cumulative_offsets);
+
+	// key_buffer eventually needs to be `free`d
+	set_bytes_optional(proto_keyval, key, key_buffer, total_keylen);
+
 	return 0;
 }
-*/
-
-// TODO: this is going to be used for results of walking the protobuf data
-struct protobuf_loc {
-	size_t byte_offset;
-	size_t wiretype_len;
-	uint8_t (*unpack_field)(uint8_t *data_buffer, size_t byte_offset, size_t len);
-	uint8_t (*pack_field)(uint8_t *data_buffer, size_t byte_offset, size_t len);
-};
 
 
-// TODO: it's really painful, but this is implemented for functionality first. will remove
-// unnecessary allocations later
+/* ------------------------------
+ * Helper functions for ktli
+ */
+
+// TODO: remove unnecessary allocations later
 uint64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 	uint64_t ack_seq = -1;
 
@@ -503,7 +506,6 @@ uint64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 		ack_seq = tmp_cmd->header->acksequence;
 	}
 
-
 	// TODO: since we allocate currently, we need to clean up
 	destroy_command(tmp_cmd);
 	destroy_message(tmp_msg);
@@ -511,8 +513,7 @@ uint64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 	return ack_seq;
 }
 
-// TODO: it's really painful, but this is implemented for functionality first. will remove
-// unnecessary allocations later
+// TODO: remove unnecessary allocations later
 void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 
 	kpdu_t pdu;
@@ -532,7 +533,6 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	}
 
 	kproto_msg_t *tmp_msg = (kproto_msg_t *) unpack_result.result_message;
-
 
 	// then walk the command
 	kproto_cmd_t *tmp_cmd = unpack_kinetic_command(tmp_msg->commandbytes);
@@ -566,4 +566,28 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	// TODO: since we allocate currently, we need to clean up
 	destroy_command(tmp_cmd);
 	destroy_message(tmp_msg);
+}
+
+/* ------------------------------
+ * Resource management functions
+ */
+
+void destroy_message(void *unpacked_msg) {
+	// At some point, it would be best to make sure the allocator used in `unpack` is used here
+	ProtobufCAllocator *mem_allocator = NULL;
+
+	com__seagate__kinetic__proto__message__free_unpacked(
+		(kproto_msg_t *) unpacked_msg,
+		mem_allocator
+	);
+}
+
+void destroy_command(void *unpacked_cmd) {
+	// At some point, it would be best to make sure the allocator used in `unpack` is used here
+	ProtobufCAllocator *mem_allocator = NULL;
+
+	com__seagate__kinetic__proto__command__free_unpacked(
+		(kproto_cmd_t *) unpacked_cmd,
+		mem_allocator
+	);
 }
