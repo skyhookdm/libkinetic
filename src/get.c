@@ -371,13 +371,15 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	destroy_message(kmresp.result_message);
  gex2:
 	destroy_message(kmreq.result_message);
-        KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg);
+
+	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_sendmsg.km_msg);
+
 	KI_FREE(kio);
 
 	return(krc);
