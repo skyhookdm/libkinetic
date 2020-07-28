@@ -716,42 +716,45 @@ void destroy_protobuf_getlog(kgetlog_t *getlog_data) {
 }
 
 kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog_data) {
-	kproto_msg_t *getlog_response_msg = (kproto_msg_t *) response_msg->result_message;
+	kstatus_t getlog_status = {
+		.ks_code    = K_INVALID_SC,
+		.ks_message = NULL,
+		.ks_detail  = NULL
+	};
 
 	// commandbytes should exist, but we should probably be thorough
-	if (!getlog_response_msg->has_commandbytes) {
-		return (kstatus_t) {
-			.ks_code    = K_INVALID_SC,
-			.ks_message = "Response message has no command bytes",
-			.ks_detail  = NULL
-		};
-	}
+	kproto_msg_t *getlog_response_msg = (kproto_msg_t *) response_msg->result_message;
+	if (!getlog_response_msg->has_commandbytes) { return getlog_status; }
 
 	// unpack the command bytes
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(getlog_response_msg->commandbytes);
+	if (response_cmd->body->getlog == NULL) { return getlog_status; }
 
 	// extract the response status to be returned. prepare this early to make cleanup easy
 	kproto_status_t *response_status = response_cmd->status;
 
 	// copy the status message so that destroying the unpacked command doesn't get weird
-	size_t statusmsg_len     = strlen(response_status->statusmessage);
-	char *response_statusmsg = (char *) malloc(sizeof(char) * statusmsg_len);
-	strcpy(response_statusmsg, response_status->statusmessage);
+	if (!response_status->has_code) {
+		size_t statusmsg_len     = strlen(response_status->statusmessage);
+		char *response_statusmsg = (char *) malloc(sizeof(char) * statusmsg_len);
+		strcpy(response_statusmsg, response_status->statusmessage);
 
-	char *response_detailmsg = NULL;
-	if (response_status->has_detailedmessage) {
-		response_detailmsg = (char *) malloc(sizeof(char) * response_status->detailedmessage.len);
-		memcpy(
-			response_detailmsg,
-			response_status->detailedmessage.data,
-			response_status->detailedmessage.len
-		);
+		char *response_detailmsg = NULL;
+		if (response_status->has_detailedmessage) {
+			response_detailmsg = (char *) malloc(sizeof(char) * response_status->detailedmessage.len);
+			memcpy(
+				response_detailmsg,
+				response_status->detailedmessage.data,
+				response_status->detailedmessage.len
+			);
+		}
+
+		getlog_status = (kstatus_t) {
+			.ks_code    = response_status->code,
+			.ks_message = response_statusmsg,
+			.ks_detail  = response_detailmsg,
+		};
 	}
-	kstatus_t getlog_status = (kstatus_t) {
-		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
-		.ks_message = response_statusmsg,
-		.ks_detail  = response_detailmsg,
-	};
 
 	// ------------------------------
 	// begin extraction of command body into getlog structure
