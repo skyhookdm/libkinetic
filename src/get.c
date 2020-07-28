@@ -32,6 +32,8 @@
 #include "getlog.h"
 #include "message.h"
 
+struct kresult_message create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kv_gettype_t);
+
 /**
  * ki_validate_kv(kv_t *kv, limit_t *lim)
  *
@@ -105,7 +107,7 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 }
 
 /**
- * g_get_generic(int ktd, kv_t *kv, kv_t *altkv, uint32_t cmd)
+ * g_get_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type)
  *
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
@@ -113,15 +115,15 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
  * 		kv_tag and kv_taglen are optional. 
  *		kv_ditype is returned by the server, but it should 
  * 		have either a 0 or a valid ditype in it to start with
- *  altkv	used for holding prev or next kv
- *  cmd		Can be KMT_GET, KMT_GETNEXT, KMT_GETPREV, KMT_GETVERS
+ *  altkv	 used for holding prev or next kv
+ *  msg_type Can be KMT_GET, KMT_GETNEXT, KMT_GETPREV, KMT_GETVERS
  *
  * The get APIs share about 95% of the same code. This routine Consolidates
  * the code.
  *
  */
 kstatus_t
-g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
+g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 {
 	int rc, n;
 	kstatus_t krc;
@@ -148,7 +150,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 	ses = (ksession_t *)cf->kcfg_pconf;
 	
 	/* Validate command */
-	switch (cmd) {
+	switch (msg_type) {
 	case KMT_GETNEXT:
 	case KMT_GETPREV:
 		if (!altkv)
@@ -226,7 +228,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 	}
 
 	/* Hang the Packed PDU buffer, packing occurs later */
-	kio->kio_cmd = cmd;
+	kio->kio_cmd = msg_type;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 
@@ -238,9 +240,9 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 
 	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
-	cmd_hdr.kch_type  = cmd;
+	cmd_hdr.kch_type  = msg_type;
 
-	kmreq = create_get_message(&msg_hdr, &cmd_hdr, kv);
+	kmreq = create_getkey_message(&msg_hdr, &cmd_hdr, kv, cmd_hdr.kch_type);
 	if (kmreq.result_code == FAILURE) {
 		goto gex2;
 	}
@@ -301,7 +303,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 	}
 
 	/* Now unpack the message */
-	kmresp = unpack_get_resp(kiov->kiov_base, kiov->kiov_len);
+	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
@@ -312,11 +314,11 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 	 * Grab the value and hang it on either the kv or altkv as approriate
 	 * Also extract the kv data from response
 	 */
-	switch (cmd) {
+	switch (msg_type) {
 	case KMT_GET:
 		kv->kv_val[0].kiov_base = kiov->kiov_base + rpdu.kp_msglen;
 		kv->kv_val[0].kiov_len  = rpdu.kp_vallen;
-		//krc = extract_get(kmresp, kv);
+		krc = extract_getkey(&kmresp, kv);
 		if (krc.ks_code != K_OK) {
 			rc = -1;
 			goto gex1;
@@ -327,7 +329,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 	case KMT_GETPREV:
 		altkv->kv_val[0].kiov_base = kiov->kiov_base + rpdu.kp_msglen;
 		altkv->kv_val[0].kiov_len  = rpdu.kp_vallen;
-		//krc = extract_get(kmresp, altkv);
+		krc = extract_getkey(&kmresp, altkv);
 		if (krc.ks_code != K_OK) {
 			rc = -1;
 			goto gex1;
@@ -335,7 +337,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 		break;
 
 	case KMT_GETVERS:
-		//krc = extract_get(kmresp, kv);
+		krc = extract_getkey(&kmresp, kv);
 		if (krc.ks_code != K_OK) {
 			rc = -1;
 			goto gex1;
@@ -356,6 +358,10 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t cmd)
 		goto glex1;
 	}
 #endif
+
+	if (krc.ks_message != NULL) { KI_FREE(krc.ks_message); }
+	if (krc.ks_detail  != NULL) { KI_FREE(krc.ks_detail);  }
+
 	return (kstatus_t) {
 		.ks_code    = K_OK,
 		.ks_message = "Success",
@@ -509,7 +515,7 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 
 		// falls through so that the message type is `GET`
 		case GET_TYPE_META:
-			set_primitive_optional(&proto_cmd_body, metadataonly, 1);
+			set_primitive_optional((&proto_cmd_body), metadataonly, 1);
 
 		default:
 			msgtype_keyval = KMT_GET;
@@ -527,4 +533,83 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
+}
+
+// This may get a partially defined structure if we hit an error during the construction.
+void destroy_protobuf_getkey(kv_t *kv_data) {
+	// Don't do anything if we didn't get a valid pointer
+	if (!kv_data) { return; }
+
+	// first destroy the allocated memory for the message data
+	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
+
+	// then free arrays of pointers that point to the message data
+
+	// free the struct itself last
+	// NOTE: we may want to leave this to a caller?
+	free(kv_data);
+}
+
+kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
+	// assume failure status
+	kstatus_t kv_status = (kstatus_t) {
+		.ks_code    = K_INVALID_SC,
+		.ks_message = NULL,
+		.ks_detail  = NULL,
+	};
+
+	// commandbytes should exist, but we should probably be thorough
+	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
+	if (!kv_response_msg->has_commandbytes) { return kv_status; }
+
+	// unpack the command bytes
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
+	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+
+	// extract the response status to be returned. prepare this early to make cleanup easy
+	kproto_status_t *response_status = response_cmd->status;
+
+	// copy the status message so that destroying the unpacked command doesn't get weird
+	if (response_status->has_code) {
+		size_t statusmsg_len     = strlen(response_status->statusmessage);
+		char *response_statusmsg = (char *) malloc(sizeof(char) * statusmsg_len);
+		strcpy(response_statusmsg, response_status->statusmessage);
+
+		char *response_detailmsg = NULL;
+		if (response_status->has_detailedmessage) {
+			response_detailmsg = (char *) malloc(sizeof(char) * response_status->detailedmessage.len);
+			memcpy(
+				response_detailmsg,
+				response_status->detailedmessage.data,
+				response_status->detailedmessage.len
+			);
+		}
+
+		kv_status = (kstatus_t) {
+			.ks_code    = response_status->code,
+			.ks_message = response_statusmsg,
+			.ks_detail  = response_detailmsg,
+		};
+	}
+
+	// ------------------------------
+	// begin extraction of command body into kv_t structure
+	kproto_kv_t *response = response_cmd->body->keyvalue;
+
+	// we set the number of keys to 1, since this is not a range request
+	kv_data->kv_keycnt = 1;
+
+	// extract key name, db version, tag, and data integrity algorithm
+	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);
+
+	extract_bytes_optional(kv_data->kv_dbvers, kv_data->kv_dbverslen, response, dbversion);
+	extract_bytes_optional(kv_data->kv_tag   , kv_data->kv_taglen   , response, tag      );
+
+	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
+
+	// set fields used for cleanup
+	kv_data->kv_protobuf      = response_cmd;
+	kv_data->destroy_protobuf = destroy_protobuf_getkey;
+
+	return kv_status;
 }
