@@ -417,9 +417,13 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	 * PAK: Need to deallocate thinsg 
 	 */
 	memcpy(glog, &glog2, sizeof(kgetlog_t));
+
+	if (krc.ks_message != NULL) { KI_FREE(krc.ks_message); }
+	if (krc.ks_detail  != NULL) { KI_FREE(krc.ks_detail);  }
+
 	return (kstatus_t) {
 		.ks_code    = K_OK,
-			.ks_message = "Success",
+		.ks_message = "Success",
 		.ks_detail  = "",
 	};
 
