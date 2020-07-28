@@ -79,8 +79,8 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 		return(-1);
 	
 	/* Check the version */
-	if (kv->kv_vers &&
-	    ((kv->kv_verslen < 1) || (kv->kv_verslen > lim->kl_verlen)))
+	if (kv->kv_curver &&
+	    ((kv->kv_curverlen < 1) || (kv->kv_curverlen > lim->kl_verlen)))
 		return(-1);
 
 	/* Check the tag */
@@ -302,11 +302,16 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		assert(0);
 	}
 
-	/* Now unpack the message */
-	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
+	/* 
+	 * Now unpack the message remember KIOV_MSG 
+	 * may contain both msg and value
+	 */
+	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
-		rc = -1;
+		krc.ks_code    = K_EINTERNAL;
+		krc.ks_message = strdup("Error unpacking get* request");
+		krc.ks_message = NULL;
 		goto gex2;
 	}
 
@@ -320,7 +325,6 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		kv->kv_val[0].kiov_len  = rpdu.kp_vallen;
 		krc = extract_getkey(&kmresp, kv);
 		if (krc.ks_code != K_OK) {
-			rc = -1;
 			goto gex1;
 		}
 		break;
@@ -331,7 +335,6 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		altkv->kv_val[0].kiov_len  = rpdu.kp_vallen;
 		krc = extract_getkey(&kmresp, altkv);
 		if (krc.ks_code != K_OK) {
-			rc = -1;
 			goto gex1;
 		}
 		break;
@@ -339,13 +342,13 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	case KMT_GETVERS:
 		krc = extract_getkey(&kmresp, kv);
 		if (krc.ks_code != K_OK) {
-			rc = -1;
 			goto gex1;
 		}
 		break;
 		
 	default:
 		printf("get: should not get here\n");
+		assert(0);
 		break;
 	}
 
@@ -357,16 +360,10 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		rc = -1;
 		goto glex1;
 	}
-#endif
 
 	if (krc.ks_message != NULL) { KI_FREE(krc.ks_message); }
 	if (krc.ks_detail  != NULL) { KI_FREE(krc.ks_detail);  }
-
-	return (kstatus_t) {
-		.ks_code    = K_OK,
-		.ks_message = "Success",
-		.ks_detail  = "",
-	};
+#endif
 
 	
 	/* clean up */
@@ -374,7 +371,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	destroy_message(kmresp.result_message);
  gex2:
 	destroy_message(kmreq.result_message);
-	destroy_message(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+        KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
@@ -383,13 +380,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	KI_FREE(kio->kio_sendmsg.km_msg);
 	KI_FREE(kio);
 
-	// TODO: translae rc error code into kstatus_t
-	// return (rc);
-	return (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = "Error sending getlog request: glex2",
-		.ks_detail  = "",
-	};
+	return(krc);
 }
 
 /**

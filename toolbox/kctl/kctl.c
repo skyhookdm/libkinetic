@@ -61,10 +61,10 @@ struct ktable {
 	{ KCTL_NOOP,    "ping",    "Ping the kinetic device", &kctl_ping},
 #endif
 	{ KCTL_GET,     "get",     "Get key value", &kctl_get},
-#if 0
 	{ KCTL_GETNEXT, "getnext", "Get next key value", &kctl_get},
 	{ KCTL_GETPREV, "getprev", "Get previous key value", &kctl_get},
 	{ KCTL_GETVERS, "getvers", "Get key value version", &kctl_get},
+#if 0
 	{ KCTL_PUT,     "put",     "Put key value", &kctl_put},
 	{ KCTL_DEL,     "del",     "Delete key value or range of key values",
 	  &kctl_del},
