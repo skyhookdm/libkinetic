@@ -189,7 +189,7 @@ ki_del(int ktd, kv_t *kv)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type  = msg_type;
 
-	kmreq = create_getkey_message(&msg_hdr, &cmd_hdr, kv, cmd_hdr.kch_type);
+	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, cmd_hdr.kch_type);
 	if (kmreq.result_code == FAILURE) {
 		goto gex2;
 	}
@@ -283,7 +283,6 @@ ki_del(int ktd, kv_t *kv)
 	destroy_message(kmresp.result_message);
  gex2:
 	destroy_message(kmreq.result_message);
-	destroy_message(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
@@ -342,4 +341,87 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
+}
+
+// This may get a partially defined structure if we hit an error during the construction.
+void destroy_protobuf_delkey(kv_t *kv_data) {
+	// Don't do anything if we didn't get a valid pointer
+	if (!kv_data) { return; }
+
+	// first destroy the allocated memory for the message data
+	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
+
+	// then free arrays of pointers that point to the message data
+
+	// free the struct itself last
+	// NOTE: we may want to leave this to a caller?
+	free(kv_data);
+}
+
+kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
+	// assume failure status
+	kstatus_t kv_status = (kstatus_t) {
+		.ks_code    = K_INVALID_SC,
+		.ks_message = NULL,
+		.ks_detail  = NULL,
+	};
+
+	// commandbytes should exist, but we should probably be thorough
+	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
+	if (!kv_response_msg->has_commandbytes) { return kv_status; }
+
+	// unpack the command bytes
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
+	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+
+	// extract the response status to be returned. prepare this early to make cleanup easy
+	kproto_status_t *response_status = response_cmd->status;
+
+	// copy the status message so that destroying the unpacked command doesn't get weird
+	if (response_status->has_code) {
+		size_t statusmsg_len     = strlen(response_status->statusmessage);
+		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		strcpy(response_statusmsg, response_status->statusmessage);
+
+		char *response_detailmsg = NULL;
+		if (response_status->has_detailedmessage) {
+			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
+			memcpy(
+				response_detailmsg,
+				response_status->detailedmessage.data,
+				response_status->detailedmessage.len
+			);
+		}
+
+		kv_status = (kstatus_t) {
+			.ks_code    = response_status->code,
+			.ks_message = response_statusmsg,
+			.ks_detail  = response_detailmsg,
+		};
+	}
+
+	// check if there's any keyvalue information to parse
+	// (for PUT we expect this to be NULL or empty)
+	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+
+	// ------------------------------
+	// begin extraction of command body into kv_t structure
+	kproto_kv_t *response = response_cmd->body->keyvalue;
+
+	// we set the number of keys to 1, since this is not a range request
+	kv_data->kv_keycnt = response->has_key ? 1 : 0;
+
+	// extract key name, db version, tag, and data integrity algorithm
+	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);
+
+	extract_bytes_optional(kv_data->kv_curver, kv_data->kv_curverlen, response, dbversion);
+	extract_bytes_optional(kv_data->kv_tag   , kv_data->kv_taglen   , response, tag      );
+
+	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
+
+	// set fields used for cleanup
+	kv_data->kv_protobuf      = response_cmd;
+	kv_data->destroy_protobuf = destroy_protobuf_delkey;
+
+	return kv_status;
 }
