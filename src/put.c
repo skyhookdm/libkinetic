@@ -51,14 +51,17 @@ struct kresult_message create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kcac
 kstatus_t
 ki_put(int ktd, kv_t *kv)
 {
-	int rc, n;
+	int rc;
 	kstatus_t krc;
 	struct kio *kio;
 	struct ktli_config *cf;
-	kpdu_t pdu = KP_INIT;
-	kpdu_t *rpdu;
+
+	uint8_t ppdu[KP_PLENGTH];
+	kpdu_t pdu, rpdu;
+
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
+
 	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
 
@@ -99,8 +102,10 @@ ki_put(int ktd, kv_t *kv)
 	 * One vector for the PDU and another for the full request message
 	 */
 	kio->kio_sendmsg.km_cnt = 2; 
-	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	);
+
 	if (!kio->kio_sendmsg.km_msg) {
 		return (kstatus_t) {
 			.ks_code    = K_EINTERNAL;
@@ -111,8 +116,8 @@ ki_put(int ktd, kv_t *kv)
 
 	/* Hang the PDU buffer */
 	kio->kio_cmd = KMT_PUT;
-	kio->kio_sendmsg.km_msg[0].kiov_base = (void *) &pdu;
-	kio->kio_sendmsg.km_msg[0].kiov_len = KP_LENGTH;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_LENGTH;
 
 	/* Setup msg_hdr */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
@@ -122,102 +127,105 @@ ki_put(int ktd, kv_t *kv)
 
 	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
-	cmd_hdr.kch_type      = KMT_PUT;
+	cmd_hdr.kch_type = KMT_PUT;
 
 	// hardcoding reasonable defaults: writeback with no force
 	kcachepolicy_t cache_opt = KC_WB;
 	int            bool_shouldforce = 0;
 	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, cache_opt, bool_shouldforce);
-	if (kmreq.result_code == FAILURE) {
-		goto gex2;
-	}
+	if (kmreq.result_code == FAILURE) { goto pex2; }
 
 	/* pack the message and hang it on the kio */
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
-		(kproto_msg_t *) &(kmreq.result_message),
-		&(kio->kio_sendmsg.km_msg[1].kiov_base),
-		&(kio->kio_sendmsg.km_msg[1].kiov_len)
+		(kproto_msg_t *) kmreq.result_message,
+		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
+		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
 
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
-	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
+	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 	pdu.kp_vallen = 0;
+	PACK_PDU(&pdu, ppdu);
+
+	printf(
+		"get_generic: PDU(x%2x, %d, %d)\n",
+	    pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen
+	);
 
 	/* Send the request */
 	ktli_send(ktd, kio);
 	printf ("Sent Kio: %p\n", kio);
 
-	/* Wait for the response */
-	ktli_poll(ktd, 0);
+	// Wait for the response
+	do {
+		// wait for something to come in
+		ktli_poll(ktd, 0);
 
-	/* Receive the response */
-	/* PAK: need error handling */
-	rc = ktli_receive(ktd, kio);
+		// check to see if it is our response
+		rc = ktli_receive(ktd, kio);
+		if (rc < 0) {
+			// Not our response, so try again
+			if (errno == ENOENT) { continue; }
+
+			/* PAK: need to exit, receive failed */
+			else { ; }
+		}
+
+		else { break; }
+	} while (1);
 
 	/* extract the return PDU */
-	if (kio->kio_recvmsg.km_msg[0].kiov_len != sizeof(pdu_t)) {
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
+	if (kiov->kiov_len != KP_PLENGTH) {
 		/* PAK: error handling -need to clean up Yikes! */
+		assert(0);
 	}
-	rpdu = kio->kio_recvmsg.km_msg[0].kiov_base;
+	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
 
 	/* Does the PDU match what was given in the recvmsg */
-	if (rpdu->kp_msglen + rpdu->kp_vallen !=
-	    kio->kio_recvmsg.km_msg[1].kiov_len ) {
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
+	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
 		/* PAK: error handling -need to clean up Yikes! */
+		assert(0);
 	}
 
-	/* Grab the value */
-	kv->kv_val = kio->kio_recvmsg.km_msg[1].kiov_base + rpdu->kp_msglen;
-	kv->kv_val = rpdu->kp_vallen;
-
 	/* Now unpack the message */ 
-	kmresp = unpack_put_resp(kio->kio_recvmsg.km_msg[1].kiov_base,
-				    kio->kio_recvmsg.km_msg[1].kiov_len);
-
+	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp->result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
-		goto gex2;
+		goto pex2;
 	}
 
-	kstatus = extract_put(kmresp, kv);
-	if (kstatus->ks_code != K_OK) {
+	krc = extract_putkey(&kmresp, kv);
+	if (krc.ks_code != K_OK) {
 		rc = -1;
-		goto gex1;
+		goto pex1;
 	}
 
-	rc = gl_validate_resp(glog);
-
-	if (rc < 0) {
-		/* errno set by validate */
-		rc = -1;
-		goto glex1;
-	}
+	/* errno set by validate */
+	// rc = gl_validate_resp(glog);
 
 	/* clean up */
- gex1:
+ pex1:
 	destroy_message(kmresp);
- gex2:
+ pex2:
 	destroy_message(kmreq);
-	destroy_request(kio->kio_sendmsg.km_msg[1].kiov_base);
 
-	/* sendmsg.km_msg[0] Not allocated, static */
-	KI_FREE(kio->kio_recvmsg.km_msg[0].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg[1].kiov_base);
+	/* sendmsg.km_msg[KIOV_PDU] Not allocated, static */
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg);
+
+	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_sendmsg.km_msg);
+
 	KI_FREE(kio);
 
-	// TODO: translae rc error code into kstatus_t
-	// return (rc);
-	return (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = "Error sending putlog request: glex2",
-		.ks_detail  = "",
-	};
+	return (krc);
 }
 
 /*

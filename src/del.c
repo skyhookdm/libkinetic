@@ -75,7 +75,7 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 
 	errno = 0;
 
-	return(0);
+	return (0);
 }
 
 
@@ -98,7 +98,7 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 kstatus_t
 ki_del(int ktd, kv_t *kv)
 {
-	int rc, n;
+	int rc;
 	kstatus_t krc;
 
 	struct kio *kio;
@@ -187,25 +187,26 @@ ki_del(int ktd, kv_t *kv)
 
 	// setup command header (cmd_hdr)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
-	cmd_hdr.kch_type  = msg_type;
+	cmd_hdr.kch_type = msg_type;
 
-	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, cmd_hdr.kch_type);
-	if (kmreq.result_code == FAILURE) {
-		goto gex2;
-	}
+	// hardcoding reasonable defaults: writeback with no force
+	kcachepolicy_t cache_opt = KC_WB;
+	int            bool_shouldforce = 0;
+	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, cache_opt, bool_shouldforce);
+	if (kmreq.result_code == FAILURE) { goto dex2; }
 
 	// pack the message and hang it on the kio
 	// PAK: Error handling
 	// success: rc = 0; failure: rc = 1 (see enum kresult_code)
 	rc = pack_kinetic_message(
-		(kproto_msg_t *) &(kmreq.result_message),
+		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
 
 	// now that the message length is known, setup the PDU
 	pdu.kp_magic  = KP_MAGIC;
-	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
+	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, ppdu);
 
@@ -264,40 +265,40 @@ ki_del(int ktd, kv_t *kv)
 	if (kmresp.result_code == FAILURE) {
 		// cleanup and return error
 		rc = -1;
-		goto gex2;
+		goto dex2;
 	}
 
+	kstatus = extract_delkey(&kmresp, kv);
+	if (kstatus->ks_code != K_OK) {
+		rc = -1;
+		goto dex1;
+	}
+
+	// validate response
+
+#if 0
 	// Free the status messages since we don't propagate them
 	if (krc.ks_message != NULL) { KI_FREE(krc.ks_message); }
 	if (krc.ks_detail  != NULL) { KI_FREE(krc.ks_detail);  }
-
-	return (kstatus_t) {
-		.ks_code    = K_OK,
-		.ks_message = "Success",
-		.ks_detail  = "",
-	};
-
+#endif
 
 	/* clean up */
- gex1:
+ dex1:
 	destroy_message(kmresp.result_message);
- gex2:
+ dex2:
 	destroy_message(kmreq.result_message);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg);
+
+	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_sendmsg.km_msg);
+
 	KI_FREE(kio);
 
-	// TODO: translae rc error code into kstatus_t
-	// return (rc);
-	return (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = "Error sending getlog request: glex2",
-		.ks_detail  = "",
-	};
+	return (krc);
 }
 
 
