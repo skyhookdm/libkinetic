@@ -691,7 +691,7 @@ void destroy_protobuf_getlog(kgetlog_t *getlog_data) {
 	if (!getlog_data) { return; }
 
 	// first destroy the allocated memory for the message data
-	destroy_message((kproto_getlog_t *) getlog_data->kgl_protobuf);
+	destroy_command((kproto_getlog_t *) getlog_data->kgl_protobuf);
 
 	// then free arrays of pointers that point to the message data
 	if (getlog_data->kgl_util) { free(getlog_data->kgl_util); }
