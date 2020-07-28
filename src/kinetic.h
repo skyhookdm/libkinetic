@@ -62,15 +62,6 @@ enum {
 	K_ESHUTDOWN	= CSSC(SHUTDOWN),
 };
 
-// A message type is kind of like an operation type; e.g. GET, GETNEXT, etc.
-typedef enum keyval_message_type {
-	GET_TYPE_FULL = 0,
-	GET_TYPE_META    ,
-	GET_TYPE_VERS    ,
-	GET_TYPE_NEXT    ,
-	GET_TYPE_PREV    ,
-} kv_gettype_t;
-
 typedef struct kv {
 	struct kiovec	*kv_key;
 	size_t		kv_keycnt;
