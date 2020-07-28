@@ -433,6 +433,16 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	};
 }
 
+size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count) {
+	size_t total_len = 0;
+
+	for (size_t fragment_ndx = 0; fragment_ndx < fragment_count; fragment_ndx++) {
+		total_len += byte_fragments[fragment_ndx].kiov_len;
+	}
+
+	return total_len;
+}
+
 int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
 	// return error if params don't meet assumptions
 	if (proto_keyval == NULL || cmd_data == NULL) { return -1; }
