@@ -67,10 +67,10 @@ typedef struct kv {
 	size_t		kv_keycnt;
 	struct kiovec	*kv_val;
 	size_t		kv_valcnt;
-	void		*kv_vers;
-	size_t		kv_verslen;
-	void		*kv_dbvers;
-	size_t		kv_dbverslen;
+	void		*kv_newver;
+	size_t		kv_newverlen;
+	void		*kv_curver;
+	size_t		kv_curverlen;
 	void		*kv_tag;
 	size_t		kv_taglen;
 	kditype_t	kv_ditype;

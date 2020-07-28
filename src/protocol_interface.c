@@ -481,13 +481,19 @@ int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
 // TODO: remove unnecessary allocations later
 uint64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 	uint64_t ack_seq = -1;
+	kpdu_t pdu;
 
 	//ERROR: not enough messages
 	if (KIOV_MSG >= msgcnt) { return 0; }
 
+	/* 
+	 * Now unpack the message remember KIOV_MSG 
+	 * may contain both msg and value
+	 */
+	UNPACK_PDU(&pdu, (uint8_t *)msg[KIOV_PDU].kiov_base);
 	// walk the message first
 	struct kresult_message unpack_result = unpack_kinetic_message(
-		msg[KIOV_MSG].kiov_base, msg[KIOV_MSG].kiov_len
+		msg[KIOV_MSG].kiov_base, pdu.kp_msglen 
 	);
 
 	if (unpack_result.result_code == FAILURE) {

@@ -302,8 +302,11 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		assert(0);
 	}
 
-	/* Now unpack the message */
-	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
+	/* 
+	 * Now unpack the message remember KIOV_MSG 
+	 * may contain both msg and value
+	 */
+	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;

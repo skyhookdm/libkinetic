@@ -160,7 +160,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	printf("): ");
 	
 	if (ka->ka_cmd == KCTL_GETVERS) {
-		printf("%s\n", (char *)kv.kv_vers);
+		printf("%s\n", (kv.kv_curvers?(char *)kv.kv_curvers:"N/A");
 		return(0);
 	}
 
