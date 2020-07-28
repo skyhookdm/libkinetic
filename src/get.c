@@ -497,32 +497,6 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 		};
 	}
 
-	/* GETNEXT and GETPREV are relative to the keyname in this request */
-	/*
-	kmtype_t msgtype_keyval;
-	switch (get_type) {
-		case GET_TYPE_VERS:
-			msgtype_keyval = KMT_GETVERS;
-			break;
-
-		case GET_TYPE_NEXT:
-			msgtype_keyval = KMT_GETNEXT;
-			break;
-
-		case GET_TYPE_PREV:
-			msgtype_keyval = KMT_GETPREV;
-			break;
-
-		// falls through so that the message type is `GET`
-		case GET_TYPE_META:
-			set_primitive_optional((&proto_cmd_body), metadataonly, 1);
-
-		default:
-			msgtype_keyval = KMT_GET;
-			break;
-	}
-	*/
-
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(
 		&proto_cmd_header, (void *) &proto_cmd_body, cmd_hdr->kch_type
@@ -592,6 +566,9 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 			.ks_detail  = response_detailmsg,
 		};
 	}
+
+	// check that we received keyvalue information
+	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
 
 	// ------------------------------
 	// begin extraction of command body into kv_t structure
