@@ -32,7 +32,7 @@
 #include "getlog.h"
 #include "message.h"
 
-struct kresult_message create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kv_gettype_t);
+struct kresult_message create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
 
 /**
  * ki_validate_kv(kv_t *kv, limit_t *lim)
@@ -242,7 +242,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type  = msg_type;
 
-	kmreq = create_getkey_message(&msg_hdr, &cmd_hdr, kv, cmd_hdr.kch_type);
+	kmreq = create_getkey_message(&msg_hdr, &cmd_hdr, kv);
 	if (kmreq.result_code == FAILURE) {
 		goto gex2;
 	}
@@ -251,7 +251,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
-		(kproto_msg_t *) &(kmreq.result_message),
+		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
@@ -477,8 +477,7 @@ ki_getversion(int ktd, kv_t *key)
 /*
  * Helper functions
  */
-struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
-											 kv_t *cmd_data, kv_gettype_t get_type) {
+struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kv_t *cmd_data) {
 
 	// declare protobuf structs on stack
 	kproto_cmdhdr_t proto_cmd_header;
@@ -499,6 +498,7 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	}
 
 	/* GETNEXT and GETPREV are relative to the keyname in this request */
+	/*
 	kmtype_t msgtype_keyval;
 	switch (get_type) {
 		case GET_TYPE_VERS:
@@ -521,10 +521,11 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 			msgtype_keyval = KMT_GET;
 			break;
 	}
+	*/
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(
-		&proto_cmd_header, (void *) &proto_cmd_body, msgtype_keyval
+		&proto_cmd_header, (void *) &proto_cmd_body, cmd_hdr->kch_type
 	);
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
@@ -572,12 +573,12 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// copy the status message so that destroying the unpacked command doesn't get weird
 	if (response_status->has_code) {
 		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) malloc(sizeof(char) * statusmsg_len);
+		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
 		strcpy(response_statusmsg, response_status->statusmessage);
 
 		char *response_detailmsg = NULL;
 		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) malloc(sizeof(char) * response_status->detailedmessage.len);
+			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
 			memcpy(
 				response_detailmsg,
 				response_status->detailedmessage.data,
