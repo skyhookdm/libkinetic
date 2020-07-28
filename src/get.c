@@ -603,7 +603,7 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// extract key name, db version, tag, and data integrity algorithm
 	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);
 
-	extract_bytes_optional(kv_data->kv_dbvers, kv_data->kv_dbverslen, response, dbversion);
+	extract_bytes_optional(kv_data->kv_curver, kv_data->kv_curverlen, response, dbversion);
 	extract_bytes_optional(kv_data->kv_tag   , kv_data->kv_taglen   , response, tag      );
 
 	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
