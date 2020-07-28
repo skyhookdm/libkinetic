@@ -54,7 +54,8 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct kiovec	rkv_key[1]  = {0, 0};
 	struct kiovec	rkv_val[1]  = {0, 0};
 	kstatus_t 	kstatus;
-	
+	kv_t		*pkv;
+
         while ((c = getopt(argc, argv, "AXh?")) != EOF) {
                 switch (c) {
 		case 'A':
@@ -129,48 +130,70 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	/*
 	 * 4 cmd supported here: Get, GetNext, GetPrev, GetVers
 	 */
-	if (ka->ka_cmd == KCTL_GET)
+	switch (ka->ka_cmd) {
+	case KCTL_GET:
 		kstatus = ki_get(ktd, &kv);
-	else if	(ka->ka_cmd == KCTL_GETNEXT)
+		pkv = &kv;
+		break;
+
+	case KCTL_GETNEXT:
 		kstatus = ki_getnext(ktd, &kv, &rkv);
-	else if	(ka->ka_cmd == KCTL_GETPREV)
+		pkv = &rkv;
+		break;
+
+	case KCTL_GETPREV:
 		kstatus = ki_getprev(ktd, &kv, &rkv);
-	else if	(ka->ka_cmd == KCTL_GETVERS)
+		pkv = &rkv;
+		break;
+		
+	case KCTL_GETVERS:
 		kstatus = ki_getversion(ktd, &kv);
-	else {
+		pkv = &kv;
+		break;
+
+	default:
 		fprintf(stderr, "Bad command: %s\n", ka->ka_cmdstr);
 		return(-1);
 	}
 		
 	if(kstatus.ks_code != K_OK) {
-		printf("%s failed: %s\n",
-		       ka->ka_cmdstr, kstatus.ks_message);
-		return(-1);
+		switch (kstatus.ks_code) {
+		case K_OK:
+			break;
+		case K_ENOTFOUND:
+			printf("%s: No key found.\n", ka->ka_cmdstr);
+			return(-1);
+		default:	
+			printf("%s: failed: status code %d %s\n",
+			       ka->ka_cmdstr, kstatus.ks_code,
+			       kstatus.ks_message);
+			return(-1);
+		}
 	}
 
 	printf("Key(");
 	if (adump) {
-		asciidump(kv.kv_key[0].kiov_base, kv.kv_key[0].kiov_len);
+		asciidump(pkv->kv_key[0].kiov_base, pkv->kv_key[0].kiov_len);
 	} else if (hdump) {
 		printf("\n");
-		hexdump(kv.kv_key[0].kiov_base, kv.kv_key[0].kiov_len);
+		hexdump(pkv->kv_key[0].kiov_base, pkv->kv_key[0].kiov_len);
 	} else {
-		printf("%s", (char *)kv.kv_key[0].kiov_base);
+		printf("%s", (char *)pkv->kv_key[0].kiov_base);
 	}
 	printf("): ");
 	
 	if (ka->ka_cmd == KCTL_GETVERS) {
-		printf("%s\n", (kv.kv_curvers?(char *)kv.kv_curvers:"N/A");
+		printf("%s\n", (pkv->kv_curver?(char *)pkv->kv_curver:"N/A"));
 		return(0);
 	}
 
-	printf("\nLength: %lu\n", kv.kv_val[0].kiov_len);
+	printf("\nLength: %lu\n", pkv->kv_val[0].kiov_len);
 	if (adump) {
-		asciidump(kv.kv_val[0].kiov_base, kv.kv_val[0].kiov_len);
+		asciidump(pkv->kv_val[0].kiov_base, pkv->kv_val[0].kiov_len);
 	} else if (hdump) {
-		hexdump(kv.kv_val[0].kiov_base, kv.kv_val[0].kiov_len);
+		hexdump(pkv->kv_val[0].kiov_base, pkv->kv_val[0].kiov_len);
 	} else {
-		printf("%s", (char *)kv.kv_val[0].kiov_base);
+		printf("%s", (char *)pkv->kv_val[0].kiov_base);
 	}
 	printf("\n");
 	return(0);
