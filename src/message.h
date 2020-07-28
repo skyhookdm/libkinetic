@@ -135,7 +135,7 @@ typedef struct kcmdhdr {
 	int64_t		kch_connid;	/* Connection ID */
 	int64_t		kch_seq;	/* Request Sequence Number */
 	int64_t		kch_ackseq;	/* Response Sequence Number */
-	kmtype_t	kch_type;	/* Request Command Type */
+	kmtype_t	kch_type;	/* Request Message Type */
 	int64_t		kch_timeout;	/* Timeout Period */
 	kpriority_t	kch_pri;		/* Request Priority */
 	int64_t		kch_quanta;	/* Time Quanta */
@@ -161,7 +161,7 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 
 kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data);
 kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
-kstatus_t extract_get(struct kresult_message *get_response_msg, kgetlog_t *getlog_data);
+kstatus_t extract_getkey(struct kresult_message *get_response_msg, kv_t *kv_data);
 
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
 
