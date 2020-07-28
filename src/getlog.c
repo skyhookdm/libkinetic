@@ -489,7 +489,7 @@ void extract_to_command_body(kproto_getlog_t *proto_getlog, kgetlog_t *cmd_data)
 
 	// Should device name have a length attribute?
 	if (cmd_data->kgl_log.kdl_name != NULL) {
-		kgetlog_device_info *getlog_msg_device = (kgetlog_device_info *) malloc(sizeof(kgetlog_device_info));
+		kgetlog_device_info *getlog_msg_device = (kgetlog_device_info *) KI_MALLOC(sizeof(kgetlog_device_info));
 		com__seagate__kinetic__proto__command__get_log__device__init(getlog_msg_device);
 
 		// TODO: see that kgl_log.len is used instead of computing strlen?
@@ -534,7 +534,7 @@ int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilizat
 		return 0;
 	}
 
-	getlog_data->kgl_util = (kutilization_t *) malloc(sizeof(kutilization_t) * n_utils);
+	getlog_data->kgl_util = (kutilization_t *) KI_MALLOC(sizeof(kutilization_t) * n_utils);
 	if (getlog_data->kgl_util == NULL) { return -1; }
 
 	for (int ndx = 0; ndx < n_utils; ndx++) {
@@ -554,7 +554,7 @@ int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperat
 		return 0;
 	}
 
-	getlog_data->kgl_temp = (ktemperature_t *) malloc(sizeof(ktemperature_t) * n_temps);
+	getlog_data->kgl_temp = (ktemperature_t *) KI_MALLOC(sizeof(ktemperature_t) * n_temps);
 	if (getlog_data->kgl_temp == NULL) { return -1; }
 
 	for (int ndx = 0; ndx < n_temps; ndx++) {
@@ -579,7 +579,7 @@ int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics
 		return 0;
 	}
 
-	getlog_data->kgl_stat = (kstatistics_t *) malloc(sizeof(kstatistics_t) * n_stats);
+	getlog_data->kgl_stat = (kstatistics_t *) KI_MALLOC(sizeof(kstatistics_t) * n_stats);
 	if (getlog_data->kgl_stat == NULL) { return -1; }
 
 	for (int ndx = 0; ndx < n_stats; ndx++) {
@@ -599,7 +599,7 @@ int extract_interfaces(kinterface_t **getlog_if_data, size_t n_ifs, kproto_inter
 		return 0;
 	}
 
-	*getlog_if_data = (kinterface_t *) malloc(sizeof(kinterface_t) * n_ifs);
+	*getlog_if_data = (kinterface_t *) KI_MALLOC(sizeof(kinterface_t) * n_ifs);
 	if (*getlog_if_data == NULL) { return -1; }
 
 	for (int if_ndx = 0; if_ndx < n_ifs; if_ndx++) {
@@ -740,12 +740,12 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	// copy the status message so that destroying the unpacked command doesn't get weird
 	if (!response_status->has_code) {
 		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) malloc(sizeof(char) * statusmsg_len);
+		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
 		strcpy(response_statusmsg, response_status->statusmessage);
 
 		char *response_detailmsg = NULL;
 		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) malloc(sizeof(char) * response_status->detailedmessage.len);
+			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
 			memcpy(
 				response_detailmsg,
 				response_status->detailedmessage.data,
