@@ -247,9 +247,9 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 
 	// if the keyval has a version set, then it is passed as newversion and we need to pass the old
 	// version as dbversion
-	if (cmd_data->kv_vers != NULL && cmd_data->kv_verslen > 0) {
-		set_bytes_optional(&proto_cmd_body, newversion, cmd_data->kv_vers  , cmd_data->kv_verslen  );
-		set_bytes_optional(&proto_cmd_body, dbversion , cmd_data->kv_dbvers, cmd_data->kv_dbverslen);
+	if (cmd_data->kv_newver != NULL || cmd_data->kv_curver != NULL) {
+		set_bytes_optional(&proto_cmd_body, newversion, cmd_data->kv_newver, cmd_data->kv_newverlen);
+		set_bytes_optional(&proto_cmd_body, dbversion , cmd_data->kv_curver, cmd_data->kv_curverlen);
 	}
 
 	// we could potentially compute tag here (based on integrity algorithm) if desirable
@@ -271,4 +271,87 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
+}
+
+// This may get a partially defined structure if we hit an error during the construction.
+void destroy_protobuf_putkey(kv_t *kv_data) {
+	// Don't do anything if we didn't get a valid pointer
+	if (!kv_data) { return; }
+
+	// first destroy the allocated memory for the message data
+	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
+
+	// then free arrays of pointers that point to the message data
+
+	// free the struct itself last
+	// NOTE: we may want to leave this to a caller?
+	free(kv_data);
+}
+
+kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
+	// assume failure status
+	kstatus_t kv_status = (kstatus_t) {
+		.ks_code    = K_INVALID_SC,
+		.ks_message = NULL,
+		.ks_detail  = NULL,
+	};
+
+	// commandbytes should exist, but we should probably be thorough
+	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
+	if (!kv_response_msg->has_commandbytes) { return kv_status; }
+
+	// unpack the command bytes
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
+	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+
+	// extract the response status to be returned. prepare this early to make cleanup easy
+	kproto_status_t *response_status = response_cmd->status;
+
+	// copy the status message so that destroying the unpacked command doesn't get weird
+	if (response_status->has_code) {
+		size_t statusmsg_len     = strlen(response_status->statusmessage);
+		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		strcpy(response_statusmsg, response_status->statusmessage);
+
+		char *response_detailmsg = NULL;
+		if (response_status->has_detailedmessage) {
+			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
+			memcpy(
+				response_detailmsg,
+				response_status->detailedmessage.data,
+				response_status->detailedmessage.len
+			);
+		}
+
+		kv_status = (kstatus_t) {
+			.ks_code    = response_status->code,
+			.ks_message = response_statusmsg,
+			.ks_detail  = response_detailmsg,
+		};
+	}
+
+	// check if there's any keyvalue information to parse
+	// (for PUT we expect this to be NULL or empty)
+	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+
+	// ------------------------------
+	// begin extraction of command body into kv_t structure
+	kproto_kv_t *response = response_cmd->body->keyvalue;
+
+	// we set the number of keys to 1, since this is not a range request
+	kv_data->kv_keycnt = response->has_key ? 1 : 0;
+
+	// extract key name, db version, tag, and data integrity algorithm
+	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);
+
+	extract_bytes_optional(kv_data->kv_curver, kv_data->kv_curverlen, response, dbversion);
+	extract_bytes_optional(kv_data->kv_tag   , kv_data->kv_taglen   , response, tag      );
+
+	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
+
+	// set fields used for cleanup
+	kv_data->kv_protobuf      = response_cmd;
+	kv_data->destroy_protobuf = destroy_protobuf_putkey;
+
+	return kv_status;
 }
