@@ -437,12 +437,11 @@ int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
 	// return error if params don't meet assumptions
 	if (proto_keyval == NULL || cmd_data == NULL) { return -1; }
 
-	// kv_keycnt is a pointer
-	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * *(cmd_data->kv_keycnt));
+	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * cmd_data->kv_keycnt);
 	if (cumulative_offsets == NULL) { return -1; }
 
 	size_t total_keylen = 0;
-	for (size_t key_ndx = 0; key_ndx < *(cmd_data->kv_keycnt); key_ndx++) {
+	for (size_t key_ndx = 0; key_ndx < cmd_data->kv_keycnt; key_ndx++) {
 		cumulative_offsets[key_ndx] = total_keylen;
 		total_keylen += cmd_data->kv_key[key_ndx].kiov_len;
 	}
@@ -457,7 +456,7 @@ int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
 	}
 
 	// gather key name fragments into key buffer
-	for (size_t key_ndx = 0; key_ndx < *(cmd_data->kv_keycnt); key_ndx++) {
+	for (size_t key_ndx = 0; key_ndx < cmd_data->kv_keycnt; key_ndx++) {
 		memcpy(
 			key_buffer + cumulative_offsets[key_ndx],
 			cmd_data->kv_key[key_ndx].kiov_base,
