@@ -79,7 +79,7 @@ asciidecode(const void* data, size_t size, void** rawdata, size_t *rawlen)
 	 * Get a buffer. since this converts \xHH chars int a single char
 	 * using the source buffer length is more than needed. 
 	 */
-	rawdata = malloc(size);
+	*rawdata = malloc(size);
 	if (!*rawdata)
 		return(NULL);
 

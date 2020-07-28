@@ -251,14 +251,14 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
-		(kproto_msg_t *) &(kmreq.result_message),
+		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
 
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
-	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
+	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, ppdu);
 	printf("get_generic: PDU(x%2x, %d, %d)\n",

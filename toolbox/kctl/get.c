@@ -142,7 +142,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		return(-1);
 	}
 		
-	if(!kstatus.ks_code != K_OK) {
+	if(kstatus.ks_code != K_OK) {
 		printf("%s failed: %s\n",
 		       ka->ka_cmdstr, kstatus.ks_message);
 		return(-1);

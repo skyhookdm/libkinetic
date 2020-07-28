@@ -827,5 +827,6 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	getlog_data->kgl_protobuf     = response_cmd;
 	getlog_data->destroy_protobuf = destroy_protobuf_getlog;
 
+	getlog_status.ks_code = K_OK;
 	return getlog_status;
 }

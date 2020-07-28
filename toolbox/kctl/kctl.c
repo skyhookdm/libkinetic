@@ -35,8 +35,8 @@ struct kargs kargs = {
 	.ka_yes		= 0
 };
 
-#if 0
 extern int kctl_get(int argc, char *argv[], int kts, struct kargs *ka);
+#if 0
 extern int kctl_put(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_del(int argc, char *argv[], int kts, struct kargs *ka);
 #endif
@@ -59,7 +59,9 @@ struct ktable {
 } ktable[] = {
 #if 0
 	{ KCTL_NOOP,    "ping",    "Ping the kinetic device", &kctl_ping},
+#endif
 	{ KCTL_GET,     "get",     "Get key value", &kctl_get},
+#if 0
 	{ KCTL_GETNEXT, "getnext", "Get next key value", &kctl_get},
 	{ KCTL_GETPREV, "getprev", "Get previous key value", &kctl_get},
 	{ KCTL_GETVERS, "getvers", "Get key value version", &kctl_get},
@@ -217,6 +219,9 @@ main(int argc, char *argv[])
 	
 	/* Loop through the table and validate the command */
 	for(i=0; i<KCTL_EOT; i++) {
+		if (ktable[i].ktab_cmd == KCTL_EOT)
+			break;
+		
 		if (strcmp(ktable[i].ktab_cmdstr, kargs.ka_cmdstr) == 0) {
 			// Found a good command
 			kargs.ka_cmd = ktable[i].ktab_cmd;
@@ -224,7 +229,7 @@ main(int argc, char *argv[])
 		}
 	}
 
-	if (i == KCTL_EOT) {
+	if (i == KCTL_EOT || (ktable[i].ktab_cmd == KCTL_EOT)) {
 		/* bad command */
 		fprintf(stderr, "*** Bad command: %s\n", kargs.ka_cmdstr);
 		usage();
