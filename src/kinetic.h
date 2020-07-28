@@ -83,6 +83,10 @@ typedef struct kv {
 	void		*kv_tag;
 	size_t		kv_taglen;
 	kditype_t	kv_ditype;
+
+	// NOTE: currently, this also frees kv_data
+	void        *kv_protobuf;
+	void        (*destroy_protobuf)(struct kv *kv_data);
 } kv_t;
 
 
