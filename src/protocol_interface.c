@@ -433,6 +433,46 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	};
 }
 
+kstatus_t extract_cmdstatus(kproto_cmd_t *response_cmd) {
+	// assume failure
+	kstatus_t cmd_status = (kstatus_t) {
+		.ks_code    = K_INVALID_SC,
+		.ks_message = NULL,
+		.ks_detail  = NULL,
+	};
+
+	// If we're given a bad/empty command; return failure status
+	if (!response_cmd || !response_cmd->status) { return cmd_status; }
+
+	// Extract the status, with messages copied for lifetime independence from the containing
+	// command structure
+	kproto_status_t *response_status = response_cmd->status;
+
+	if (response_status->has_code) {
+		size_t statusmsg_len     = strlen(response_status->statusmessage);
+		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		strcpy(response_statusmsg, response_status->statusmessage);
+
+		char *response_detailmsg = NULL;
+		if (response_status->has_detailedmessage) {
+			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
+			memcpy(
+				response_detailmsg,
+				response_status->detailedmessage.data,
+				response_status->detailedmessage.len
+			);
+		}
+
+		cmd_status = (kstatus_t) {
+			.ks_code    = response_status->code,
+			.ks_message = response_statusmsg,
+			.ks_detail  = response_detailmsg,
+		};
+	}
+
+	return cmd_status;
+}
+
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count) {
 	size_t total_len = 0;
 

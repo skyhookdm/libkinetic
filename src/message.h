@@ -161,7 +161,9 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 
 kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data);
 kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
-kstatus_t extract_getkey(struct kresult_message *get_response_msg, kv_t *kv_data);
+kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data);
+
+kstatus_t extract_cmdstatus(kproto_cmd_t *response_cmd);
 
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
 
