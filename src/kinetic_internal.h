@@ -58,14 +58,14 @@
 /* - From custom structs to protobuf structs - */
 // set primitive, optional fields
 #define set_primitive_optional(proto_struct, field, rvar) { \
-	proto_struct->has_##field = 1;                          \
-	proto_struct->field       = rvar;                       \
+	(proto_struct)->has_##field = 1;                        \
+	(proto_struct)->field       = rvar;                     \
 }
 
 // set bytes (ProtobufCBinaryData) from char * with size
 #define set_bytes_optional(proto_struct, field, rptr, rsize) { \
-	proto_struct->has_##field = 1;                             \
-	proto_struct->field       = (ProtobufCBinaryData) {        \
+	(proto_struct)->has_##field = 1;                           \
+	(proto_struct)->field       = (ProtobufCBinaryData) {      \
 		.data = (uint8_t *) rptr,                              \
 		.len  =             rsize,                             \
 	};                                                         \
