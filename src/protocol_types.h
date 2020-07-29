@@ -57,6 +57,7 @@ typedef Com__Seagate__Kinetic__Proto__Command__Body     kproto_body_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Status   kproto_status_t;
 
 typedef Com__Seagate__Kinetic__Proto__Command__KeyValue kproto_kv_t;
+typedef Com__Seagate__Kinetic__Proto__Command__Range    kproto_keyrange_t;
 
 
 /* ------------------------------
@@ -155,7 +156,8 @@ enum header_field_type {
 /* creating and extracting to/from protobuf structures */
 struct kresult_message  create_header(uint8_t header_field_bitmap, ...);
 ProtobufCBinaryData     create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd, kmtype_t msg_type);
-int                     keyname_to_proto(kproto_kv_t *proto_keyval, struct kv *cmd_data);
+
+int keyname_to_proto(ProtobufCBinaryData *proto_keyval, struct kiovec *keynames, size_t keycnt);
 
 /* serialization/deserialization */
 kproto_cmd_t        *unpack_kinetic_command(ProtobufCBinaryData commandbytes);

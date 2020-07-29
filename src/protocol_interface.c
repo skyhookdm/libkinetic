@@ -443,17 +443,17 @@ size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count) {
 	return total_len;
 }
 
-int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
+int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames, size_t keycnt) {
 	// return error if params don't meet assumptions
-	if (proto_keyval == NULL || cmd_data == NULL) { return -1; }
+	if (keynames == NULL) { return -1; }
 
-	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * cmd_data->kv_keycnt);
+	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * keycnt);
 	if (cumulative_offsets == NULL) { return -1; }
 
 	size_t total_keylen = 0;
-	for (size_t key_ndx = 0; key_ndx < cmd_data->kv_keycnt; key_ndx++) {
+	for (size_t key_ndx = 0; key_ndx < keycnt; key_ndx++) {
 		cumulative_offsets[key_ndx] = total_keylen;
-		total_keylen += cmd_data->kv_key[key_ndx].kiov_len;
+		total_keylen += keynames[key_ndx].kiov_len;
 	}
 
 	// create a buffer containing the key name
@@ -466,11 +466,11 @@ int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
 	}
 
 	// gather key name fragments into key buffer
-	for (size_t key_ndx = 0; key_ndx < cmd_data->kv_keycnt; key_ndx++) {
+	for (size_t key_ndx = 0; key_ndx < keycnt; key_ndx++) {
 		memcpy(
 			key_buffer + cumulative_offsets[key_ndx],
-			cmd_data->kv_key[key_ndx].kiov_base,
-			cmd_data->kv_key[key_ndx].kiov_len
+			keynames[key_ndx].kiov_base,
+			keynames[key_ndx].kiov_len
 		);
 	}
 
@@ -478,7 +478,10 @@ int keyname_to_proto(kproto_kv_t *proto_keyval, kv_t *cmd_data) {
 	free(cumulative_offsets);
 
 	// key_buffer eventually needs to be `free`d
-	set_bytes_optional(proto_keyval, key, key_buffer, total_keylen);
+	*proto_keyname = (ProtobufCBinaryData) {
+		.data = (uint8_t *) key_buffer,
+		.len  =             total_keylen,
+	};
 
 	return 0;
 }
