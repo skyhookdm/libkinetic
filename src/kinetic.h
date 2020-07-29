@@ -80,6 +80,28 @@ typedef struct kv {
 	void        (*destroy_protobuf)(struct kv *kv_data);
 } kv_t;
 
+typedef struct key_range {
+	struct kiovec  *start_key;
+	size_t          start_keycnt;
+
+	struct kiovec  *end_key;
+	size_t          end_keycnt;
+
+	int             bool_is_start_inclusive;
+	int             bool_is_end_inclusive;
+	int             bool_reverse_keyorder;
+
+	uint32_t        max_result_size;
+
+	// NOTE: we may want to move these fields into a separate struct? maybe not
+	struct kiovec *result_keys;
+	size_t         result_keycnt;
+
+	// NOTE: currently, this also frees keyrange_data
+	void        *keyrange_protobuf;
+	void        (*destroy_protobuf)(struct key_range *keyrange_data);
+} keyrange_t;
+
 
 /* ------------------------------
  * Types for interfacing with API
