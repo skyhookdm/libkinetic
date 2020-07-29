@@ -193,8 +193,8 @@ pack_failure:
 ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd,
 		                                 kmtype_t msg_type) {
 	// Structs to use
-	kproto_cmd_t command_msg;
-	kproto_body_t  command_body;
+	kproto_cmd_t  command_msg;
+	kproto_body_t command_body;
 
 	// initialize the structs
 	com__seagate__kinetic__proto__command__init(&command_msg);
@@ -216,6 +216,10 @@ ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_c
 
 		case KMT_GETLOG:
 			command_body.getlog   = (kproto_getlog_t *) proto_cmd;
+			break;
+
+		case KMT_GETRANGE:
+			command_body.range    = (kproto_keyrange_t *) proto_cmd;
 			break;
 	}
 

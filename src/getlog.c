@@ -458,28 +458,6 @@ ki_getlog(int ktd, kgetlog_t *glog)
 /*
  * Helper functions
  */
-//TODO: test
-ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *cmd_hdr, kproto_getlog_t *cmd_getlog) {
-	// Structs to use
-	kproto_cmd_t  command_msg;
-	kproto_body_t command_body;
-
-	// initialize the structs
-	com__seagate__kinetic__proto__command__init(&command_msg);
-	com__seagate__kinetic__proto__command__body__init(&command_body);
-
-	// update the header for the GetLog Message Body
-	cmd_hdr->messagetype = KMT_GETLOG;
-
-	// stitch the Command together
-	command_body.getlog = cmd_getlog;
-
-	command_msg.header	= cmd_hdr;
-	command_msg.body	= &command_body;
-
-	return pack_kinetic_command(&command_msg);
-}
-
 void extract_to_command_body(kproto_getlog_t *proto_getlog, kgetlog_t *cmd_data) {
 	com__seagate__kinetic__proto__command__get_log__init(proto_getlog);
 
@@ -520,7 +498,9 @@ struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	extract_to_command_body(&proto_cmd_body, cmd_body);
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = pack_cmd_getlog(&proto_cmd_header, &proto_cmd_body);
+	ProtobufCBinaryData command_bytes = create_command_bytes(
+		&proto_cmd_header, (void *) &proto_cmd_body, KMT_GETLOG
+	);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
