@@ -245,7 +245,11 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 	extract_to_command_header(&proto_cmd_header, cmd_hdr);
 
 	// extract from cmd_data into proto_cmd_body
-	int extract_result = keyname_to_proto(&proto_cmd_body, cmd_data);
+	int extract_result = keyname_to_proto(
+		&(proto_cmd_body.key), cmd_data->kv_key, cmd_data->kv_keycnt
+	);
+	proto_cmd_body.has_key = extract_result;
+
 	if (extract_result < 0) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,

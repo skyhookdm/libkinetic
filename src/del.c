@@ -57,9 +57,9 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 		   !kv                                 // kv_t struct
 		|| !kv->kv_key || kv->kv_keycnt < 1    // key name
 		|| !kv->kv_val || kv->kv_valcnt < 1    // key value
-		|| !kv->kv_dbvers                      // db version
-		|| kv->kv_dbverslen < 1                // db version is not too short
-		|| kv->kv_dbverslen > lim->kl_verlen   // db version is not too long
+		|| !kv->kv_curver                      // db version
+		|| kv->kv_curverlen < 1                // db version is not too short
+		|| kv->kv_curverlen > lim->kl_verlen   // db version is not too long
 	);
 
 	// db version must be provided, and must be a valid length
@@ -316,7 +316,11 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	extract_to_command_header(&proto_cmd_header, cmd_hdr);
 
 	// extract from cmd_data into proto_cmd_body
-	int extract_result = keyname_to_proto(&proto_cmd_body, cmd_data);
+	int extract_result = keyname_to_proto(
+		&(proto_cmd_body.key), cmd_data->kv_key, cmd_data->kv_keycnt
+	);
+	proto_cmd_body.has_key = extract_result;
+
 	if (extract_result < 0) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
@@ -325,7 +329,7 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	}
 
 	// to delete we need to specify the dbversion
-	set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_dbvers, cmd_data->kv_dbverslen);
+	set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_curver, cmd_data->kv_curverlen);
 
 	// if force is specified, then the dbversion is essentially ignored.
 	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce ? 1 : 0);
