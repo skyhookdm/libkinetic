@@ -147,7 +147,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 			.ks_detail  = "",
 		};		
 	}
-	ses = (ksession_t *)cf->kcfg_pconf;
+	ses = (ksession_t *) cf->kcfg_pconf;
 	
 	/* Validate command */
 	switch (msg_type) {

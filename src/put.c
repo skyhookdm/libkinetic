@@ -28,12 +28,13 @@
 #include "kio.h"
 #include "ktli.h"
 #include "kinetic.h"
-#include "kinetic_int.h"
+#include "kinetic_internal.h"
 
 /**
  * Internal prototypes
  */
 struct kresult_message create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kcachepolicy_t, int);
+kstatus_t extract_putkey(struct kresult_message *, kv_t *);
 
 /**
  * ki_put(int ktd, kv_t *kv)
@@ -49,7 +50,7 @@ struct kresult_message create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kcac
  *
  */
 kstatus_t
-ki_put(int ktd, kv_t *kv)
+ki_put(int ktd, kv_t *kv, kcachepolicy_t policy)
 {
 	int rc;
 	kstatus_t krc;
@@ -66,18 +67,18 @@ ki_put(int ktd, kv_t *kv)
 	struct kresult_message kmreq, kmresp;
 
 	/* Get KTLI config */
-	rc = ktli_conf(ktd, *cf);
+	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
 		return (kstatus_t) {
-			.ks_code    = K_REJECTED,
+			.ks_code    = K_EREJECTED,
 			.ks_message = "Bad session",
 			.ks_detail  = "",
 		};		
 	}
-	ses = ( ksession_t)cf->kcfg_pconf;
+	ses = (ksession_t *) cf->kcfg_pconf;
 	
 	/* Validate the passed in kv */
-	rc = ki__validate_kv(kv, &ses->ks_l);
+	rc = ki_validate_kv(kv, &ses->ks_l);
 	if (rc < 0) {
 		return (kstatus_t) {
 			.ks_code    = errno,
@@ -90,7 +91,7 @@ ki_put(int ktd, kv_t *kv)
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
 		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL;
+			.ks_code    = K_EINTERNAL,
 			.ks_message = "Unable to allocate memory for request",
 			.ks_detail  = "",
 		};
@@ -103,12 +104,12 @@ ki_put(int ktd, kv_t *kv)
 	 */
 	kio->kio_sendmsg.km_cnt = 2; 
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
 
 	if (!kio->kio_sendmsg.km_msg) {
 		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL;
+			.ks_code    = K_EINTERNAL,
 			.ks_message = "Unable to allocate memory for request",
 			.ks_detail  = "",
 		};
@@ -117,7 +118,7 @@ ki_put(int ktd, kv_t *kv)
 	/* Hang the PDU buffer */
 	kio->kio_cmd = KMT_PUT;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_LENGTH;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
 	/* Setup msg_hdr */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
@@ -178,7 +179,7 @@ ki_put(int ktd, kv_t *kv)
 	} while (1);
 
 	/* extract the return PDU */
-	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
+	struct kiovec *kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
 		/* PAK: error handling -need to clean up Yikes! */
 		assert(0);
@@ -194,7 +195,7 @@ ki_put(int ktd, kv_t *kv)
 
 	/* Now unpack the message */ 
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
-	if (kmresp->result_code == FAILURE) {
+	if (kmresp.result_code == FAILURE) {
 		/* cleanup and return error */
 		rc = -1;
 		goto pex2;
@@ -211,9 +212,9 @@ ki_put(int ktd, kv_t *kv)
 
 	/* clean up */
  pex1:
-	destroy_message(kmresp);
+	destroy_message(kmresp.result_message);
  pex2:
-	destroy_message(kmreq);
+	destroy_message(kmreq.result_message);
 
 	/* sendmsg.km_msg[KIOV_PDU] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);

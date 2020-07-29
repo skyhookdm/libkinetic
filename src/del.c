@@ -33,6 +33,8 @@
 struct kresult_message
 create_delkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kcachepolicy_t, int);
 
+kstatus_t extract_delkey(struct kresult_message *, kv_t *);
+
 
 /**
  * ki_validate_kv(kv_t *kv, limit_t *lim)
@@ -80,7 +82,7 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 
 
 /**
- * ki_del(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type)
+ * ki_del(int ktd, kv_t *kv)
  *
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
@@ -88,8 +90,6 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
  * 		kv_tag and kv_taglen are optional.
  *		kv_ditype is returned by the server, but it should
  * 		have either a 0 or a valid ditype in it to start with
- *  altkv	 used for holding prev or next kv
- *  msg_type Can be KMT_GET, KMT_GETNEXT, KMT_GETPREV, KMT_GETVERS
  *
  * The get APIs share about 95% of the same code. This routine Consolidates
  * the code.
@@ -163,7 +163,7 @@ ki_del(int ktd, kv_t *kv)
 	// Allocate kio vectors array of size 2 (PDU, full request message)
 	kio->kio_sendmsg.km_cnt = 2;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
 
 	if (!kio->kio_sendmsg.km_msg) {
@@ -175,7 +175,7 @@ ki_del(int ktd, kv_t *kv)
 	}
 
 	// hang the Packed PDU buffer, packing occurs later
-	kio->kio_cmd = msg_type;
+	kio->kio_cmd = KMT_DEL;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
@@ -187,7 +187,7 @@ ki_del(int ktd, kv_t *kv)
 
 	// setup command header (cmd_hdr)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
-	cmd_hdr.kch_type = msg_type;
+	cmd_hdr.kch_type = KMT_DEL;
 
 	// hardcoding reasonable defaults: writeback with no force
 	kcachepolicy_t cache_opt = KC_WB;
@@ -268,8 +268,8 @@ ki_del(int ktd, kv_t *kv)
 		goto dex2;
 	}
 
-	kstatus = extract_delkey(&kmresp, kv);
-	if (kstatus->ks_code != K_OK) {
+	krc = extract_delkey(&kmresp, kv);
+	if (krc.ks_code != K_OK) {
 		rc = -1;
 		goto dex1;
 	}
