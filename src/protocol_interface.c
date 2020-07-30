@@ -401,12 +401,12 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(response_msg->commandbytes);
 	kproto_cmdhdr_t *response_cmd_hdr = response_cmd->header;
 
-	assign_if_set(cmdhdr_data->kch_clustvers, response_cmd_hdr, clusterversion);
-	assign_if_set(cmdhdr_data->kch_connid   , response_cmd_hdr, connectionid);
-	assign_if_set(cmdhdr_data->kch_timeout  , response_cmd_hdr, timeout);
-	assign_if_set(cmdhdr_data->kch_pri      , response_cmd_hdr, priority);
-	assign_if_set(cmdhdr_data->kch_quanta   , response_cmd_hdr, timequanta);
-	assign_if_set(cmdhdr_data->kch_batid    , response_cmd_hdr, batchid);
+	extract_primitive_optional(cmdhdr_data->kch_clustvers, response_cmd_hdr, clusterversion);
+	extract_primitive_optional(cmdhdr_data->kch_connid   , response_cmd_hdr, connectionid);
+	extract_primitive_optional(cmdhdr_data->kch_timeout  , response_cmd_hdr, timeout);
+	extract_primitive_optional(cmdhdr_data->kch_pri      , response_cmd_hdr, priority);
+	extract_primitive_optional(cmdhdr_data->kch_quanta   , response_cmd_hdr, timequanta);
+	extract_primitive_optional(cmdhdr_data->kch_batid    , response_cmd_hdr, batchid);
 
 	// ------------------------------
 	// propagate the response status to the caller

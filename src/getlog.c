@@ -519,7 +519,7 @@ int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilizat
 
 	for (int ndx = 0; ndx < n_utils; ndx++) {
 		getlog_data->kgl_util[ndx].ku_name = util_data[ndx]->name;
-		assign_if_set(getlog_data->kgl_util[ndx].ku_value, util_data[ndx], value);
+		extract_primitive_optional(getlog_data->kgl_util[ndx].ku_value, util_data[ndx], value);
 	}
 
 	return 0;
@@ -541,10 +541,10 @@ int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperat
 		getlog_data->kgl_temp[ndx].kt_name = temp_data[ndx]->name;
 
 		// use convenience macros for optional fields
-		assign_if_set(getlog_data->kgl_temp[ndx].kt_cur   , temp_data[ndx], current);
-		assign_if_set(getlog_data->kgl_temp[ndx].kt_min   , temp_data[ndx], minimum);
-		assign_if_set(getlog_data->kgl_temp[ndx].kt_max   , temp_data[ndx], maximum);
-		assign_if_set(getlog_data->kgl_temp[ndx].kt_target, temp_data[ndx], target);
+		extract_primitive_optional(getlog_data->kgl_temp[ndx].kt_cur   , temp_data[ndx], current);
+		extract_primitive_optional(getlog_data->kgl_temp[ndx].kt_min   , temp_data[ndx], minimum);
+		extract_primitive_optional(getlog_data->kgl_temp[ndx].kt_max   , temp_data[ndx], maximum);
+		extract_primitive_optional(getlog_data->kgl_temp[ndx].kt_target, temp_data[ndx], target);
 	}
 
 	return 0;
@@ -564,10 +564,10 @@ int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics
 
 	for (int ndx = 0; ndx < n_stats; ndx++) {
 		// use convenience macros for optional fields
-		assign_if_set(getlog_data->kgl_stat[ndx].ks_mtype     , stat_data[ndx], messagetype);
-		assign_if_set(getlog_data->kgl_stat[ndx].ks_cnt       , stat_data[ndx], count);
-		assign_if_set(getlog_data->kgl_stat[ndx].ks_bytes     , stat_data[ndx], bytes);
-		assign_if_set(getlog_data->kgl_stat[ndx].ks_maxlatency, stat_data[ndx], maxlatency);
+		extract_primitive_optional(getlog_data->kgl_stat[ndx].ks_mtype     , stat_data[ndx], messagetype);
+		extract_primitive_optional(getlog_data->kgl_stat[ndx].ks_cnt       , stat_data[ndx], count);
+		extract_primitive_optional(getlog_data->kgl_stat[ndx].ks_bytes     , stat_data[ndx], bytes);
+		extract_primitive_optional(getlog_data->kgl_stat[ndx].ks_maxlatency, stat_data[ndx], maxlatency);
 	}
 
 	return 0;
@@ -627,9 +627,9 @@ int extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config
 	getlog_data->kgl_conf.kcf_protocompdate = config->protocolcompilationdate;
 	getlog_data->kgl_conf.kcf_protosrchash  = config->protocolsourcehash;
 
-	assign_if_set(getlog_data->kgl_conf.kcf_port   , config, port);
-	assign_if_set(getlog_data->kgl_conf.kcf_tlsport, config, tlsport);
-	assign_if_set(getlog_data->kgl_conf.kcf_power  , config, currentpowerlevel);
+	extract_primitive_optional(getlog_data->kgl_conf.kcf_port   , config, port);
+	extract_primitive_optional(getlog_data->kgl_conf.kcf_tlsport, config, tlsport);
+	extract_primitive_optional(getlog_data->kgl_conf.kcf_power  , config, currentpowerlevel);
 
 	// interfaces
 	int extract_result = extract_interfaces(
@@ -649,21 +649,21 @@ void extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
 	memset(&(getlog_data->kgl_limits), 0, sizeof(klimits_t));
 
 	if (limits) {
-		assign_if_set(getlog_data->kgl_limits.kl_keylen     , limits, maxkeysize                 );
-		assign_if_set(getlog_data->kgl_limits.kl_vallen     , limits, maxvaluesize               );
-		assign_if_set(getlog_data->kgl_limits.kl_verlen     , limits, maxversionsize             );
-		assign_if_set(getlog_data->kgl_limits.kl_taglen     , limits, maxtagsize                 );
-		assign_if_set(getlog_data->kgl_limits.kl_msglen     , limits, maxmessagesize             );
-		assign_if_set(getlog_data->kgl_limits.kl_pinlen     , limits, maxpinsize                 );
-		assign_if_set(getlog_data->kgl_limits.kl_batlen     , limits, maxbatchsize               );
-		assign_if_set(getlog_data->kgl_limits.kl_pendrdcnt  , limits, maxoutstandingreadrequests );
-		assign_if_set(getlog_data->kgl_limits.kl_pendwrcnt  , limits, maxoutstandingwriterequests);
-		assign_if_set(getlog_data->kgl_limits.kl_conncnt    , limits, maxconnections             );
-		assign_if_set(getlog_data->kgl_limits.kl_idcnt      , limits, maxidentitycount           );
-		assign_if_set(getlog_data->kgl_limits.kl_rangekeycnt, limits, maxkeyrangecount           );
-		assign_if_set(getlog_data->kgl_limits.kl_batopscnt  , limits, maxoperationcountperbatch  );
-		assign_if_set(getlog_data->kgl_limits.kl_batdelcnt  , limits, maxdeletesperbatch         );
-		assign_if_set(getlog_data->kgl_limits.kl_devbatcnt  , limits, maxbatchcountperdevice     );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_keylen     , limits, maxkeysize                 );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_vallen     , limits, maxvaluesize               );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_verlen     , limits, maxversionsize             );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_taglen     , limits, maxtagsize                 );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_msglen     , limits, maxmessagesize             );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_pinlen     , limits, maxpinsize                 );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_batlen     , limits, maxbatchsize               );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_pendrdcnt  , limits, maxoutstandingreadrequests );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_pendwrcnt  , limits, maxoutstandingwriterequests);
+		extract_primitive_optional(getlog_data->kgl_limits.kl_conncnt    , limits, maxconnections             );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_idcnt      , limits, maxidentitycount           );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_rangekeycnt, limits, maxkeyrangecount           );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_batopscnt  , limits, maxoperationcountperbatch  );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_batdelcnt  , limits, maxdeletesperbatch         );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_devbatcnt  , limits, maxbatchcountperdevice     );
 	}
 }
 
@@ -781,8 +781,8 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 
 	// then other fields
 	if (response->capacity) {
-		assign_if_set(getlog_data->kgl_cap.kc_total, response->capacity, nominalcapacityinbytes);
-		assign_if_set(getlog_data->kgl_cap.kc_used , response->capacity, portionfull);
+		extract_primitive_optional(getlog_data->kgl_cap.kc_total, response->capacity, nominalcapacityinbytes);
+		extract_primitive_optional(getlog_data->kgl_cap.kc_used , response->capacity, portionfull);
 	}
 
 	extract_result = extract_configuration(getlog_data, response->configuration);
