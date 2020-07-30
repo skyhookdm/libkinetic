@@ -190,8 +190,11 @@ pack_failure:
 	return (ProtobufCBinaryData) { .len = 0, .data = NULL };
 }
 
-ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd,
-		                                 kmtype_t msg_type) {
+/*
+ * Handles boilerplate code for creating and stitching together a kinetic `Command` and returns the
+ * packed result (serialized to wire format). The message type
+ */
+ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd_data) {
 	// Structs to use
 	kproto_cmd_t  command_msg;
 	kproto_body_t command_body;
@@ -204,7 +207,7 @@ ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_c
 	cmd_hdr->messagetype = msg_type;
 
 	// stitch the Command together
-	switch(msg_type) {
+	switch(cmd_hdr->messagetype) {
 		case KMT_GET:
 		case KMT_GETVERS:
 		case KMT_GETNEXT:

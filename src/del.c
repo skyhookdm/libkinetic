@@ -336,9 +336,7 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	set_primitive_optional(&proto_cmd_body, synchronization, cache_opt               );
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = create_command_bytes(
-		&proto_cmd_header, &proto_cmd_body, KMT_DEL
-	);
+	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)

@@ -498,9 +498,7 @@ struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	extract_to_command_body(&proto_cmd_body, cmd_body);
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = create_command_bytes(
-		&proto_cmd_header, (void *) &proto_cmd_body, KMT_GETLOG
-	);
+	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
