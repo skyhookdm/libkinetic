@@ -196,15 +196,12 @@ pack_failure:
  */
 ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd_data) {
 	// Structs to use
-	kproto_cmd_t  command_msg;
-	kproto_body_t command_body;
+	kproto_cmd_t  proto_cmd;
+	kproto_body_t proto_cmdbdy;
 
 	// initialize the structs
-	com__seagate__kinetic__proto__command__init(&command_msg);
-	com__seagate__kinetic__proto__command__body__init(&command_body);
-
-	// update the header for the Put Message Body
-	cmd_hdr->messagetype = msg_type;
+	com__seagate__kinetic__proto__command__init(&proto_cmd);
+	com__seagate__kinetic__proto__command__body__init(&proto_cmdbdy);
 
 	// stitch the Command together
 	switch(cmd_hdr->messagetype) {
@@ -214,22 +211,22 @@ ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_c
 		case KMT_GETPREV:
 		case KMT_PUT:
 		case KMT_DEL:
-			command_body.keyvalue = (kproto_kv_t *) proto_cmd;
+			proto_cmdbdy.keyvalue = (kproto_kv_t *) proto_cmd_data;
 			break;
 
 		case KMT_GETLOG:
-			command_body.getlog   = (kproto_getlog_t *) proto_cmd;
+			proto_cmdbdy.getlog   = (kproto_getlog_t *) proto_cmd_data;
 			break;
 
 		case KMT_GETRANGE:
-			command_body.range    = (kproto_keyrange_t *) proto_cmd;
+			proto_cmdbdy.range    = (kproto_keyrange_t *) proto_cmd_data;
 			break;
 	}
 
-	command_msg.header	= cmd_hdr;
-	command_msg.body	= &command_body;
+	proto_cmd.header = cmd_hdr;
+	proto_cmd.body	 = &proto_cmdbdy;
 
-	return pack_kinetic_command(&command_msg);
+	return pack_kinetic_command(&proto_cmd);
 }
 
 kproto_cmd_t *unpack_kinetic_command(ProtobufCBinaryData commandbytes) {
