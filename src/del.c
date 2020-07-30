@@ -31,7 +31,7 @@
 #include "kinetic_internal.h"
 
 struct kresult_message
-create_delkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kcachepolicy_t, int);
+create_delkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
 kstatus_t extract_delkey(struct kresult_message *, kv_t *);
 
@@ -98,21 +98,19 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 kstatus_t
 ki_del(int ktd, kv_t *kv)
 {
-	int rc;
-	kstatus_t krc;
+	int rc;                   // numeric return codes
+	kstatus_t krc;            // structured return code and messages
 
-	struct kio *kio;
-	struct kiovec *kiov;
-	struct ktli_config *cf;
+	struct kio *kio;          // structure containing all relevant request/response data
+	struct ktli_config *cf;   // configuration associated with a connection
 
-	uint8_t ppdu[KP_PLENGTH];
+	uint8_t ppdu[KP_PLENGTH]; // byte array holding the packed PDU (protocol data unit)
+	kpdu_t rpdu;              // structure to hold the response PDU in
+	kmsghdr_t msg_hdr;        // header of a kinetic `Message`
+	kcmdhdr_t cmd_hdr;        // header of a kinetic `Command`
+	ksession_t *ses;          // reference to the kinetic session
 
-	kpdu_t pdu;
-	kpdu_t rpdu;
-
-	kmsghdr_t msg_hdr;
-	kcmdhdr_t cmd_hdr;
-	ksession_t *ses;
+	// results of creating (kmreq) a request message or unpacking (kmresp) a response message
 	struct kresult_message kmreq, kmresp;
 
 	/* Prep and validation */
@@ -130,6 +128,7 @@ ki_del(int ktd, kv_t *kv)
 
 	// validate command
 	if (!kv) {
+		errno = K_EINVAL;
 		return (kstatus_t) {
 			.ks_code    = K_EINVAL,
 			.ks_message = "Missing Parameters",
@@ -140,6 +139,7 @@ ki_del(int ktd, kv_t *kv)
 	// validate the input kv
 	rc = ki_validate_kv(kv, &ses->ks_l);
 	if (rc < 0) {
+		errno = K_EINVAL;
 		return (kstatus_t) {
 			.ks_code    = K_EINVAL,
 			.ks_message = "Invalid KV",
@@ -150,6 +150,7 @@ ki_del(int ktd, kv_t *kv)
 	// create the kio structure
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
+		errno = K_EINTERNAL;
 		return (kstatus_t) {
 			.ks_code    = K_EINTERNAL,
 			.ks_message = "Unable to allocate memory for request",
@@ -161,12 +162,12 @@ ki_del(int ktd, kv_t *kv)
 	/* Prepare request data */
 
 	// Allocate kio vectors array of size 2 (PDU, full request message)
-	kio->kio_sendmsg.km_cnt = 2;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
-	);
+	kio->kio_cmd            = KMT_DEL;
+	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(sizeof(struct kiovec) * KIO_LEN_NOVAL);
 
 	if (!kio->kio_sendmsg.km_msg) {
+		errno = K_EINTERNAL;
 		return (kstatus_t) {
 			.ks_code    = K_EINTERNAL,
 			.ks_message = "Unable to allocate memory for request",
@@ -175,7 +176,6 @@ ki_del(int ktd, kv_t *kv)
 	}
 
 	// hang the Packed PDU buffer, packing occurs later
-	kio->kio_cmd = KMT_DEL;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
@@ -189,25 +189,44 @@ ki_del(int ktd, kv_t *kv)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_DEL;
 
-	// hardcoding reasonable defaults: writeback with no force
-	kcachepolicy_t cache_opt = KC_WB;
-	int            bool_shouldforce = 0;
-	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, cache_opt, bool_shouldforce);
-	if (kmreq.result_code == FAILURE) { goto dex2; }
+	// call with bool_shouldforce = 1
+	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, 1);
+	if (kmreq.result_code == FAILURE) {
+		errno = K_EINTERNAL;
+		krc   = (kstatus_t) {
+			.ks_code    = K_EINTERNAL,
+			.ks_message = "Unable to construct kinetic message for request",
+			.ks_detail  = "",
+		};
+
+		goto dex2;
+	}
 
 	// pack the message and hang it on the kio
 	// PAK: Error handling
 	// success: rc = 0; failure: rc = 1 (see enum kresult_code)
-	rc = pack_kinetic_message(
+	enum kresult_code pack_result = pack_kinetic_message(
 		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
+	if (pack_result == FAILURE) {
+		errno = K_EINTERNAL;
+		krc   = (kstatus_t) {
+			.ks_code    = K_EINTERNAL,
+			.ks_message = "Unable to pack kinetic message for request",
+			.ks_detail  = "",
+		};
+
+		goto dex2;
+	}
 
 	// now that the message length is known, setup the PDU
-	pdu.kp_magic  = KP_MAGIC;
-	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
-	pdu.kp_vallen = 0;
+	kpdu_t pdu = {
+		.kp_magic  = KP_MAGIC,
+		.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len,
+		.kp_vallen = 0,
+	};
 	PACK_PDU(&pdu, ppdu);
 
 	printf(
@@ -245,34 +264,37 @@ ki_del(int ktd, kv_t *kv)
 	/* Parse response */
 
 	// extract the return PDU
-	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
-	if (kiov->kiov_len != KP_PLENGTH) {
+	struct kiovec *kiov_rpdu = &kio->kio_recvmsg.km_msg[KIOV_PDU];
+	if (kiov_rpdu->kiov_len != KP_PLENGTH) {
 		/* PAK: error handling -need to clean up Yikes! */
 		assert(0);
 	}
 
-	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
+	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov_rpdu->kiov_base)));
 
 	// validate the PDU (does it match what was given in the recvmsg)
-	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
-	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len ) {
+	struct kiovec *kiov_rmsg = &kio->kio_recvmsg.km_msg[KIOV_MSG];
+	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov_rmsg->kiov_len ) {
 		// PAK: error handling -need to clean up Yikes!
 		assert(0);
 	}
 
 	// Now unpack the message
-	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
+	kmresp = unpack_kinetic_message(kiov_rmsg->kiov_base, kiov_rmsg->kiov_len);
 	if (kmresp.result_code == FAILURE) {
+		errno = K_EINTERNAL;
+		krc   = (kstatus_t) {
+			.ks_code    = K_EINTERNAL,
+			.ks_message = "Unable to unpack kinetic message from response",
+			.ks_detail  = "",
+		};
+
 		// cleanup and return error
-		rc = -1;
-		goto dex2;
+		goto dex1;
 	}
 
 	krc = extract_delkey(&kmresp, kv);
-	if (krc.ks_code != K_OK) {
-		rc = -1;
-		goto dex1;
-	}
+	if (krc.ks_code != K_OK) { goto dex1; }
 
 	// validate response
 
@@ -303,8 +325,7 @@ ki_del(int ktd, kv_t *kv)
 
 
 struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
-											 kv_t *cmd_data, kcachepolicy_t cache_opt,
-											 int bool_shouldforce) {
+											 kv_t *cmd_data, int bool_shouldforce) {
 
 	// declare protobuf structs on stack
 	kproto_cmdhdr_t proto_cmd_header;
@@ -332,8 +353,8 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_curver, cmd_data->kv_curverlen);
 
 	// if force is specified, then the dbversion is essentially ignored.
-	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce ? 1 : 0);
-	set_primitive_optional(&proto_cmd_body, synchronization, cache_opt               );
+	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce      );
+	set_primitive_optional(&proto_cmd_body, synchronization, cmd_data->kv_cachetype);
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
@@ -411,7 +432,7 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// begin extraction of command body into kv_t structure
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
-	// we set the number of keys to 1, since this is not a range request
+	// we set the number of key elements to 1, since the key name is contiguous
 	kv_data->kv_keycnt = response->has_key ? 1 : 0;
 
 	// extract key name, db version, tag, and data integrity algorithm
