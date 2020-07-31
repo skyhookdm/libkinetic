@@ -148,7 +148,7 @@ typedef struct keyrange {
 
 // TODO
 typedef struct batch {
-} batch_t;
+} kb_t;
 
 
 /* ------------------------------
