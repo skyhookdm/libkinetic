@@ -276,7 +276,7 @@ ki_put(int ktd, kv_t *kv)
  *		kv_cpolicy sets the caching strategy for this put
  *			cpolicy of flush will flush the entire cache
  *
- * CAS performs a comapre and swap for the given key value. The key is only
+ * CAS performs a compare and swap for the given key value. The key is only
  * put into the DB if kv_version matches the current version in the DB, the
  * current version is then set the value in kv_newver. If not the operation
  * fails. Once the check is complete, the value specified by the given key, 
