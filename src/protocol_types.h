@@ -58,6 +58,7 @@ typedef Com__Seagate__Kinetic__Proto__Command__Status   kproto_status_t;
 
 typedef Com__Seagate__Kinetic__Proto__Command__KeyValue kproto_kv_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Range    kproto_keyrange_t;
+typedef Com__Seagate__Kinetic__Proto__Command__Batch    kproto_batch_t;
 
 
 /* ------------------------------
