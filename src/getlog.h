@@ -113,17 +113,20 @@ typedef struct kstatistics {
  */
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Limits kproto_limits_t;
 typedef struct klimits {
+	/* lens in bytes */
 	uint32_t kl_keylen;		/* Maximum Key Length supported */
 	uint32_t kl_vallen;		/* Maximum Value Length supported */
 	uint32_t kl_verlen;		/* Maximum Version Length supported */
-	uint32_t kl_taglen;		/* Maximum Tag Length supported */
+	uint32_t kl_disumlen;		/* Maximum Chksum Length supported */
 	uint32_t kl_msglen;		/* Maximum Message Length supported */
 	uint32_t kl_pinlen;		/* Maximum Pin Length supported */
 	uint32_t kl_batlen;		/* Maximum Batch Length supported */
+
+	/* all cnts in unit counts */
 	uint32_t kl_pendrdcnt;		/* Total Allowed Pending RD Reqs */
 	uint32_t kl_pendwrcnt;		/* Total Allowed Pending WR Reqs */
 	uint32_t kl_conncnt;		/* Total Allowed Client Connections */
-	uint32_t kl_idcnt;			/* Total Allowed User IDs */
+	uint32_t kl_idcnt;		/* Total Allowed User IDs */
 	uint32_t kl_rangekeycnt;	/* Total Allowed Keys/Range Op */
 	uint32_t kl_batopscnt;		/* Total Allowed Ops/Batch */
 	uint32_t kl_batdelcnt;		/* Total Allowed Delete Ops/Batch */

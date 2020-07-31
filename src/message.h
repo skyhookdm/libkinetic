@@ -17,7 +17,10 @@ typedef Com__Seagate__Kinetic__Proto__Message__PINauth  kproto_pinauth_t;
  * 	Vector	Contents
  * 	  0	The Kinetic PDU
  *	  1	The packed Kinetic request message
- *	  2	(optional)The value
+ *	  2	(optional)The value, 
+ * 		It may occupy multiple elements starting at 2, which permits
+ *		API callers to build up a value without copying it into a 
+ *		single contiguous buffer.
  * In bound messages:
  *	  0	The Kinetic PDU
  *	  1	The packed Kinetic response message and an optional value
@@ -26,7 +29,7 @@ enum kio_index {
 	KIOV_PDU	= 0,
 	KIOV_MSG	= 1,
 	KIOV_MSGVAL	= 1,
-	KIOV_VAL	= 2,
+	KIOV_VAL	= 2, 
 };
 
 /**
@@ -167,6 +170,7 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data);
 kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
 kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data);
+kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data);
 
 kstatus_t extract_cmdstatus(kproto_cmd_t *response_cmd);
 

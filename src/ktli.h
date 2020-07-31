@@ -172,7 +172,7 @@ struct ktli_config {
 	char 			*kcfg_host;	/* Host name or number */
 	char 			*kcfg_port;	/* Service name or number */
 	int64_t			 kcfg_id;	/* User ID */
-	char			*kcfg_hmac;	/* User HMAC */
+	char			*kcfg_hkey;	/* User HMAC key */
 	enum ktli_config_flags	 kcfg_flags;	/* Flags for the session */
 	void			*kcfg_pconf;	/* Private caller config */
 };

@@ -33,36 +33,22 @@
 /**
  * Internal prototypes
  */
-struct kresult_message create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, kcachepolicy_t, int);
-kstatus_t extract_putkey(struct kresult_message *, kv_t *);
+struct kresult_message
+create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
-/**
- * ki_put(int ktd, kv_t *kv)
- *
- *  kv		kv_key must contain a fully populated kiovec array
- *		kv_val must contain a zero-ed kiovec array of cnt 1
- * 		kv_vers and kv_verslen are optional
- * 		kv_tag and kv_taglen are optional. 
- *		kv_ditype is returned by the server, but it should 
- * 		have either a 0 or a valid ditype in it to start with
- *
- * Put the value specified by the given key, tag, and version. 
- *
- */
 kstatus_t
-ki_put(int ktd, kv_t *kv, kcachepolicy_t policy)
+p_put_generic(int ktd, kv_t *kv, int force)
 {
-	int rc;
+	int rc, i;
 	kstatus_t krc;
 	struct kio *kio;
+	struct kiovec *kiov;
 	struct ktli_config *cf;
-
 	uint8_t ppdu[KP_PLENGTH];
-	kpdu_t pdu, rpdu;
-
+	kpdu_t pdu;
+	kpdu_t rpdu;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
-
 	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
 
@@ -75,10 +61,10 @@ ki_put(int ktd, kv_t *kv, kcachepolicy_t policy)
 			.ks_detail  = "",
 		};		
 	}
-	ses = (ksession_t *) cf->kcfg_pconf;
+	ses = (ksession_t *)cf->kcfg_pconf;
 	
 	/* Validate the passed in kv */
-	rc = ki_validate_kv(kv, &ses->ks_l);
+	rc = ki_validate_kv(kv, force, &ses->ks_l);
 	if (rc < 0) {
 		return (kstatus_t) {
 			.ks_code    = errno,
@@ -99,13 +85,14 @@ ki_put(int ktd, kv_t *kv, kcachepolicy_t policy)
 	memset(kio, 0, sizeof(struct kio));
 
 	/* 
-	 * Allocate kio vectors array of size 2
-	 * One vector for the PDU and another for the full request message
+	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
+	 * is for the protobuf message, and then elements 2 and beyond are
+	 * for the value. The size is variable as the value can come in 
+	 * many parts from the caller. See message.h for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = 2; 
+	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt; 
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
-	);
+			     sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt);
 
 	if (!kio->kio_sendmsg.km_msg) {
 		return (kstatus_t) {
@@ -120,20 +107,36 @@ ki_put(int ktd, kv_t *kv, kcachepolicy_t policy)
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
-	/* Setup msg_hdr */
+	/* 
+	 * copy the passed in value vector onto the sendmsg, 
+	 * no value data is copied 
+	 */
+	memcpy(&(kio->kio_sendmsg.km_msg[KIOV_VAL]), kv->kv_val,
+	       (sizeof(struct kiovec) * kv->kv_valcnt));
+	
+	/* 
+	 * Setup msg_hdr 
+	 * One thing to note here is that although the msg hdr is being setup
+	 * it is too early to complete. The msg hdr will ultimately have a
+	 * HMAC cryptographic checksum of the requests command bytes, so that
+	 * server can authenticate and authorize the request. The command
+	 * bytes don't actually get finalized until a ktli_send is initiated.
+	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
+	 * used later on to calculate the actual HMAC which will then be hung
+	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr 
+	 * in the kmreq. This reference needs to be removed before freeing 
+	 * kmreq. See below at pex2:
+	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
-	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
+	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 
 	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_PUT;
 
-	// hardcoding reasonable defaults: writeback with no force
-	kcachepolicy_t cache_opt = KC_WB;
-	int            bool_shouldforce = 0;
-	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, cache_opt, bool_shouldforce);
+	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, force);
 	if (kmreq.result_code == FAILURE) { goto pex2; }
 
 	/* pack the message and hang it on the kio */
@@ -148,13 +151,15 @@ ki_put(int ktd, kv_t *kv, kcachepolicy_t policy)
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
-	pdu.kp_vallen = 0;
-	PACK_PDU(&pdu, ppdu);
 
-	printf(
-		"get_generic: PDU(x%2x, %d, %d)\n",
-	    pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen
-	);
+	/* for kp_vallen, need to run through kv_val vector and addit up */ 
+	pdu.kp_vallen = 0;
+	for (i=0;i<kv->kv_valcnt; i++)
+		pdu.kp_vallen += kv->kv_val[i].kiov_len;
+	
+	PACK_PDU(&pdu, ppdu);
+	printf("p_put_generic: PDU(x%2x, %d, %d)\n",
+	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
 	/* Send the request */
 	ktli_send(ktd, kio);
@@ -214,6 +219,14 @@ ki_put(int ktd, kv_t *kv, kcachepolicy_t policy)
  pex1:
 	destroy_message(kmresp.result_message);
  pex2:
+	/*
+	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
+	 * was made in kmreq before freeingcalling destroy.
+	 * See 'Setup msg_hdr' comment above for details.
+	 */
+	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
+	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.len = 0;
+	
 	destroy_message(kmreq.result_message);
 
 	/* sendmsg.km_msg[KIOV_PDU] Not allocated, static */
@@ -229,12 +242,61 @@ ki_put(int ktd, kv_t *kv, kcachepolicy_t policy)
 	return (krc);
 }
 
+/**
+ * ki_put(int ktd, kv_t *kv)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain kiovec array representing the value
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_dival and kv_divalen are optional. 
+ *		kv_ditype is must be set if kv_val is set
+ *		kv_cpolicy sets the caching strategy for this put
+ *			cpolicy of flush will flush the entire cache
+ *
+ * Put the value specified by the given key, data integrity value/type, and 
+ * new version, using the specified cache policy. This call will force the 
+ * put to the new values 
+ */
+kstatus_t
+ki_put(int ktd, kv_t *kv)
+{
+	int force;
+	return(p_put_generic(ktd, kv, force=1));
+}
+
+/**
+ * ki_cas(int ktd, kv_t *kv)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain kiovec array representing the value
+ * 		kv_vers and kv_verslen are required.
+ * 		kv_newvers and kv_newverslen are required.
+ * 		kv_disum and kv_disumlen are optional. 
+ *		kv_ditype is must be set if kv_val is set
+ *		kv_cpolicy sets the caching strategy for this put
+ *			cpolicy of flush will flush the entire cache
+ *
+ * CAS performs a comapre and swap for the given key value. The key is only
+ * put into the DB if kv_version matches the current version in the DB, the
+ * current version is then set the value in kv_newver. If not the operation
+ * fails. Once the check is complete, the value specified by the given key, 
+ * data integrity value/type, and new version is put into the DB, using the 
+ * specified cache policy. 
+ */
+kstatus_t
+ki_cas(int ktd, kv_t *kv)
+{
+	int force;
+	return(p_put_generic(ktd, kv, force=0));
+}
+
 /*
  * Helper functions
  */
-struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
-                                          kv_t *cmd_data, kcachepolicy_t cache_opt,
-                                          int bool_shouldforce) {
+struct kresult_message create_put_message(kmsghdr_t *msg_hdr,
+					  kcmdhdr_t *cmd_hdr,
+                                          kv_t *cmd_data,
+					  int bool_shouldforce) {
 
 	// declare protobuf structs on stack
 	kproto_cmdhdr_t proto_cmd_header;
@@ -260,18 +322,22 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 
 	// if the keyval has a version set, then it is passed as newversion and we need to pass the old
 	// version as dbversion
-	if (cmd_data->kv_newver != NULL || cmd_data->kv_curver != NULL) {
-		set_bytes_optional(&proto_cmd_body, newversion, cmd_data->kv_newver, cmd_data->kv_newverlen);
-		set_bytes_optional(&proto_cmd_body, dbversion , cmd_data->kv_curver, cmd_data->kv_curverlen);
+	if (cmd_data->kv_newver != NULL || cmd_data->kv_ver != NULL) {
+		set_bytes_optional(&proto_cmd_body, newversion,
+				   cmd_data->kv_newver, cmd_data->kv_newverlen);
+		set_bytes_optional(&proto_cmd_body, dbversion,
+				   cmd_data->kv_ver, cmd_data->kv_verlen);
 	}
 
-	// we could potentially compute tag here (based on integrity algorithm) if desirable
+	// we could potentially compute disum here (based on integrity algorithm) if desirable
 	set_primitive_optional(&proto_cmd_body, algorithm, cmd_data->kv_ditype);
-	set_bytes_optional(&proto_cmd_body, tag, cmd_data->kv_tag, cmd_data->kv_taglen);
+	set_bytes_optional(&proto_cmd_body, tag,
+			   cmd_data->kv_disum, cmd_data->kv_disumlen);
 
 	// if force is specified, then the dbversion is essentially ignored.
-	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce ? 1 : 0);
-	set_primitive_optional(&proto_cmd_body, synchronization, cache_opt               );
+	set_primitive_optional(&proto_cmd_body, force, bool_shouldforce);
+	set_primitive_optional(&proto_cmd_body,
+			       synchronization, cmd_data->kv_cpolicy);
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(
@@ -355,10 +421,13 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	kv_data->kv_keycnt = response->has_key ? 1 : 0;
 
 	// extract key name, db version, tag, and data integrity algorithm
-	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);
+	extract_bytes_optional(kv_data->kv_key->kiov_base,
+			       kv_data->kv_key->kiov_len, response, key);
 
-	extract_bytes_optional(kv_data->kv_curver, kv_data->kv_curverlen, response, dbversion);
-	extract_bytes_optional(kv_data->kv_tag   , kv_data->kv_taglen   , response, tag      );
+	extract_bytes_optional(kv_data->kv_ver,
+			       kv_data->kv_verlen, response, dbversion);
+	extract_bytes_optional(kv_data->kv_disum,
+			       kv_data->kv_disumlen, response, tag);
 
 	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
 

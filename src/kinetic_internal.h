@@ -78,7 +78,7 @@
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
 
-int ki_validate_kv(kv_t *kv, klimits_t *lim);
+int ki_validate_kv(kv_t *kv, int force, klimits_t *lim);
 
 char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes);
 

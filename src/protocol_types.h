@@ -51,7 +51,7 @@ struct kv;
 /* ------------------------------
  * Aliases for Message types
  */
-typedef Com__Seagate__Kinetic__Proto__Command		    kproto_cmd_t;
+typedef Com__Seagate__Kinetic__Proto__Command		kproto_cmd_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Header   kproto_cmdhdr_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Body     kproto_body_t;
 typedef Com__Seagate__Kinetic__Proto__Command__Status   kproto_status_t;
@@ -78,40 +78,27 @@ typedef Com__Seagate__Kinetic__Proto__Command__Priority kproto_priority;
 
 typedef Com__Seagate__Kinetic__Proto__Command__MessageType kmtype_t;
 enum {
-	KMT_INVALID   = CMT(INVALID_MESSAGE_TYPE),
-	KMT_GET		  = CMT(GET),
-	KMT_PUT		  = CMT(PUT),
-	KMT_DEL		  = CMT(DELETE),
-	KMT_GETNEXT   = CMT(GETNEXT),
-	KMT_GETPREV   = CMT(GETPREVIOUS),
-	KMT_GETRANGE  = CMT(GETKEYRANGE),
-	KMT_GETVERS   = CMT(GETVERSION),
-	KMT_SETUP	  = CMT(SETUP),
-	KMT_GETLOG	  = CMT(GETLOG),
-	KMT_SECURITY  = CMT(SECURITY),
-	KMT_PUSHP2P   = CMT(PEER2PEERPUSH),
-	KMT_NOOP	  = CMT(NOOP),
-	KMT_FLUSH	  = CMT(FLUSHALLDATA),
-	KMT_PINOP	  = CMT(PINOP),
-	KMT_SCANMEDIA = CMT(MEDIASCAN),
-	KMT_OPTMEDIA  = CMT(MEDIAOPTIMIZE),
-	KMT_STARTBAT  = CMT(START_BATCH),
-	KMT_ENDBAT	  = CMT(END_BATCH),
-	KMT_ABORTBAT  = CMT(ABORT_BATCH),
-	KMT_SETPOWER  = CMT(SET_POWER_LEVEL),
-};
-
-/**
- * Kinetic Cache Policies
- */
-#define CS(cs) COM__SEAGATE__KINETIC__PROTO__COMMAND__SYNCHRONIZATION__##cs
-
-typedef Com__Seagate__Kinetic__Proto__Command__Synchronization kcachepolicy_t;
-enum {
-	KC_INVALID = CS(INVALID_SYNCHRONIZATION),
-	KC_WT      = CS(WRITETHROUGH)           ,
-	KC_WB      = CS(WRITEBACK)              ,
-	KC_FLUSH   = CS(FLUSH)                  ,
+	KMT_INVALID	= CMT(INVALID_MESSAGE_TYPE),
+	KMT_GET		= CMT(GET),
+	KMT_PUT		= CMT(PUT),
+	KMT_DEL		= CMT(DELETE),
+	KMT_GETNEXT	= CMT(GETNEXT),
+	KMT_GETPREV	= CMT(GETPREVIOUS),
+	KMT_GETRANGE	= CMT(GETKEYRANGE),
+	KMT_GETVERS	= CMT(GETVERSION),
+	KMT_SETUP	= CMT(SETUP),
+	KMT_GETLOG	= CMT(GETLOG),
+	KMT_SECURITY	= CMT(SECURITY),
+	KMT_PUSHP2P	= CMT(PEER2PEERPUSH),
+	KMT_NOOP	= CMT(NOOP),
+	KMT_FLUSH	= CMT(FLUSHALLDATA),
+	KMT_PINOP	= CMT(PINOP),
+	KMT_SCANMEDIA	= CMT(MEDIASCAN),
+	KMT_OPTMEDIA	= CMT(MEDIAOPTIMIZE),
+	KMT_STARTBAT	= CMT(START_BATCH),
+	KMT_ENDBAT	= CMT(END_BATCH),
+	KMT_ABORTBAT	= CMT(ABORT_BATCH),
+	KMT_SETPOWER	= CMT(SET_POWER_LEVEL),
 };
 
 /**
@@ -129,11 +116,9 @@ enum {
 	KPLT_FAIL        = CPLT(FAIL)         ,
 };
 
-
 /* ------------------------------
  * Custom types
  */
-
 
 // Types for interfacing with protobufs
 enum header_field_type {
@@ -150,8 +135,6 @@ enum header_field_type {
 /* ------------------------------
  * General protocol API
  */
-
-
 
 /* creating and extracting to/from protobuf structures */
 struct kresult_message  create_header(uint8_t header_field_bitmap, ...);

@@ -333,11 +333,23 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 
 
-	/* Setup msg_hdr */
+	/* 
+	 * Setup msg_hdr 
+	 * One thing to note here is that although the msg hdr is being setup
+	 * it is too early to complete. The msg hdr will ultimately have a
+	 * HMAC cryptographic checksum of the requests command bytes, so that
+	 * server can authenticate and authorize the request. The command
+	 * bytes don't actually get finalized until a ktli_send is initiated.
+	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
+	 * used later on to calculate the actual HMAC which will then be hung
+	 * of the kmh_hmac field.  A reference is made to the kcfg_hkey ptr 
+	 * in the kmreq. This reference needs to be removed before freeing 
+	 * kmreq. See below at glex2:
+	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
-	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
+	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 	
 
 	/* Setup cmd_hdr */
@@ -412,20 +424,15 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex1;
 	}
 #endif
-	/* \
-	 * PAK: need to extract status 
-	 * PAK: Need to deallocate thinsg 
+	/*
+	 * PAK: Need to deallocate things
 	 */
 	memcpy(glog, &glog2, sizeof(kgetlog_t));
-
+#if 0
 	if (krc.ks_message != NULL) { KI_FREE(krc.ks_message); }
 	if (krc.ks_detail  != NULL) { KI_FREE(krc.ks_detail);  }
-
-	return (kstatus_t) {
-		.ks_code    = K_OK,
-		.ks_message = "Success",
-		.ks_detail  = "",
-	};
+#endif
+	return (krc);
 
 	/* NOTE: When free-ing glog2 or glog, it should be done as follows:
 	 * glog->destroy_protobuf(&glog);
@@ -436,6 +443,14 @@ ki_getlog(int ktd, kgetlog_t *glog)
  glex1:
 	destroy_message(kmresp.result_message);
  glex2:
+	/*
+	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
+	 * was made in kmreq before freeingcalling destroy.
+	 * See 'Setup msg_hdr' comment above for details.
+	 */
+	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
+	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.len = 0;
+	
 	destroy_message(kmreq.result_message);
 	destroy_message(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
@@ -650,7 +665,7 @@ void extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
 		extract_primitive_optional(getlog_data->kgl_limits.kl_keylen     , limits, maxkeysize                 );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_vallen     , limits, maxvaluesize               );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_verlen     , limits, maxversionsize             );
-		extract_primitive_optional(getlog_data->kgl_limits.kl_taglen     , limits, maxtagsize                 );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_disumlen     , limits, maxtagsize                 );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_msglen     , limits, maxmessagesize             );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_pinlen     , limits, maxpinsize                 );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_batlen     , limits, maxbatchsize               );
