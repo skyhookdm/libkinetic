@@ -146,6 +146,10 @@ typedef struct keyrange {
 	void        (*destroy_protobuf)(struct keyrange *keyrange_data);
 } kr_t;
 
+// TODO
+typedef struct batch {
+} batch_t;
+
 
 /* ------------------------------
  * Types for interfacing with API
