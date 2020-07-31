@@ -421,7 +421,7 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)
-	free(proto_cmd_body.key.data);
+	KI_FREE(proto_cmd_body.key.data);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
@@ -439,7 +439,7 @@ void destroy_protobuf_delkey(kv_t *kv_data) {
 
 	// free the struct itself last
 	// NOTE: we may want to leave this to a caller?
-	free(kv_data);
+	KI_FREE(kv_data);
 }
 
 kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {

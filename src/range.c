@@ -375,8 +375,8 @@ struct kresult_message create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cm
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)
-	free(proto_cmd_body.startkey.data);
-	free(proto_cmd_body.endkey.data);
+	KI_FREE(proto_cmd_body.startkey.data);
+	KI_FREE(proto_cmd_body.endkey.data);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
@@ -423,7 +423,7 @@ kstatus_t extract_keyrange(struct kresult_message *response_msg, kr_t *keyrange_
 	kproto_keyrange_t *response = response_cmd->body->range;
 
 	keyrange_data->kr_result_keylistcnt = response->n_keys;
-	keyrange_data->kr_result_keylist    = (struct kiovec *) malloc(sizeof(struct kiovec) * response->n_keys);
+	keyrange_data->kr_result_keylist    = (struct kiovec *) KI_MALLOC(sizeof(struct kiovec) * response->n_keys);
 
 	for (size_t result_keyndx = 0; result_keyndx < response->n_keys; result_keyndx++) {
 		keyrange_data->kr_result_keylist[result_keyndx].kiov_base = response->keys[result_keyndx].data;
