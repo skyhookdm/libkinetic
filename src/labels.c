@@ -14,7 +14,7 @@ char *ki_msgtype_label[] = {
 	/* 0x0b 11 */ "Get Key Range Resp",
 	/* 0x0c 12 */ "Get Key Range",
 	/* 0x0d 13 */ "Reserved Message Type 13",
-	/* 0x0e 14 */ "Reserved Message Type 14",
+	/* 0x0e 14 */ "Reserved Message Type 14", 
 	/* 0x0f 15 */ "Get Version Resp",
 	/* 0x10 16 */ "Get Version",
 	/* 0x11 17 */ "Reserved Message Type 17",
@@ -50,3 +50,40 @@ char *ki_msgtype_label[] = {
 	/* 0x2f 47 */ "Set Power Level Resp",
 	/* 0x30 48 */ "Set Power Level",
 };
+const int ki_msgtype_max = 48;
+
+const char *ki_status_label[] = {
+	/* 0x00  0 */ "Not attempted",
+	/* 0x01  1 */ "Success",
+	/* 0x02  2 */ "HMAC failure",
+	/* 0x03  3 */ "Not authorized",
+	/* 0x04  4 */ "Version failure",
+	/* 0x05  5 */ "Internal error",
+	/* 0x06  6 */ "Header required",
+	/* 0x07  7 */ "Not found",
+	/* 0x08  8 */ "Version mismatch",
+	/* 0x09  9 */ "Service busy",
+	/* 0x0a 10 */ "Expired",
+	/* 0x0b 11 */ "Data error",
+	/* 0x0c 12 */ "Perm data error",
+	/* 0x0d 13 */ "Remote connection error",
+	/* 0x0e 14 */ "No space",
+	/* 0x0f 15 */ "No such hmac algorithm",
+	/* 0x10 16 */ "Invalid request",
+	/* 0x11 17 */ "Nested operation errors",
+	/* 0x12 18 */ "Device locked",
+	/* 0x13 19 */ "Device already unlocked",
+	/* 0x14 20 */ "Connection terminated",
+	/* 0x15 21 */ "Invalid batch",
+	/* 0x16 22 */ "Hibernate",
+	/* 0x17 23 */ "Shutdown",
+};
+const int ki_status_max = 23;
+
+const char *ki_cpolicy_label[] = {
+	/* 0x00  0 */ "No Policy Defined",
+	/* 0x01  1 */ "Write Through",
+	/* 0x02  2 */ "Write Back",
+	/* 0x03  3 */ "Flush",
+};
+const int ki_cpolicy_max = 3;

@@ -1,5 +1,5 @@
 BUILDDIR =	../../build
-OBJS = 		kctl.o util.o info.o get.o
+OBJS = 		kctl.o util.o info.o get.o put.o
 #put.o del.o \
 #	ping.o cluster.o lock.o acl.o range.o  \
 #	histogram.o

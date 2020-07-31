@@ -57,15 +57,15 @@
 
 /* - From custom structs to protobuf structs - */
 // set primitive, optional fields
-#define set_primitive_optional(proto_struct, field, rvar) { \
-	proto_struct->has_##field = 1;                          \
-	proto_struct->field       = rvar;                       \
+#define set_primitive_optional(_proto_struct, field, rvar) { \
+		(_proto_struct)->has_##field = 1;		\
+		(_proto_struct)->field       = rvar;		\
 }
 
 // set bytes (ProtobufCBinaryData) from char * with size
-#define set_bytes_optional(proto_struct, field, rptr, rsize) { \
-	proto_struct->has_##field = 1;                             \
-	proto_struct->field       = (ProtobufCBinaryData) {        \
+#define set_bytes_optional(_proto_struct, field, rptr, rsize) { \
+		(_proto_struct)->has_##field = 1;		   \
+		(_proto_struct)->field       = (ProtobufCBinaryData) { \
 		.data = (uint8_t *) rptr,                              \
 		.len  =             rsize,                             \
 	};                                                         \
@@ -75,7 +75,7 @@
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
 
-int ki_validate_kv(kv_t *kv, klimits_t *lim);
+int ki_validate_kv(kv_t *kv, int force, klimits_t *lim);
 
 char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes);
 

@@ -209,7 +209,7 @@ kctl_dump(kgetlog_t *glog)
 		printf("  %-18s: %d\n", "Max Key Len", l->kl_keylen);
 		printf("  %-18s: %d\n", "Max Value Len", l->kl_vallen);
 		printf("  %-18s: %d\n", "Max Version Len", l->kl_verlen);
-		printf("  %-18s: %d\n", "Max Tag Len", l->kl_taglen);
+		printf("  %-18s: %d\n", "Max DI ChkSum Len", l->kl_disumlen);
 		printf("  %-18s: %d\n", "Max Msg Len", l->kl_msglen);
 		printf("  %-18s: %d\n", "Max PIN Len", l->kl_pinlen);
 		printf("  %-18s: %d\n", "Max Batch Len", l->kl_batlen);

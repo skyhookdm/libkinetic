@@ -183,7 +183,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	printf("): ");
 	
 	if (ka->ka_cmd == KCTL_GETVERS) {
-		printf("%s\n", (pkv->kv_curver?(char *)pkv->kv_curver:"N/A"));
+		printf("%s\n", (pkv->kv_ver?(char *)pkv->kv_ver:"N/A"));
 		return(0);
 	}
 

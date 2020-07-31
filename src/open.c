@@ -12,9 +12,6 @@
 #include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
-#include "getlog.h"
-#include "message.h"
-#include "session.h"
 
 static int32_t ki_msglen(struct kiovec *msg_hdr);
 
@@ -57,7 +54,7 @@ ki_msglen (struct kiovec *msg_hdr)
  * reference. 
  */
 int
-ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
+ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 {
 	int ktd, rc;
 	struct ktli_config *cf;
@@ -81,10 +78,10 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac)
 	memset(ks, 0, sizeof(ksession_t));
 
 	/* Setup the session config structure */
-	cf->kcfg_host = strdup(host);
-	cf->kcfg_port = strdup(port);
-	cf->kcfg_id   = id;
-	cf->kcfg_hmac = strdup(hmac);
+	cf->kcfg_host  = strdup(host);
+	cf->kcfg_port  = strdup(port);
+	cf->kcfg_id    = id;
+	cf->kcfg_hkey  = strdup(hkey); 
 	cf->kcfg_flags = KCFF_NOFLAGS;
 	if (usetls) cf->kcfg_flags |= KCFF_TLS;
 

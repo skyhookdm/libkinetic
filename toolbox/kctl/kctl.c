@@ -36,8 +36,8 @@ struct kargs kargs = {
 };
 
 extern int kctl_get(int argc, char *argv[], int kts, struct kargs *ka);
-#if 0
 extern int kctl_put(int argc, char *argv[], int kts, struct kargs *ka);
+#if 0
 extern int kctl_del(int argc, char *argv[], int kts, struct kargs *ka);
 #endif
 extern int kctl_info(int argc, char *argv[], int kts, struct kargs *ka);
@@ -64,8 +64,8 @@ struct ktable {
 	{ KCTL_GETNEXT, "getnext", "Get next key value", &kctl_get},
 	{ KCTL_GETPREV, "getprev", "Get previous key value", &kctl_get},
 	{ KCTL_GETVERS, "getvers", "Get key value version", &kctl_get},
-#if 0
 	{ KCTL_PUT,     "put",     "Put key value", &kctl_put},
+#if 0
 	{ KCTL_DEL,     "del",     "Delete key value or range of key values",
 	  &kctl_del},
 #endif

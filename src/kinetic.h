@@ -29,6 +29,19 @@ enum {
 	KDI_CRC32	= CA(CRC32)		   ,
 };
 
+/**
+ * Kinetic Cache Policies
+ */
+#define CS(cs) COM__SEAGATE__KINETIC__PROTO__COMMAND__SYNCHRONIZATION__##cs
+
+typedef Com__Seagate__Kinetic__Proto__Command__Synchronization kcachepolicy_t;
+enum {
+	KC_INVALID = CS(INVALID_SYNCHRONIZATION),
+	KC_WT      = CS(WRITETHROUGH)           ,
+	KC_WB      = CS(WRITEBACK)              ,
+	KC_FLUSH   = CS(FLUSH)                  ,
+};
+
 
 // Kinetic Status Codes
 #define CSSC(cssc) COM__SEAGATE__KINETIC__PROTO__COMMAND__STATUS__STATUS_CODE__##cssc
@@ -62,20 +75,51 @@ enum {
 	K_ESHUTDOWN	= CSSC(SHUTDOWN),
 };
 
+/**
+ * kv_t structure
+ *
+ * kv_key	Is a kiovec vector(array) of buffer(s) containing a single
+ *		key. The vector permits keys to be easily prefixed or 
+ *		postfixed without the need of a copy into a single contiguous 
+ *		buffer. 
+ * kv_keycnt	The number of elements in the key vector
+ * kv_val	Is a kiovec vector(array) of buffer(s) containing a single 
+ *		value. The vector permits keys to be easily prefixed or 
+ *		postfixed without the need of a copy into a single contiguous 
+ *		buffer. 
+ * kv_valcnt	The number of elements in the value vector
+ * kv_ver	Is the current version of the key value pair, 
+ * 		most servers use a string numeric value, e.g. "000003"
+ * kv_verlen	Length of the kv_ver byte string
+ * kv_newver	Is the new version of the key value pair to be set,
+ * 		most servers use a string numeric value, e.g. "000003"
+ * kv_newverlen Length of the kv_newver byte string
+ * kv_disum	Is the data integrity chksum. It is a computed sum stored as
+ *  		byte string. kv_ditype must match the algorithm used to 
+ *		compute the di sum. 
+ * kv_disumlen	Length of the kv_disum byte string
+ * kv_ditype	Specifies the alrorithm used to calculate the di chksum, for
+ *		server mediascan you should use either: SHA1, SHA2, SHA3,
+ *		CRC32, CRC32C or CRC64
+ * kv_cpolicy	This specifies the caching policy for this key value. It must
+ * 		be specified on each operation. Can be write through, 
+ * 		write back or flush. 
+ */
 typedef struct kv {
 	struct kiovec	*kv_key;
 	size_t		kv_keycnt;
 	struct kiovec	*kv_val;
 	size_t		kv_valcnt;
+	void		*kv_ver;
+	size_t		kv_verlen;
 	void		*kv_newver;
 	size_t		kv_newverlen;
-	void		*kv_curver;
-	size_t		kv_curverlen;
-	void		*kv_tag;
-	size_t		kv_taglen;
+	void		*kv_disum;
+	size_t		kv_disumlen;
 	kditype_t	kv_ditype;
-
-	// NOTE: currently, this also frees kv_data
+	kcachepolicy_t	kv_cpolicy;
+	
+	/* NOTE: currently, this also frees kv_data */
 	void        *kv_protobuf;
 	void        (*destroy_protobuf)(struct kv *kv_data);
 } kv_t;
@@ -126,8 +170,8 @@ int ki_close(int ktd);
 
 kstatus_t ki_setclustervers(int ktd, int64_t vers);
 
-kstatus_t ki_put(int ktd, kv_t *key, kcachepolicy_t policy);
-kstatus_t ki_cas(int ktd, kv_t *key, kcachepolicy_t policy);
+kstatus_t ki_put(int ktd, kv_t *key);
+kstatus_t ki_cas(int ktd, kv_t *key);
 
 kstatus_t ki_get(int ktd, kv_t *key);
 kstatus_t ki_getnext(int ktd, kv_t *key, kv_t *next);
