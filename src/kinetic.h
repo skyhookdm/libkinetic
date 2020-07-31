@@ -124,27 +124,27 @@ typedef struct kv {
 	void        (*destroy_protobuf)(struct kv *kv_data);
 } kv_t;
 
-typedef struct key_range {
-	struct kiovec  *start_key;
-	size_t          start_keycnt;
+typedef struct keyrange {
+	struct kiovec  *kr_startkey;
+	size_t          kr_startkeycnt;
 
-	struct kiovec  *end_key;
-	size_t          end_keycnt;
+	struct kiovec  *kr_endkey;
+	size_t          kr_endkeycnt;
 
-	int             bool_is_start_inclusive;
-	int             bool_is_end_inclusive;
-	int             bool_reverse_keyorder;
+	int             kr_bool_is_start_inclusive;
+	int             kr_bool_is_end_inclusive;
+	int             kr_bool_reverse_keyorder;
 
-	uint32_t        max_result_size;
+	uint32_t        kr_max_keylistcnt;
 
-	// NOTE: we may want to move these fields into a separate struct? maybe not
-	struct kiovec *result_keys;
-	size_t         result_keycnt;
+	// result_keys is an array of keys, where each iovec holds a single, contiguous key name
+	struct kiovec *kr_result_keylist;
+	size_t         kr_result_keylistcnt;
 
 	// NOTE: currently, this also frees keyrange_data
 	void        *keyrange_protobuf;
-	void        (*destroy_protobuf)(struct key_range *keyrange_data);
-} keyrange_t;
+	void        (*destroy_protobuf)(struct keyrange *keyrange_data);
+} kr_t;
 
 
 /* ------------------------------
@@ -199,6 +199,8 @@ kstatus_t ki_get(int ktd, kv_t *key);
 kstatus_t ki_getnext(int ktd, kv_t *key, kv_t *next);
 kstatus_t ki_getprev(int ktd, kv_t *key, kv_t *prev);
 kstatus_t ki_getversion(int ktd, kv_t *key);
+
+kstatus_t ki_range(int ktd, kr_t *keyrange);
 
 kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
