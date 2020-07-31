@@ -37,7 +37,7 @@ kstatus_t extract_delkey(struct kresult_message *, kv_t *);
 
 
 /**
- * ki_validate_kv(kv_t *kv, limit_t *lim)
+ * ki_validate_del(kv_t *kv, limit_t *lim)
  *
  *  kv		Always contains a key, but optionally may have a value
  *		However there must always value kiovec array of at least
@@ -46,10 +46,9 @@ kstatus_t extract_delkey(struct kresult_message *, kv_t *);
  *  lim 	Contains server limits
  *
  * Validate that the user is passing a valid kv structure
- *
  */
 int
-ki_validate_kv(kv_t *kv, klimits_t *lim)
+ki_validate_del(kv_t *kv, klimits_t *lim)
 {
 	/* assume we will find a problem */
 	errno = K_EINVAL;
@@ -59,9 +58,6 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 		   !kv                                 // kv_t struct
 		|| !kv->kv_key || kv->kv_keycnt < 1    // key name
 		|| !kv->kv_val || kv->kv_valcnt < 1    // key value
-		|| !kv->kv_curver                      // db version
-		|| kv->kv_curverlen < 1                // db version is not too short
-		|| kv->kv_curverlen > lim->kl_verlen   // db version is not too long
 	);
 
 	// db version must be provided, and must be a valid length
@@ -76,18 +72,48 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
 	if (total_val_len > lim->kl_vallen) { return(-1); }
 
 	errno = 0;
-
 	return (0);
 }
 
+/**
+ * ki_validate_del_cad(kv_t *kv, limit_t *lim)
+ *
+ * Validate that the user is passing a valid kv structure for a compare-and-delete. This calls
+ * ki_validate_del, and then checks that a current version (db version) is correctly specified.
+ */
+int
+ki_validate_cad(kv_t *kv, klimits_t *lim)
+{
+	int validate_result = ki_validate_del(kv, lim);
+
+	/* if the generic validation fails, just propagate the failure */
+	if (validate_result) { return validate_result; }
+
+	/* otherwise, check cad specific validation */
+	// assume we will find a problem
+	errno = K_EINVAL;
+
+	/* Check for required params. This is _True_ on _error_  */
+	int bool_has_invalid_params = (
+		   !kv->kv_ver                     // db version
+		||  kv->kv_verlen < 1              // db version is not too short
+		||  kv->kv_verlen > lim->kl_verlen // db version is not too long
+	);
+
+	// db version must be provided, and must be a valid length
+	if (bool_has_invalid_params) { return (-1); }
+
+	errno = 0;
+	return (0);
+}
 
 /**
- * ki_del(int ktd, kv_t *kv)
+ * ki_del_generic(int ktd, kv_t *kv)
  *
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
  * 		kv_vers and kv_verslen are optional
- * 		kv_tag and kv_taglen are optional.
+ * 		kv_disum and kv_disumlen are optional.
  *		kv_ditype is returned by the server, but it should
  * 		have either a 0 or a valid ditype in it to start with
  *
@@ -96,26 +122,26 @@ ki_validate_kv(kv_t *kv, klimits_t *lim)
  *
  */
 kstatus_t
-ki_del(int ktd, kv_t *kv)
+ki_del_generic(int ktd, kv_t *kv, int bool_shouldforce)
 {
 	int rc;                   // numeric return codes
 	kstatus_t krc;            // structured return code and messages
 
 	struct kio *kio;          // structure containing all relevant request/response data
-	struct ktli_config *cf;   // configuration associated with a connection
 
 	uint8_t ppdu[KP_PLENGTH]; // byte array holding the packed PDU (protocol data unit)
 	kpdu_t rpdu;              // structure to hold the response PDU in
-	kmsghdr_t msg_hdr;        // header of a kinetic `Message`
 	kcmdhdr_t cmd_hdr;        // header of a kinetic `Command`
 	ksession_t *ses;          // reference to the kinetic session
 
 	// results of creating (kmreq) a request message or unpacking (kmresp) a response message
 	struct kresult_message kmreq, kmresp;
 
+
 	/* Prep and validation */
 
-	// Get KTLI config
+	// Get KTLI config (associated with connection)
+	struct ktli_config *cf;
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
 		return (kstatus_t) {
@@ -124,25 +150,29 @@ ki_del(int ktd, kv_t *kv)
 			.ks_detail  = "",
 		};
 	}
+
+	// setup header of the kinetic `Message` from config
+	kmsghdr_t msg_hdr;
+	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
+	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_id    = cf->kcfg_id;
+	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
+
+	// grab session config
 	ses = (ksession_t *) cf->kcfg_pconf;
 
-	// validate command
-	if (!kv) {
-		errno = K_EINVAL;
-		return (kstatus_t) {
-			.ks_code    = K_EINVAL,
-			.ks_message = "Missing Parameters",
-			.ks_detail  = "",
-		};
-	}
+	// validation is a bit hack-y here, but we can clean up later
+	// validate the input kv, ignoring the version (basic validation)
+	if (bool_shouldforce) { rc = ki_validate_del(kv, &ses->ks_l); }
 
-	// validate the input kv
-	rc = ki_validate_kv(kv, &ses->ks_l);
+	// validate the input kv, checking the version (validate compare-and-del)
+	else                  { rc = ki_validate_cad(kv, &ses->ks_l); }
+
 	if (rc < 0) {
 		errno = K_EINVAL;
 		return (kstatus_t) {
 			.ks_code    = K_EINVAL,
-			.ks_message = "Invalid KV",
+			.ks_message = "Invalid or missing KV",
 			.ks_detail  = "",
 		};
 	}
@@ -158,6 +188,7 @@ ki_del(int ktd, kv_t *kv)
 		};
 	}
 	memset(kio, 0, sizeof(struct kio));
+
 
 	/* Prepare request data */
 
@@ -179,18 +210,11 @@ ki_del(int ktd, kv_t *kv)
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
-	// setup message header (msg_hdr)
-	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
-	msg_hdr.kmh_id    = cf->kcfg_id;
-	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
-
 	// setup command header (cmd_hdr)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_DEL;
 
-	// call with bool_shouldforce = 1
-	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, 1);
+	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, bool_shouldforce);
 	if (kmreq.result_code == FAILURE) {
 		errno = K_EINTERNAL;
 		krc   = (kstatus_t) {
@@ -323,6 +347,35 @@ ki_del(int ktd, kv_t *kv)
 	return (krc);
 }
 
+/**
+ * ki_del(int ktd, kv_t *kv)
+ *
+ * The del APIs share the same code other than whether the db version of the key should be
+ * ignored. This delete function calls ki_del_generic and sets force to `True`, thus ignoring the
+ * key-value's db version.
+ */
+kstatus_t
+ki_del(int ktd, kv_t *kv)
+{
+	int bool_shouldforce = 1;
+	return ki_del_generic(ktd, kv, bool_shouldforce);
+}
+
+/**
+ * ki_cad(int ktd, kv_t *kv)
+ *
+ * The del APIs share the same code other than whether the db version of the key should be
+ * ignored. This compare-and-delete function calls ki_del_generic and sets force to `False`, thus
+ * requiring that the key-value's db version is specified correctly and propagated to the kinetic
+ * server.
+ */
+kstatus_t
+ki_cad(int ktd, kv_t *kv)
+{
+	int bool_shouldforce = 0;
+	return ki_del_generic(ktd, kv, bool_shouldforce);
+}
+
 
 struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
 											 kv_t *cmd_data, int bool_shouldforce) {
@@ -342,19 +395,26 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	);
 	proto_cmd_body.has_key = extract_result;
 
-	if (extract_result < 0) {
+	if (extract_result == 0) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
 			.result_message = NULL,
 		};
 	}
 
-	// to delete we need to specify the dbversion
-	set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_curver, cmd_data->kv_curverlen);
+	// TODO: should we only set this if shouldforce is true? or assume this is NULL when
+	// appropriate
+	if (!bool_shouldforce) {
+		// to delete we need to specify the dbversion
+		set_bytes_optional(
+			&proto_cmd_body , dbversion,
+			cmd_data->kv_ver, cmd_data->kv_verlen
+		);
+	}
 
 	// if force is specified, then the dbversion is essentially ignored.
-	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce      );
-	set_primitive_optional(&proto_cmd_body, synchronization, cmd_data->kv_cachetype);
+	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce    );
+	set_primitive_optional(&proto_cmd_body, synchronization, cmd_data->kv_cpolicy);
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
@@ -435,11 +495,11 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// we set the number of key elements to 1, since the key name is contiguous
 	kv_data->kv_keycnt = response->has_key ? 1 : 0;
 
-	// extract key name, db version, tag, and data integrity algorithm
-	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);
+	// extract key name, db version, disum, and data integrity algorithm
+	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len, response, key);
 
-	extract_bytes_optional(kv_data->kv_curver, kv_data->kv_curverlen, response, dbversion);
-	extract_bytes_optional(kv_data->kv_tag   , kv_data->kv_taglen   , response, tag      );
+	extract_bytes_optional(kv_data->kv_ver  , kv_data->kv_verlen  , response, dbversion);
+	extract_bytes_optional(kv_data->kv_disum, kv_data->kv_disumlen, response, tag      );
 
 	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
 
