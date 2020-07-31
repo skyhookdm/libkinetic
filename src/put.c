@@ -184,7 +184,7 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	} while (1);
 
 	/* extract the return PDU */
-	struct kiovec *kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
 		/* PAK: error handling -need to clean up Yikes! */
 		assert(0);
@@ -313,7 +313,7 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr,
 	);
 	proto_cmd_body.has_key = extract_result;
 
-	if (extract_result < 0) {
+	if (extract_result == 0) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
 			.result_message = NULL,
@@ -341,7 +341,7 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr,
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(
-		&proto_cmd_header, (void *) &proto_cmd_body, KMT_PUT
+		&proto_cmd_header, (void *) &proto_cmd_body
 	);
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer

@@ -489,7 +489,7 @@ size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count) {
 
 int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames, size_t keycnt) {
 	// return error if params don't meet assumptions
-	if (keynames == NULL) { return -1; }
+	if (keynames == NULL) { return 0; }
 
 	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * keycnt);
 	if (cumulative_offsets == NULL) { return -1; }
@@ -506,7 +506,7 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 	// cleanup on a malloc failure
 	if (key_buffer == NULL) {
 		free(cumulative_offsets);
-		return -1;
+		return 0;
 	}
 
 	// gather key name fragments into key buffer
@@ -527,7 +527,7 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 		.len  =             total_keylen,
 	};
 
-	return 0;
+	return 1;
 }
 
 

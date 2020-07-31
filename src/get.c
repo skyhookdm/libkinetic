@@ -439,7 +439,7 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 
 	proto_cmd_body.has_key = extract_result;
 
-	if (extract_result < 0) {
+	if (extract_result == 0) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
 			.result_message = NULL,
