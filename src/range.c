@@ -153,7 +153,7 @@ ki_range(int ktd, kr_t *keyrange)
 	/* Prepare request data */
 
 	// Allocate kio vectors array of size 2 (PDU, full request message)
-	kio->kio_cmd            = KMT_DEL;
+	kio->kio_cmd            = KMT_GETRANGE;
 	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(sizeof(struct kiovec) * KIO_LEN_NOVAL);
 
@@ -191,7 +191,7 @@ ki_range(int ktd, kr_t *keyrange)
 
 	// setup command header (cmd_hdr)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
-	cmd_hdr.kch_type = KMT_DEL;
+	cmd_hdr.kch_type = KMT_GETRANGE;
 
 	kmreq = create_rangekey_message(&msg_hdr, &cmd_hdr, keyrange);
 	if (kmreq.result_code == FAILURE) {
