@@ -204,7 +204,7 @@ typedef struct kv_iter {
 	char 		*ki_cend;	/* Current end */ 
 } kv_iter_t;
 
-typedef struct key_range {
+typedef struct keyrange {
 	struct kiovec  *start_key;
 	size_t          start_keycnt;
 
