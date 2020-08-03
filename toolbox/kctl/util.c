@@ -163,5 +163,3 @@ yorn(const char *prompt, unsigned int default_ans, unsigned int attempts)
 	return default_ans;
 }
 
-
-

@@ -171,6 +171,7 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 kstatus_t extract_getlog(struct kresult_message *getlog_response_msg, kgetlog_t *getlog_data);
 kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data);
 kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data);
+kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data);
 
 kstatus_t extract_cmdstatus(kproto_cmd_t *response_cmd);
 

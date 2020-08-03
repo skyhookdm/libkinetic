@@ -39,7 +39,7 @@ create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 kstatus_t
 p_put_generic(int ktd, kv_t *kv, int force)
 {
-	int rc, i;
+	int rc, i, n;
 	kstatus_t krc;
 	struct kio *kio;
 	struct kiovec *kiov;
@@ -90,10 +90,9 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	 * for the value. The size is variable as the value can come in 
 	 * many parts from the caller. See message.h for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt; 
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-			     sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt);
-
+	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt;
+	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
 		return (kstatus_t) {
 			.ks_code    = K_EINTERNAL,
@@ -102,7 +101,7 @@ p_put_generic(int ktd, kv_t *kv, int force)
 		};
 	}
 
-	/* Hang the PDU buffer */
+	/* Hang the PDU buffer, packing occurs later */
 	kio->kio_cmd = KMT_PUT;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
@@ -152,7 +151,7 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 
-	/* for kp_vallen, need to run through kv_val vector and addit up */ 
+	/* for kp_vallen, need to run through kv_val vector and add it up */ 
 	pdu.kp_vallen = 0;
 	for (i=0;i<kv->kv_valcnt; i++)
 		pdu.kp_vallen += kv->kv_val[i].kiov_len;
@@ -221,7 +220,7 @@ p_put_generic(int ktd, kv_t *kv, int force)
  pex2:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
-	 * was made in kmreq before freeingcalling destroy.
+	 * was made in kmreq before calling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
 	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
@@ -249,13 +248,13 @@ p_put_generic(int ktd, kv_t *kv, int force)
  *		kv_val must contain kiovec array representing the value
  * 		kv_vers and kv_verslen are optional
  * 		kv_dival and kv_divalen are optional. 
- *		kv_ditype is must be set if kv_val is set
+ *		kv_ditype must be set if kv_dival is set
  *		kv_cpolicy sets the caching strategy for this put
  *			cpolicy of flush will flush the entire cache
  *
  * Put the value specified by the given key, data integrity value/type, and 
  * new version, using the specified cache policy. This call will force the 
- * put to the new values 
+ * put to the new values without any version checks.
  */
 kstatus_t
 ki_put(int ktd, kv_t *kv)
@@ -272,14 +271,14 @@ ki_put(int ktd, kv_t *kv)
  * 		kv_vers and kv_verslen are required.
  * 		kv_newvers and kv_newverslen are required.
  * 		kv_disum and kv_disumlen are optional. 
- *		kv_ditype is must be set if kv_val is set
+ *		kv_ditype must be set if kv_dival is set
  *		kv_cpolicy sets the caching strategy for this put
  *			cpolicy of flush will flush the entire cache
  *
- * CAS performs a comapre and swap for the given key value. The key is only
- * put into the DB if kv_version matches the current version in the DB, the
- * current version is then set the value in kv_newver. If not the operation
- * fails. Once the check is complete, the value specified by the given key, 
+ * CAS performs a compare and swap for the given key value. The key is only
+ * put into the DB if kv_version matches the version in the DB. If there is
+ * no match the operation fails with the error K_EVERSION. 
+ * Once the check is complete, the value specified by the given key, 
  * data integrity value/type, and new version is put into the DB, using the 
  * specified cache policy. 
  */

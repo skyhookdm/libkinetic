@@ -314,6 +314,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		};
 	}
 	memset(kio, 0, sizeof(struct kio));
+	kio->kio_cmd = KMT_GETLOG;
 
 	/* Alocate the kio vectors */
 	kio->kio_sendmsg.km_cnt = 2; /* PDU and protobuf */
@@ -328,7 +329,6 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	}
 
 	/* Hang the Packed PDU buffer, packing occurs later */
-	kio->kio_cmd = KMT_GETLOG;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 
@@ -445,7 +445,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
  glex2:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
-	 * was made in kmreq before freeingcalling destroy.
+	 * was made in kmreq before calling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
 	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
