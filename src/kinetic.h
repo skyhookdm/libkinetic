@@ -76,6 +76,20 @@ enum {
 };
 
 /**
+ * koivec structure
+ *
+ * The kiovec structure originally was a KTLI structure
+ * used to pass logically assembled buffers to the transport layer 
+ * without copying them into a single contiguous buffer. It is analogous to
+ * Linux's iovec structure.  In libkinetic, the kiovec is also used to move
+ * around keys and values that may be assembled from multiple parts. 
+ */
+struct kiovec {
+	size_t  kiov_len;     /* Number of bytes */
+	void   *kiov_base;    /* Starting address */
+};
+
+/**
  * kv_t structure
  *
  * kv_key	Is a kiovec vector(array) of buffer(s) containing a single
@@ -162,12 +176,12 @@ typedef enum krange_flags {
 	KF_IEND		= 0x02,
 } krange_flags_t;
 
-typedef struct kv_range {
-	char 		kr_flags;	/* Inclusive booleans */
+typedef struct krange {
+	uint32_t	kr_flags;	/* Inclusive booleans */
 	struct kiovec	kr_start;	/* Start key */ 
 	struct kiovec	kr_end;		/* End key */
 	int32_t		kr_count;	/* Num of requested keys in the range */
-	kiovec		*kv_keys;	/* Key array, one key per vector */
+	struct kiovec	*kv_keys;	/* Key array, one key per vector */
 	int32_t		kv_keyscnt;	/* kr_keys array elemnt count */
 #define KVR_COUNT_INF			(-1)
 #define KVR_FLAG_SET(_kvr, _kvrf)	((_kvr)->kr_flags |= (_kvrf))
@@ -175,16 +189,17 @@ typedef struct kv_range {
 #define KVR_FLAG_ISSET(_kvr, _kvrf)	((_kvr)->kr_flags & (_kvrf))
 #define KVR_ISTART(_kvr)		((_kvr)->kr_flags & KF_ISTART)
 #define KVR_IEND(_kvr)			((_kvr)->kr_flags & KF_IEND)
-} kv_range_t;
+} krange_t;
 
 /**
  * Key Range Iter structure
  *
  * This structure permits the iteration through a key a defined keyrange
- * Unlike the the key  
+ * Unlike the the key 
+ */
 typedef struct kv_iter {
 	int		ki_ktd;
-	kv_range_t	ki_range;
+	krange_t	ki_range;
 	char 		*ki_cstart;	/* Current start */
 	char 		*ki_cend;	/* Current end */ 
 } kv_iter_t;
@@ -242,12 +257,6 @@ typedef struct kstatus {
 	char		*ks_message;
 	char		*ks_detail;
 } kstatus_t;
-
-struct kiovec {
-	size_t  kiov_len;     /* Number of bytes to transfer */
-	void   *kiov_base;    /* Starting address */
-};
-
 
 /**
  * The API.
