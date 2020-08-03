@@ -30,92 +30,30 @@
 #include "kinetic.h"
 #include "kinetic_internal.h"
 
+/**
+ * Internal prototypes
+ */
 struct kresult_message
 create_delkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
-kstatus_t extract_delkey(struct kresult_message *, kv_t *);
-
-
-/**
- * ki_validate_kv(kv_t *kv, limit_t *lim)
- *
- *  kv		Always contains a key, but optionally may have a value
- *		However there must always value kiovec array of at least
- * 		element and should always be initialized. if unused,
- *		as in a get, kv_val[0].kiov_base=NULL and kv_val[0].kiov_len=0
- *  lim 	Contains server limits
- *
- * Validate that the user is passing a valid kv structure
- *
- */
-int
-ki_validate_kv(kv_t *kv, klimits_t *lim)
-{
-	/* assume we will find a problem */
-	errno = K_EINVAL;
-
-	/* Check for required params. This is _True_ on _error_  */
-	int bool_has_invalid_params = (
-		   !kv                                 // kv_t struct
-		|| !kv->kv_key || kv->kv_keycnt < 1    // key name
-		|| !kv->kv_val || kv->kv_valcnt < 1    // key value
-		|| !kv->kv_curver                      // db version
-		|| kv->kv_curverlen < 1                // db version is not too short
-		|| kv->kv_curverlen > lim->kl_verlen   // db version is not too long
-	);
-
-	// db version must be provided, and must be a valid length
-	if (bool_has_invalid_params) { return (-1); }
-
-	/* Check key name and key value lengths are not too long */
-	size_t total_key_len = calc_total_len(kv->kv_key, kv->kv_keycnt);
-	if (total_key_len > lim->kl_keylen) { return(-1); }
-
-	/* Total up the length across all vectors */
-	size_t total_val_len = calc_total_len(kv->kv_val, kv->kv_valcnt);
-	if (total_val_len > lim->kl_vallen) { return(-1); }
-
-	errno = 0;
-
-	return (0);
-}
-
-
-/**
- * ki_del(int ktd, kv_t *kv)
- *
- *  kv		kv_key must contain a fully populated kiovec array
- *		kv_val must contain a zero-ed kiovec array of cnt 1
- * 		kv_vers and kv_verslen are optional
- * 		kv_tag and kv_taglen are optional.
- *		kv_ditype is returned by the server, but it should
- * 		have either a 0 or a valid ditype in it to start with
- *
- * The get APIs share about 95% of the same code. This routine Consolidates
- * the code.
- *
- */
 kstatus_t
-ki_del(int ktd, kv_t *kv)
+d_del_generic(int ktd, kv_t *kv, int force)
 {
-	int rc;                   // numeric return codes
-	kstatus_t krc;            // structured return code and messages
+	int rc, n;                /* numeric return codes */
+	kstatus_t krc;            /* Holds kinetic return code and messages */
+	struct kio *kio;          /* Holds all KTLI req/resp data */
+	struct kiovec *kiov;      /* Temp kiov holder to shorten code wdith */
+	struct ktli_config *cf;   /* KTLI connection config */
+	uint8_t ppdu[KP_PLENGTH]; /* byte array holding the packed PDU */
+	kpdu_t pdu;		  /* Holds unpacked req PDU */
+	kpdu_t rpdu;              /* Holds unpacked response PDU */
+	kmsghdr_t msg_hdr;        /* Header of a kinetic `Message` */
+	kcmdhdr_t cmd_hdr;        /* Header of a kinetic `Command` */
+	ksession_t *ses;          /* Reference to the kinetic session */
+	struct kresult_message kmreq, kmresp; 	/* Message representation */
+						/* of the req and resp */
 
-	struct kio *kio;          // structure containing all relevant request/response data
-	struct ktli_config *cf;   // configuration associated with a connection
-
-	uint8_t ppdu[KP_PLENGTH]; // byte array holding the packed PDU (protocol data unit)
-	kpdu_t rpdu;              // structure to hold the response PDU in
-	kmsghdr_t msg_hdr;        // header of a kinetic `Message`
-	kcmdhdr_t cmd_hdr;        // header of a kinetic `Command`
-	ksession_t *ses;          // reference to the kinetic session
-
-	// results of creating (kmreq) a request message or unpacking (kmresp) a response message
-	struct kresult_message kmreq, kmresp;
-
-	/* Prep and validation */
-
-	// Get KTLI config
+	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
 		return (kstatus_t) {
@@ -126,28 +64,18 @@ ki_del(int ktd, kv_t *kv)
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
 
-	// validate command
-	if (!kv) {
-		errno = K_EINVAL;
-		return (kstatus_t) {
-			.ks_code    = K_EINVAL,
-			.ks_message = "Missing Parameters",
-			.ks_detail  = "",
-		};
-	}
-
-	// validate the input kv
-	rc = ki_validate_kv(kv, &ses->ks_l);
+	/* Validate the passed in kv */
+	rc = ki_validate_kv(kv, force, &ses->ks_l);
 	if (rc < 0) {
 		errno = K_EINVAL;
 		return (kstatus_t) {
-			.ks_code    = K_EINVAL,
+			.ks_code    = errno,
 			.ks_message = "Invalid KV",
 			.ks_detail  = "",
 		};
 	}
 
-	// create the kio structure
+	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
 		errno = K_EINTERNAL;
@@ -158,14 +86,16 @@ ki_del(int ktd, kv_t *kv)
 		};
 	}
 	memset(kio, 0, sizeof(struct kio));
-
-	/* Prepare request data */
-
-	// Allocate kio vectors array of size 2 (PDU, full request message)
-	kio->kio_cmd            = KMT_DEL;
-	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(sizeof(struct kiovec) * KIO_LEN_NOVAL);
-
+	kio->kio_cmd = KMT_DEL;
+	
+	/* 
+	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
+	 * is for the protobuf message. There is no value.
+	 * See message.h for more details.
+	 */
+	kio->kio_sendmsg.km_cnt = 2;
+	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
 		errno = K_EINTERNAL;
 		return (kstatus_t) {
@@ -175,22 +105,33 @@ ki_del(int ktd, kv_t *kv)
 		};
 	}
 
-	// hang the Packed PDU buffer, packing occurs later
+	/* Hang the PDU buffer, packing occurs later */
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
-	// setup message header (msg_hdr)
+	/* 
+	 * Setup msg_hdr 
+	 * One thing to note here is that although the msg hdr is being setup
+	 * it is too early to complete. The msg hdr will ultimately have a
+	 * HMAC cryptographic checksum of the requests command bytes, so that
+	 * server can authenticate and authorize the request. The command
+	 * bytes don't actually get finalized until a ktli_send is initiated.
+	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
+	 * used later on to calculate the actual HMAC which will then be hung
+	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr 
+	 * in the kmreq. This reference needs to be removed before freeing 
+	 * kmreq. See below at dex2:
+	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
-	msg_hdr.kmh_hmac  = cf->kcfg_hmac;
+	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 
-	// setup command header (cmd_hdr)
+	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_DEL;
 
-	// call with bool_shouldforce = 1
-	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, 1);
+	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, force);
 	if (kmreq.result_code == FAILURE) {
 		errno = K_EINTERNAL;
 		krc   = (kstatus_t) {
@@ -202,9 +143,9 @@ ki_del(int ktd, kv_t *kv)
 		goto dex2;
 	}
 
-	// pack the message and hang it on the kio
-	// PAK: Error handling
-	// success: rc = 0; failure: rc = 1 (see enum kresult_code)
+	/* pack the message and hang it on the kio */
+	/* PAK: Error handling */
+	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	enum kresult_code pack_result = pack_kinetic_message(
 		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
@@ -214,36 +155,30 @@ ki_del(int ktd, kv_t *kv)
 		errno = K_EINTERNAL;
 		krc   = (kstatus_t) {
 			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to pack kinetic message for request",
+			.ks_message = "Unable to pack kinetic req message",
 			.ks_detail  = "",
 		};
 
 		goto dex2;
 	}
 
-	// now that the message length is known, setup the PDU
-	kpdu_t pdu = {
-		.kp_magic  = KP_MAGIC,
-		.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len,
-		.kp_vallen = 0,
-	};
+	/* Now that the message length is known, setup the PDU */
+	pdu.kp_magic  = KP_MAGIC;
+	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
+	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, ppdu);
-
-	printf(
-		"get_generic: PDU(x%2x, %d, %d)\n",
-	    pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen
-	);
-
+	printf("d_del_generic: PDU(x%2x, %d, %d)\n",
+	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
 	/* Communication over the network */
 
-	// Send the request
+	/* Send the request */
 	ktli_send(ktd, kio);
 	printf("Sent Kio: %p\n", kio);
 
-	// Wait for the response
+	/* Wait for the response */
 	do {
-		// wait for something to come in
+		/* wait for something to come in */
 		ktli_poll(ktd, 0);
 
 		// Check to see if it our response
@@ -256,36 +191,35 @@ ki_del(int ktd, kv_t *kv)
 			else { ; }
 		}
 
-		// Got our response
+		/* Got our response */
 		else { break; }
 	} while (1);
 
 
 	/* Parse response */
 
-	// extract the return PDU
+	/* extract the return PDU */
 	struct kiovec *kiov_rpdu = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov_rpdu->kiov_len != KP_PLENGTH) {
 		/* PAK: error handling -need to clean up Yikes! */
 		assert(0);
 	}
-
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov_rpdu->kiov_base)));
 
-	// validate the PDU (does it match what was given in the recvmsg)
-	struct kiovec *kiov_rmsg = &kio->kio_recvmsg.km_msg[KIOV_MSG];
-	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov_rmsg->kiov_len ) {
-		// PAK: error handling -need to clean up Yikes!
+	/* Does the PDU match what was given in the recvmsg */
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
+	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len ) {
+		/* PAK: error handling -need to clean up Yikes! */
 		assert(0);
 	}
 
 	// Now unpack the message
-	kmresp = unpack_kinetic_message(kiov_rmsg->kiov_base, kiov_rmsg->kiov_len);
+	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
 		errno = K_EINTERNAL;
 		krc   = (kstatus_t) {
 			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to unpack kinetic message from response",
+			.ks_message = "Unable to unpack kinetic resp message",
 			.ks_detail  = "",
 		};
 
@@ -308,6 +242,14 @@ ki_del(int ktd, kv_t *kv)
  dex1:
 	destroy_message(kmresp.result_message);
  dex2:
+	/*
+	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
+	 * was made in kmreq before calling destroy.
+	 * See 'Setup msg_hdr' comment above for details.
+	 */
+	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
+	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.len = 0;
+	
 	destroy_message(kmreq.result_message);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
@@ -323,6 +265,51 @@ ki_del(int ktd, kv_t *kv)
 	return (krc);
 }
 
+/**
+ * ki_del(int ktd, kv_t *kv)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val should not be set 
+ * 		kv_vers and kv_verslen are ignored
+ * 		kv_dival and kv_divalen are ignored 
+ *		kv_ditype must be set if kv_dival is set
+ *		kv_cpolicy sets the caching strategy for this put
+ *			cpolicy of flush will flush the entire cache
+ *
+ * Delete the value specified by the given key.This call will force the 
+ * delete to complete without any version checks.
+ */
+kstatus_t
+ki_del(int ktd, kv_t *kv)
+{
+	int force;
+	return(d_del_generic(ktd, kv, force=1));
+}
+
+/**
+ * ki_cad(int ktd, kv_t *kv)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val should not be set
+ * 		kv_vers and kv_verslen are required.
+ * 		kv_newvers and kv_newverslen are required.
+ * 		kv_disum and kv_disumlen is ignored 
+ *		kv_ditype must be set if kv_dival is set
+ *		kv_cpolicy sets the caching strategy for this put
+ *			cpolicy of flush will flush the entire cache
+ *
+ * CAD performs a compare and delete for the given key. The key value is
+ * only deleted if kv_version matches the version in the DB. If there is
+ * no match the operation fails with the error K_EVERSION. 
+ * Once a successful check is complete, the given key and its value are
+ * deleted. 
+ */
+kstatus_t
+ki_cad(int ktd, kv_t *kv)
+{
+	int force;
+	return(d_del_generic(ktd, kv, force=0));
+}
 
 struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
 											 kv_t *cmd_data, int bool_shouldforce) {
@@ -350,11 +337,11 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	}
 
 	// to delete we need to specify the dbversion
-	set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_curver, cmd_data->kv_curverlen);
+	set_bytes_optional(&proto_cmd_body, dbversion, cmd_data->kv_ver, cmd_data->kv_verlen);
 
 	// if force is specified, then the dbversion is essentially ignored.
 	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce      );
-	set_primitive_optional(&proto_cmd_body, synchronization, cmd_data->kv_cachetype);
+	set_primitive_optional(&proto_cmd_body, synchronization, cmd_data->kv_cpolicy);
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
@@ -396,7 +383,7 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	// unpack the command bytes
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
-	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+	if (response_cmd == NULL) { return kv_status; }
 
 	// extract the response status to be returned. prepare this early to make cleanup easy
 	kproto_status_t *response_status = response_cmd->status;
@@ -426,7 +413,9 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	// check if there's any keyvalue information to parse
 	// (for PUT we expect this to be NULL or empty)
-	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+	if (!response_cmd->body || !response_cmd->body->keyvalue) {
+		return kv_status;
+	}
 
 	// ------------------------------
 	// begin extraction of command body into kv_t structure
@@ -438,8 +427,8 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// extract key name, db version, tag, and data integrity algorithm
 	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);
 
-	extract_bytes_optional(kv_data->kv_curver, kv_data->kv_curverlen, response, dbversion);
-	extract_bytes_optional(kv_data->kv_tag   , kv_data->kv_taglen   , response, tag      );
+	extract_bytes_optional(kv_data->kv_ver, kv_data->kv_verlen, response, dbversion);
+	extract_bytes_optional(kv_data->kv_disum, kv_data->kv_disumlen, response, tag);
 
 	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
 

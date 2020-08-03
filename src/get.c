@@ -142,10 +142,12 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		};
 	}
 	memset(kio, 0, sizeof(struct kio));
+	kio->kio_cmd = msg_type;
 
 	/* 
-	 * Allocate kio vectors array of size 2
-	 * One vector for the PDU and another for the full request message
+	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
+	 * is for the protobuf message. There is no value.
+	 * See message.h for more details.
 	 */
 	kio->kio_sendmsg.km_cnt = 2; 
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
@@ -159,7 +161,6 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	}
 
 	/* Hang the Packed PDU buffer, packing occurs later */
-	kio->kio_cmd = msg_type;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 
@@ -315,13 +316,13 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
  gex2:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
-	 * was made in kmreq before freeingcalling destroy.
+	 * was made in kmreq before calling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
 	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
 	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.len = 0;
 
-	printf("hkey[%p]: %s\n", cf->kcfg_hkey, cf->kcfg_hkey); 
+	destroy_message(kmreq.result_message);
 
 	/* sendmsg.km_msg[0] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);

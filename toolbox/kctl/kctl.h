@@ -28,26 +28,27 @@ enum kctl_cmd {
 
 struct kargs {
 	char		*ka_progname;
-	enum kctl_cmd	ka_cmd;		// command, ex. info, get, put
-	char		*ka_cmdstr;     // command ascii str, ex. "info", "get"
-	char		*ka_key;	// key, raw unencoded buffer
-	size_t		ka_keylen;	// key len, raw unencoded buffer
-	char		*ka_val;	// value, raw unencoded buffer
-	size_t		ka_vallen;	// value len, raw unencoded buffer
-	int64_t		ka_user;	// connection user ID 
-	char		*ka_hmac;	// connection password for user ID used
-	char		*ka_host;	// connection host 
-	char 		*ka_port;	// connection port, ex 8123 (nonTLS),
-					// 8443 (TLS), "kinetic"
-	uint32_t	ka_usetls;	// connection boolean to use TLS
-	uint32_t	ka_timeout;	// connection timeout
-	int64_t		ka_clustervers;	// Client cluster version number,
-					// must match server cluster version
-	uint32_t	ka_quiet;	// output ctl
-	uint32_t	ka_terse;	// output ctl
-	uint32_t	ka_verbose;	// output ctl
-	uint32_t	ka_yes;		// answer yes to any prompts
-};
+	enum kctl_cmd	ka_cmd;		/* KCTL_GETLOG, KCTL_GET */
+	char		*ka_cmdstr;     /* ex. "info", "get" */
+	char		*ka_key;	/* raw unencoded key buffer */
+	size_t		ka_keylen;	/* raw unencoded key buffer len */
+	char		*ka_val;	/* raw unencoded value buffer */
+	size_t		ka_vallen;	/* raw unencoded value buffer len */
+	int64_t		ka_user;	/* connection user ID  */
+	char		*ka_hkey;	/* connection user ID password */
+	char		*ka_host;	/* connection host  */
+	char 		*ka_port;	/* connection port, ex "8123", */
+					/* 8443 (TLS), "kinetic" */
+	uint32_t	ka_usetls;	/* connection boolean to use TLS */
+	uint32_t	ka_timeout;	/* connection timeout */
+	int64_t		ka_clustervers;	/* Client cluster version number, */
+					/* must match server cluster version */
+	uint32_t	ka_quiet;	/* output ctl */
+	uint32_t	ka_terse;	/* output ctl */
+	uint32_t	ka_verbose;	/* output ctl */
+	uint32_t	ka_yes;		/* answer yes to any prompts */
+	klimits_t	ka_limits;	/* Kinetic server limits */
+};					 
 
 /**
  * Ask for user input on stdin, boolean answer. Only chars 'yYnN' and a newline
