@@ -37,6 +37,145 @@
 struct kresult_message
 create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
+// TODO
+struct kio_msg create_io_segment(int segment_count) {
+	errno = K_EINTERNAL;
+	struct kiovec *io_segment = (struct kiovec *) KI_MALLOC(sizeof(struct kiovec) * segment_count);
+
+	if (!io_segment) {
+		return (struct kio_msg) {
+			.km_msg    = NULL,
+			.km_cnt    = 0,
+			.km_status = KIO_FAILED,
+			.km_errno  = errno,
+		};
+	}
+
+	errno = 0;
+	return (struct kio_msg) {
+		.km_msg    = io_segment,
+		.km_cnt    = segment_count,
+		.km_status = KIO_NEW,
+		.km_errno  = errno,
+	};
+}
+
+void *ki_malloc_and_zero(size_t malloc_size) {
+	errno               = K_EINTERNAL;
+	void *allocated_mem = KI_MALLOC(malloc_size);
+
+	if (allocated_mem) {
+		memset(allocated_mem, 0, malloc_size);
+		errno = 0;
+	}
+}
+
+kstatus_t initialize_kinetic_convo(int ktd, kv_t *kv, int force) {
+	// create the "conversation" (any request/response for an operation)
+	kconvo_t *kconvo = (kconvo_t *) ki_malloc_and_zero(sizeof(struct kinetic_conversation));
+	if (errno) { return kstatus_err(errno, KI_ERR_MALLOC, "put: kinetic conversation"); }
+
+	// create the kio structure for holding request/response data
+	kconvo->kc_kio = (struct kio *) ki_malloc_and_zero(sizeof(struct kio));
+	if (errno) { return kstatus_err(errno, KI_ERR_MALLOC, "put: struct kio"); }
+
+	/*
+	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
+	 * is for the protobuf message, and then elements 2 and beyond are
+	 * for the value. The size is variable as the value can come in
+	 * many parts from the caller. See message.h for more details.
+	 */
+	kconvo->kio_sendmsg = create_io_segment(2 + kv->kv_valcnt);
+	if (errno) { return kstatus_err(errno, KI_ERR_MALLOC, "put: kio sendmsg"); }
+
+	kconvo->kc_ktd      = ktd;
+	kconvo->kc_msgtype  = KMT_PUT;
+	kconvo->kc_msginput = (void *) kv;
+
+	step_validate_request(kconvo, force);
+}
+
+/* Get KTLI config then use it for validating request data */
+void step_validate_request(kconvo_t *kconvo, int force) {
+	struct ktli_config *cf;
+	int config_result_code = ktli_config(ktd, &cf);
+	if (config_result_code < 0) {
+		return kstatus_err(K_EREJECTED, KI_ERR_BADSESS, "put: validate request");
+	}
+	ses = (ksession_t *) cf->kcfg_pconf;
+
+	/* Validate the passed in kv */
+	int validate_result_code = ki_validate_kv(kv, force, &ses->ks_l);
+	if (validate_result_code < 0) {
+		return kstatus_err(errno, KI_ERR_INVARG, "put: validate kv");
+	}
+}
+
+void step_send_request(int ktd, kv_t *kv, int force) {
+	/* Hang the PDU buffer */
+	kio->kio_cmd = KMT_PUT;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
+
+	/*
+	 * copy the passed in value vector onto the sendmsg,
+	 * no value data is copied
+	 */
+	memcpy(&(kio->kio_sendmsg.km_msg[KIOV_VAL]), kv->kv_val,
+	       (sizeof(struct kiovec) * kv->kv_valcnt));
+
+	/*
+	 * Setup msg_hdr
+	 * One thing to note here is that although the msg hdr is being setup
+	 * it is too early to complete. The msg hdr will ultimately have a
+	 * HMAC cryptographic checksum of the requests command bytes, so that
+	 * server can authenticate and authorize the request. The command
+	 * bytes don't actually get finalized until a ktli_send is initiated.
+	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
+	 * used later on to calculate the actual HMAC which will then be hung
+	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr
+	 * in the kmreq. This reference needs to be removed before freeing
+	 * kmreq. See below at pex2:
+	 */
+	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
+	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_id    = cf->kcfg_id;
+	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
+
+	/* Setup cmd_hdr */
+	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
+	cmd_hdr.kch_type = KMT_PUT;
+
+	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, force);
+	if (kmreq.result_code == FAILURE) { goto pex2; }
+
+	/* pack the message and hang it on the kio */
+	/* PAK: Error handling */
+	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
+	rc = pack_kinetic_message(
+		(kproto_msg_t *) kmreq.result_message,
+		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
+		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
+	);
+
+	/* Now that the message length is known, setup the PDU */
+	pdu.kp_magic  = KP_MAGIC;
+	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
+
+	/* for kp_vallen, need to run through kv_val vector and addit up */
+	pdu.kp_vallen = 0;
+	for (i=0;i<kv->kv_valcnt; i++)
+		pdu.kp_vallen += kv->kv_val[i].kiov_len;
+
+	PACK_PDU(&pdu, ppdu);
+	printf("p_put_generic: PDU(x%2x, %d, %d)\n",
+	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+
+	/* Send the request */
+	ktli_send(ktd, kio);
+	printf ("Sent Kio: %p\n", kio);
+}
+
 kstatus_t
 p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 {
