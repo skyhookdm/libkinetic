@@ -125,6 +125,15 @@ typedef struct kb {
 	pthread_mutex_t  kb_m;		/* mutex protecting this structure */
 } kb_t;
 
+/* Internal types */
+typedef struct kinetic_conversation {
+	int         kc_ktd;      // This identifies the connection
+	kmtype_t    kc_msgtype;  // This contextualizes the data
+	void       *kc_msginput; // This is the provided input data
+	struct kio *kc_kio       // This contextualizes the communications
+} kconvo_t;
+
+
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
 
