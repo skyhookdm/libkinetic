@@ -39,12 +39,13 @@ extern int kctl_get(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_put(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_del(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_info(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_range(int argc, char *argv[], int kts, struct kargs *ka);
+
 #if 0
 extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_lock(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_acl(int argc, char *argv[], int kts, struct kargs *ka);
-extern int kctl_range(int argc, char *argv[], int kts, struct kargs *ka);
 #endif
 
 int kctl_nohandler(int argc, char *argv[], int kts, struct kargs *ka);
@@ -63,9 +64,10 @@ struct ktable {
 	{ KCTL_GETPREV, "getprev", "Get previous key value", &kctl_get},
 	{ KCTL_GETVERS, "getvers", "Get key value version", &kctl_get},
 	{ KCTL_PUT,     "put",     "Put key value", &kctl_put},
-	{ KCTL_DEL,     "del",     "Delete one or range of key values",
-	  &kctl_del},
+	{ KCTL_DEL,     "del",     "Delete key value(s)", &kctl_del},
 	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_info},
+	{ KCTL_RANGE,   "range",   "Print a range of keys", &kctl_range},
+
 #if 0
 	{ KCTL_SETCLUSTERV,
 	                "cluster", "Set device cluster version", &kctl_cluster},
@@ -74,7 +76,6 @@ struct ktable {
 	{ KCTL_LOCK,    "lock",    "Lock the kinetic device", &kctl_lock},
 	{ KCTL_UNLOCK,  "unlock",  "Unlock the kinetic device", &kctl_lock},
 	{ KCTL_ACL,     "acl",     "Create/Modify ACL", &kctl_acl},
-	{ KCTL_RANGE,   "range",   "Print a range of keys", &kctl_range},
 #endif
 	
 	/* End of Table (EOT) KEEP LAST */
