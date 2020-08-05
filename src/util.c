@@ -123,3 +123,26 @@ ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
 	return(0);
 }
 
+/** 
+ * Return the session's klimits_t strucuture. 
+ * Returning by value.
+ */
+klimits_t
+ki_limits(int ktd)
+{
+	int rc;
+	klimits_t elimits;
+	struct ktli_config *cf;
+	ksession_t *ses;
+
+	memset((void *)&elimits, 0, sizeof(klimits_t));
+	
+	/* Get KTLI config */
+	rc = ktli_config(ktd, &cf);
+	if (rc < 0)
+		return elimits;
+
+	ses = (ksession_t *)cf->kcfg_pconf;
+	
+	return(ses->ks_l);
+}

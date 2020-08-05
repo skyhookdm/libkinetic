@@ -76,6 +76,20 @@ enum {
 };
 
 /**
+ * koivec structure
+ *
+ * The kiovec structure originally was a KTLI structure
+ * used to pass logically assembled buffers to the transport layer 
+ * without copying them into a single contiguous buffer. It is analogous to
+ * Linux's iovec structure.  In libkinetic, the kiovec is also used to move
+ * around keys and values that may be assembled from multiple parts. 
+ */
+struct kiovec {
+	size_t  kiov_len;     /* Number of bytes */
+	void   *kiov_base;    /* Starting address */
+};
+
+/**
  * kv_t structure
  *
  * kv_key	Is a kiovec vector(array) of buffer(s) containing a single
@@ -124,9 +138,75 @@ typedef struct kv {
 	void        (*destroy_protobuf)(struct kv *kv_data);
 } kv_t;
 
+/** 
+ * Key Range structure
+ * 
+ * Key ranges are key spaces, denoted by the 5-tuple, 
+ * 	<start, end, starti, endi, count>
+ * 	o Start key. This key denotes the beginning of the range. This key
+ * 	  and may or may not exist. The specification of just a start key is 
+ *	  interpretted to mean non-inclusive to that key, i.e. first key 
+ * 	  in the range will be the key that directly follows the start key.
+ *	o End key. This key denotes the ending of the range. This key 
+ *	  and may or may not exist. The specification of just a end key is 
+ *	  interpretted to mean non-inclusive to that key, i.e. last key 
+ * 	  in the range will be the key that directly precedes the end key.
+ * 	o Start inclusive boolean. This boolean allows for the start key to
+ * 	  be included in the range.
+ * 	o End inclusive boolean. This boolean allows for the end key to
+ * 	  be included in the range. 
+ *	o Count: this designates how many keys are requested or present in the
+ * 	  defined range. The number of keys present in the range 
+ * 	  may less than than the number of possible keys in the defined key 
+ * 	  space. The number of keys present may also be less than the number 
+ *	  requested. 
+ *
+ * This structure also contains:
+ *  kr_start	Start key. Single kio vector representing a single key.
+ *  kr_end	End key. Single kio vector representing a single key.
+ *  kr_flags	Bitmap that encodes the insclusive booleans for start and end
+ *  kr_count	Contains requested number of keys in the range.
+ *  kr_keys	Actual key list that is represented by the defined 
+ *		key range 5-tuple above. It is kiovec array where each element
+ *		is a single key. 
+ *  kr_keyscnt	Contains the number of keys in the key list, kr_keys.
+ */
+typedef enum krange_flags {
+	KF_ISTART 	= 0x01,
+	KF_IEND		= 0x02,
+} krange_flags_t;
+
+typedef struct krange {
+	uint32_t	kr_flags;	/* Inclusive booleans */
+	struct kiovec	kr_start;	/* Start key */ 
+	struct kiovec	kr_end;		/* End key */
+	int32_t		kr_count;	/* Num of requested keys in the range */
+	struct kiovec	*kv_keys;	/* Key array, one key per vector */
+	int32_t		kv_keyscnt;	/* kr_keys array elemnt count */
+#define KVR_COUNT_INF			(-1)
+#define KVR_FLAG_SET(_kvr, _kvrf)	((_kvr)->kr_flags |= (_kvrf))
+#define KVR_FLAG_CLR(_kvr, _kvrf)	((_kvr)->kr_flags ^= ~(_kvrf))
+#define KVR_FLAG_ISSET(_kvr, _kvrf)	((_kvr)->kr_flags & (_kvrf))
+#define KVR_ISTART(_kvr)		((_kvr)->kr_flags & KF_ISTART)
+#define KVR_IEND(_kvr)			((_kvr)->kr_flags & KF_IEND)
+} krange_t;
+
+/**
+ * Key Range Iter structure
+ *
+ * This structure permits the iteration through a key a defined keyrange
+ * Unlike the the key 
+ */
+typedef struct kv_iter {
+	int		ki_ktd;
+	krange_t	ki_range;
+	char 		*ki_cstart;	/* Current start */
+	char 		*ki_cend;	/* Current end */ 
+} kv_iter_t;
+
 typedef struct keyrange {
-	struct kiovec  *kr_startkey;
-	size_t          kr_startkeycnt;
+	struct kiovec  *start_key;
+	size_t          start_keycnt;
 
 	struct kiovec  *kr_endkey;
 	size_t          kr_endkeycnt;
@@ -182,22 +262,21 @@ typedef struct kstatus {
 	char		*ks_detail;
 } kstatus_t;
 
-struct kiovec {
-	size_t  kiov_len;     /* Number of bytes to transfer */
-	void   *kiov_base;    /* Starting address */
-};
-
-
 /**
  * The API.
  */
 int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac);
 int ki_close(int ktd);
 
+klimits_t ki_limits(int ktd);
+
 kstatus_t ki_setclustervers(int ktd, int64_t vers);
 
 kstatus_t ki_put(int ktd, kv_t *key);
 kstatus_t ki_cas(int ktd, kv_t *key);
+
+kstatus_t ki_del(int ktd, kv_t *key);
+kstatus_t ki_cad(int ktd, kv_t *key);
 
 kstatus_t ki_get(int ktd, kv_t *key);
 kstatus_t ki_getnext(int ktd, kv_t *key, kv_t *next);

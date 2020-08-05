@@ -23,7 +23,7 @@ struct kargs kargs = {
 	.ka_val		= (char *)"<none>",
 	.ka_vallen	= 6,
 	.ka_user 	= 1,
-	.ka_hmac	= (char *)"asdfasdf",
+	.ka_hkey	= (char *)"asdfasdf",
 	.ka_host	= (char *)"127.0.0.1",
 	.ka_port	= "8123",
 	.ka_usetls	= 0,
@@ -37,9 +37,7 @@ struct kargs kargs = {
 
 extern int kctl_get(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_put(int argc, char *argv[], int kts, struct kargs *ka);
-#if 0
 extern int kctl_del(int argc, char *argv[], int kts, struct kargs *ka);
-#endif
 extern int kctl_info(int argc, char *argv[], int kts, struct kargs *ka);
 #if 0
 extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
@@ -65,10 +63,8 @@ struct ktable {
 	{ KCTL_GETPREV, "getprev", "Get previous key value", &kctl_get},
 	{ KCTL_GETVERS, "getvers", "Get key value version", &kctl_get},
 	{ KCTL_PUT,     "put",     "Put key value", &kctl_put},
-#if 0
-	{ KCTL_DEL,     "del",     "Delete key value or range of key values",
+	{ KCTL_DEL,     "del",     "Delete one or range of key values",
 	  &kctl_del},
-#endif
 	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_info},
 #if 0
 	{ KCTL_SETCLUSTERV,
@@ -113,7 +109,7 @@ usage()
 	fprintf(stderr, "\t-p port      Port number [%s]\n", kargs.ka_port);
 	fprintf(stderr, "\t-s           Use SSL [no]\n");
 	fprintf(stderr, "\t-u id        User ID [%ld]\n", kargs.ka_user);
-	fprintf(stderr,	"\t-m hmac      HMAC Key [%s]\n", kargs.ka_hmac);
+	fprintf(stderr,	"\t-m hkey      HMAC Key [%s]\n", kargs.ka_hkey);
 	fprintf(stderr, "\t-c version   Client Cluster Version [0]\n");
 	fprintf(stderr,	"\t-T timeout   Timeout in seconds [%d]\n",
 		kargs.ka_timeout);
@@ -133,13 +129,13 @@ print_args(struct kargs *ka)
 {
 #define PA_LABEL_WIDTH  "12"
 	printf("%" PA_LABEL_WIDTH "s kinetic%s://%ld:%s@%s:%s/%s\n", "URL:",
-	       ka->ka_usetls?"s":"", ka->ka_user, ka->ka_hmac,
+	       ka->ka_usetls?"s":"", ka->ka_user, ka->ka_hkey,
 	       ka->ka_host, ka->ka_port, ka->ka_cmdstr);
 	
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Host:", ka->ka_host);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Port:", ka->ka_port);
 	printf("%" PA_LABEL_WIDTH "s %ld\n", "UserID:", ka->ka_user);
-	printf("%" PA_LABEL_WIDTH "s %s\n", "HMAC Key:", ka->ka_hmac);
+	printf("%" PA_LABEL_WIDTH "s %s\n", "HMAC Key:", ka->ka_hkey);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Use TLS:", ka->ka_usetls);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Timeout:", ka->ka_timeout);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Quiet:", ka->ka_quiet);
@@ -164,7 +160,7 @@ main(int argc, char *argv[])
 			kargs.ka_host = optarg;
 			break;
 		case 'm':
-			kargs.ka_hmac = optarg;
+			kargs.ka_hkey = optarg;
 			break;
 		case 'p':
 			kargs.ka_port = optarg;
@@ -249,13 +245,20 @@ kctl(int argc, char *argv[], struct kargs *ka)
 	int i, rc, ktd;
 	
 	ktd = ki_open(ka->ka_host, ka->ka_port,
-		      ka->ka_usetls, ka->ka_user, ka->ka_hmac);
+		      ka->ka_usetls, ka->ka_user, ka->ka_hkey);
 	
 	if (ktd < 0) {
 		fprintf(stderr, "%s: Connection Failed\n", ka->ka_progname);
 		return(EINVAL);
 	}
 
+	ka->ka_limits = ki_limits(ktd);
+	if (!ka->ka_limits.kl_keylen) {
+		fprintf(stderr, "%s: Unable to get kinetic limits\n",
+			ka->ka_progname);
+		return(EINVAL);
+	}
+		
 	for(i=0; i<KCTL_EOT; i++) {
 		if (ktable[i].ktab_cmd == kargs.ka_cmd) {
 			/* Found a good command, call it */

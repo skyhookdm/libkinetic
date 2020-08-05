@@ -9,9 +9,6 @@
 #include <kinetic/kinetic.h>
 #include "kctl.h"
 
-/* PAK: Need to do a getlog and setup limits structure instead of this */
-#define MAXSUM 128
-
 #define VERLEN 11
 
 /* used to dumpprint cache policy */
@@ -29,7 +26,6 @@ kctl_put_usage(struct kargs *ka)
 	fprintf(stderr, "\t-p [wt|wb|f] Cache policy:\n");
 	fprintf(stderr, "\t             writethrough, writeback, flush [wb]\n");
 	fprintf(stderr, "\t-s sum       Value CRC32 sum (8 hex digits) [0] \n");
-	fprintf(stderr, "\t             limited to %d characters\n", MAXSUM);
 	fprintf(stderr, "\t-?           Help\n");
 	fprintf(stderr, "\nWhere, KEY and VALUE are quoted strings that can contain arbitrary\n");
 	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
@@ -52,13 +48,13 @@ kctl_put_usage(struct kargs *ka)
 int
 kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 {
- 	extern char     	*optarg;
-        extern int		optind, opterr, optopt;
-        char			c;
-	kcachepolicy_t		cpolicy = KC_WB;
-	int 			cmpswp=0, exists=0;
-	uint32_t		sum = 0;
-	char			newver[VERLEN]; // holds hex representation of
+ 	extern char     *optarg;
+        extern int	optind, opterr, optopt;
+        char		c;
+	kcachepolicy_t	cpolicy = KC_WB;
+	int 		cmpswp=0, exists=0;
+	uint32_t	sum = 0;
+	char		newver[VERLEN]; 	// holds hex representation of
 						// one int: "0x00000000"
 	kv_t		kv;
 	struct kiovec	kv_key[1]  = {0, 0};
@@ -135,8 +131,14 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	kv.kv_valcnt = 1;
 	
 	/*
-	 * Hang the key
+	 * Check and hang the key
 	 */
+	if (ka->ka_keylen > ka->ka_limits.kl_keylen ||
+	    ka->ka_vallen > ka->ka_limits.kl_vallen) {
+		fprintf(stderr, "*** Key and/or value too long\n");
+		return(-1);
+	}
+ 
 	kv.kv_key[0].kiov_base = ka->ka_key;
 	kv.kv_key[0].kiov_len  = ka->ka_keylen;
 
