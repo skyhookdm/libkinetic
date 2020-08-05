@@ -83,6 +83,7 @@ p_put_generic(int ktd, kv_t *kv, int force)
 		};
 	}
 	memset(kio, 0, sizeof(struct kio));
+	kio->kio_cmd = KMT_PUT;
 
 	/* 
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
@@ -102,7 +103,6 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	}
 
 	/* Hang the PDU buffer, packing occurs later */
-	kio->kio_cmd = KMT_PUT;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
@@ -210,9 +210,6 @@ p_put_generic(int ktd, kv_t *kv, int force)
 		rc = -1;
 		goto pex1;
 	}
-
-	/* errno set by validate */
-	// rc = gl_validate_resp(glog);
 
 	/* clean up */
  pex1:

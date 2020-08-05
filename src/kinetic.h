@@ -147,10 +147,15 @@ typedef struct kv {
  * 	  and may or may not exist. The specification of just a start key is 
  *	  interpretted to mean non-inclusive to that key, i.e. first key 
  * 	  in the range will be the key that directly follows the start key.
+ *	  A NULL start key is interpretted as an empty string i.e. the first
+ *	  possible key. 
  *	o End key. This key denotes the ending of the range. This key 
  *	  and may or may not exist. The specification of just a end key is 
  *	  interpretted to mean non-inclusive to that key, i.e. last key 
  * 	  in the range will be the key that directly precedes the end key.
+ *	  A NULL end key is interpretted as an a key of all 0xFF's up to the 
+ *	  the maximum length of key for that session, i.e. the last possible 
+ *	  key. 
  * 	o Start inclusive boolean. This boolean allows for the start key to
  * 	  be included in the range.
  * 	o End inclusive boolean. This boolean allows for the end key to
@@ -162,33 +167,45 @@ typedef struct kv {
  *	  requested. 
  *
  * This structure also contains:
- *  kr_start	Start key. Single kio vector representing a single key.
- *  kr_end	End key. Single kio vector representing a single key.
+ *  kr_start	Start key. A kio vector representing a single key.
+ *  kr_end	End key. A kio vector representing a single key.
  *  kr_flags	Bitmap that encodes the insclusive booleans for start and end
  *  kr_count	Contains requested number of keys in the range.
  *  kr_keys	Actual key list that is represented by the defined 
- *		key range 5-tuple above. It is kiovec array where each element
- *		is a single key. 
+ *		key range 5-tuple above. It is kiovec array where each vector
+ *		element is a single key. 
  *  kr_keyscnt	Contains the number of keys in the key list, kr_keys.
  */
 typedef enum krange_flags {
-	KF_ISTART 	= 0x01,
-	KF_IEND		= 0x02,
+	/* bitmap enum */
+	KRF_NONE	= 0x0000,
+	KRF_ISTART 	= 0x0001,
+	KRF_IEND	= 0x0002,
+	KRF_REVERSE	= 0x0100,
+	
+	KRF_VALIDMASK	= 0x0103, 
 } krange_flags_t;
 
 typedef struct krange {
 	uint32_t	kr_flags;	/* Inclusive booleans */
-	struct kiovec	kr_start;	/* Start key */ 
-	struct kiovec	kr_end;		/* End key */
+	struct kiovec	*kr_start;	/* Start key */ 
+	size_t		kr_startcnt;	/* kr_start array elemnt count */
+	struct kiovec	*kr_end;	/* End key */
+	size_t		kr_endcnt;	/* kr_end array elemnt count */
 	int32_t		kr_count;	/* Num of requested keys in the range */
-	struct kiovec	*kv_keys;	/* Key array, one key per vector */
-	int32_t		kv_keyscnt;	/* kr_keys array elemnt count */
+	struct kiovec	*kr_keys;	/* Key array, one key per vector */
+	size_t		kr_keyscnt;	/* kr_keys array elemnt count */
 #define KVR_COUNT_INF			(-1)
-#define KVR_FLAG_SET(_kvr, _kvrf)	((_kvr)->kr_flags |= (_kvrf))
-#define KVR_FLAG_CLR(_kvr, _kvrf)	((_kvr)->kr_flags ^= ~(_kvrf))
-#define KVR_FLAG_ISSET(_kvr, _kvrf)	((_kvr)->kr_flags & (_kvrf))
-#define KVR_ISTART(_kvr)		((_kvr)->kr_flags & KF_ISTART)
-#define KVR_IEND(_kvr)			((_kvr)->kr_flags & KF_IEND)
+#define KR_FLAG_SET(_kvr, _kvrf)	((_kvr)->kr_flags |= (_kvrf))
+#define KR_FLAG_CLR(_kvr, _kvrf)	((_kvr)->kr_flags ^= ~(_kvrf))
+#define KR_FLAG_ISSET(_kvr, _kvrf)	((_kvr)->kr_flags & (_kvrf))
+#define KR_ISTART(_kvr)			((_kvr)->kr_flags & KRF_ISTART)
+#define KR_IEND(_kvr)			((_kvr)->kr_flags & KRF_IEND)
+#define KR_REVERSE(_kvr)		((_kvr)->kr_flags & KRF_REVERSE)
+
+	// NOTE: currently, this also frees keyrange_data
+	void        *keyrange_protobuf;
+	void        (*destroy_protobuf)(struct krange *keyrange_data);
 } krange_t;
 
 /**
@@ -204,6 +221,7 @@ typedef struct kv_iter {
 	char 		*ki_cend;	/* Current end */ 
 } kv_iter_t;
 
+#if 0
 typedef struct keyrange {
 	struct kiovec  *start_key;
 	size_t          start_keycnt;
@@ -230,6 +248,7 @@ typedef struct keyrange {
 typedef struct batch {
 } kb_t;
 
+#endif
 
 /* ------------------------------
  * Types for interfacing with API
@@ -283,7 +302,7 @@ kstatus_t ki_getnext(int ktd, kv_t *key, kv_t *next);
 kstatus_t ki_getprev(int ktd, kv_t *key, kv_t *prev);
 kstatus_t ki_getversion(int ktd, kv_t *key);
 
-kstatus_t ki_range(int ktd, kr_t *keyrange);
+kstatus_t ki_range(int ktd, krange_t *kr);
 
 kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
