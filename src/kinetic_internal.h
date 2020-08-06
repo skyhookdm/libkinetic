@@ -1,9 +1,9 @@
 #ifndef _KINETIC_INT_H
 #define _KINETIC_INT_H
 
+#include "kinetic.h"
 #include "message.h"
 #include "session.h"
-#include "kinetic.h"
 #include "getlog.h"
 
 /* ------------------------------
@@ -48,14 +48,22 @@
 }
 
 // extract bytes (ProtobufCBinaryData) to char * (null-terminated string)
-#define copy_bytes_optional(lptr, proto_struct, field) { \
-	if ((proto_struct)->has_##field) {                   \
-		memcpy(                                          \
-			lptr,                                        \
-			(proto_struct)->field.data,                  \
-			(proto_struct)->field.len                    \
-		);                                               \
-	}                                                    \
+#define copy_bytes_optional(lptr, proto_struct, field) {   \
+	if ((proto_struct)->has_##field) {                     \
+		lptr = (char *) KI_MALLOC(                         \
+			sizeof(char) * ((proto_struct)->field.len + 1) \
+		);                                                 \
+                                                           \
+		if (lptr != NULL) {                                \
+			memcpy(                                        \
+				lptr,                                      \
+				(proto_struct)->field.data,                \
+				(proto_struct)->field.len                  \
+			);                                             \
+														   \
+			lptr[(proto_struct)->field.len] = '\0';        \
+		}                                                  \
+	}                                                      \
 }
 
 /* - From custom structs to protobuf structs - */
@@ -73,6 +81,15 @@
 		.len  =             rsize,                             \
 	};                                                         \
 }
+
+// macro for constructing errors concisely
+#define kstatus_err(kerror_code, ki_errtype, kerror_detail) ( \
+	(kstatus_t) {                                             \
+		.ks_code    = (kerror_code)  ,                        \
+		.ks_message = (ki_error_msgs[(ki_errtype)]),          \
+		.ks_detail  = (kerror_detail),                        \
+	}                                                         \
+)
 
 
 /* Some utilities */
