@@ -269,7 +269,7 @@ gl_validate_resp(kgetlog_t *glrq, kgetlog_t *glrsp)
 kstatus_t
 ki_getlog(int ktd, kgetlog_t *glog)
 {
-	int rc, n;
+	int rc;
 	kstatus_t krc;
 	struct kio *kio;
 	struct kiovec *kiov;
@@ -285,53 +285,36 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	/* Get KTLI config */ 
 	rc = ktli_config(ktd, &cf);
-	if (rc < 0) {
-		return (kstatus_t) {
-			.ks_code    = K_EREJECTED,
-			.ks_message = "Bad session",
-			.ks_detail  = "",
-		};
-	}
+	if (rc < 0) { return kstatus_err(K_EREJECTED, KI_ERR_BADSESS, ""); }
+
 	ses = (ksession_t *)cf->kcfg_pconf;
 
-	/* Validate the passed in glog */
+	/* Validate the passed in glog; this function sets errno */
 	rc = gl_validate_req(glog);
-	if (rc < 0) {
-		return (kstatus_t) {
-			.ks_code    = errno,
-			.ks_message = "Invalid getlog request",
-			.ks_detail  = "",
-		};
-	}
+	if (rc < 0) { return kstatus_err(errno, KI_ERR_INVARGS, "getlog: validation"); }
 
-	/* create the kio structure */
+	/* create the kio structure; first malloc, so we return on failure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
-	if (!kio) {
-		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
-	}
+	if (!kio) { return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "getlog: kio"); }
+
 	memset(kio, 0, sizeof(struct kio));
-	kio->kio_cmd = KMT_GETLOG;
 
 	/* Alocate the kio vectors */
-	kio->kio_sendmsg.km_cnt = 2; /* PDU and protobuf */
-	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
+	kio->kio_cmd = KMT_GETLOG;
+
+	kio->kio_sendmsg.km_cnt = 2; /* PDU and request */
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	);
+
 	if (!kio->kio_sendmsg.km_msg) {
-		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "getlog: kio_sendmsg");
+		goto glex_kio;
 	}
 
 	/* Hang the Packed PDU buffer, packing occurs later */
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) ppdu;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
-
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
 	/* 
 	 * Setup msg_hdr 
@@ -344,13 +327,12 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	 * used later on to calculate the actual HMAC which will then be hung
 	 * of the kmh_hmac field.  A reference is made to the kcfg_hkey ptr 
 	 * in the kmreq. This reference needs to be removed before freeing 
-	 * kmreq. See below at glex2:
+	 * kmreq. See below at glex_req:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
-	
 
 	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
@@ -358,7 +340,8 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	kmreq = create_getlog_message(&msg_hdr, &cmd_hdr, glog);
 	if (kmreq.result_code == FAILURE) {
-		goto glex2;
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "getlog: request");
+		goto glex_req;
 	}
 
 	/* pack the message and hang it on the kio */
@@ -389,85 +372,69 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 		/* Check to see if it our response */
 		rc = ktli_receive(ktd, kio);
-		if (rc < 0)
-			if (errno == ENOENT)
-				/* Not our response, so try again */
-				continue;
+		if (rc < 0) {
+			/* Not our response, so try again */
+			if (errno == ENOENT) { continue; }
 			else {
 				/* PAK: need to exit, receive failed */
+				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG, "getlog: recvmsg");
+				goto glex_sendmsg;
 			}
-		else
-			/* Got our response */
-			break;
+		}
+
+		/* Got our response */
+		else { break; }
 	} while (1);
 
-	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
+	kiov   = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		/* cleanup and return error */
-		rc = -1;
-		goto glex2;
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_UNPACK, "getlog: unpack response");
+		goto glex_recvmsg;
 	}
 
+	/* NOTES:
+	 *	- we use glog2 here in case we want to validate it separately from glog
+	 *	- on success, we memcpy glog2. So _don't_ destroy it, otherwise glog will have free'd
+	 *	  pointers.
+	 *	- on failure, extract_getlog will have already destroyed glog2 as much as possible
+	 */
 	krc = extract_getlog(&kmresp, &glog2);
-	if (krc.ks_code != K_OK) {
-		rc = -1;
-		goto glex1;
+
+	// if successful, memcpy into glog (no separate validation at the moment)
+	if (krc.ks_code == K_OK) {
+		memcpy(glog, &glog2, sizeof(kgetlog_t));
 	}
 
-#if 0
-	/* PAK: Validate passed back structures */
-	rc = gl_validate_resp(glog, &glog2);
-	if (rc < 0) {
-		/* errno set by validate */
-		rc = -1;
-		goto glex1;
-	}
-#endif
-	/*
-	 * PAK: Need to deallocate things
-	 */
-	memcpy(glog, &glog2, sizeof(kgetlog_t));
-#if 0
-	if (krc.ks_message != NULL) { KI_FREE(krc.ks_message); }
-	if (krc.ks_detail  != NULL) { KI_FREE(krc.ks_detail);  }
-#endif
-	return (krc);
-
-	/* NOTE: When free-ing glog2 or glog, it should be done as follows:
-	 * glog->destroy_protobuf(&glog);
-	 * glog2->destroy_protobuf(&glog2);
-	 */
-	
 	/* clean up */
- glex1:
+ glex_resp:
 	destroy_message(kmresp.result_message);
- glex2:
+
+ glex_recvmsg:
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg);
+
+ glex_sendmsg:
+	/* sendmsg.km_msg[0] Not allocated, static */
+	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_sendmsg.km_msg);
+
+ glex_req:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
 	 * was made in kmreq before calling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
-	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
-	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.len = 0;
+	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
+	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len = 0;
 	
 	destroy_message(kmreq.result_message);
-	destroy_message(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
-	/* sendmsg.km_msg[0] Not allocated, static */
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg);
-	KI_FREE(kio->kio_sendmsg.km_msg);
+glex_kio:
 	KI_FREE(kio);
 
-	// TODO: translate rc error code into kstatus_t
-	// return (rc);
-	return (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = "Error sending getlog request: glex2",
-		.ks_detail  = "",
-	};
+	return (krc);
 }
 
 /*
@@ -665,7 +632,7 @@ void extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
 		extract_primitive_optional(getlog_data->kgl_limits.kl_keylen     , limits, maxkeysize                 );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_vallen     , limits, maxvaluesize               );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_verlen     , limits, maxversionsize             );
-		extract_primitive_optional(getlog_data->kgl_limits.kl_disumlen     , limits, maxtagsize                 );
+		extract_primitive_optional(getlog_data->kgl_limits.kl_disumlen   , limits, maxtagsize                 );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_msglen     , limits, maxmessagesize             );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_pinlen     , limits, maxpinsize                 );
 		extract_primitive_optional(getlog_data->kgl_limits.kl_batlen     , limits, maxbatchsize               );
@@ -691,59 +658,68 @@ void destroy_protobuf_getlog(kgetlog_t *getlog_data) {
 	destroy_command((kproto_getlog_t *) getlog_data->kgl_protobuf);
 
 	// then free arrays of pointers that point to the message data
-	if (getlog_data->kgl_util) { free(getlog_data->kgl_util); }
-	if (getlog_data->kgl_temp) { free(getlog_data->kgl_temp); }
-	if (getlog_data->kgl_stat) { free(getlog_data->kgl_stat); }
+	if (getlog_data->kgl_util) { KI_FREE(getlog_data->kgl_util); }
+	if (getlog_data->kgl_temp) { KI_FREE(getlog_data->kgl_temp); }
+	if (getlog_data->kgl_stat) { KI_FREE(getlog_data->kgl_stat); }
 
 	if (getlog_data->kgl_conf.kcf_serial) {
-		free(getlog_data->kgl_conf.kcf_serial);
+		KI_FREE(getlog_data->kgl_conf.kcf_serial);
 	}
 
 	if (getlog_data->kgl_conf.kcf_wwn) {
-		free(getlog_data->kgl_conf.kcf_wwn);
+		KI_FREE(getlog_data->kgl_conf.kcf_wwn);
 	}
 
 	if (getlog_data->kgl_conf.kcf_interfaces) {
-		free(getlog_data->kgl_conf.kcf_interfaces);
+		KI_FREE(getlog_data->kgl_conf.kcf_interfaces);
 	}
 
 	// free the struct itself last
-	// NOTE: we may want to leave this to a caller?
-	free(getlog_data);
+	// NOTE: sometimes a non-allocated pointer is provided
+	// KI_FREE(getlog_data);
 }
 
 kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog_data) {
-	kstatus_t getlog_status = {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = NULL,
-		.ks_detail  = NULL
-	};
-
-	// commandbytes should exist, but we should probably be thorough
+	kstatus_t getlog_status           = kstatus_err(K_EINTERNAL, KI_ERR_NOMSG, "");
 	kproto_msg_t *getlog_response_msg = (kproto_msg_t *) response_msg->result_message;
-	if (!getlog_response_msg->has_commandbytes) { return getlog_status; }
 
-	// unpack the command bytes
+	// check that there is command data
+	if (!getlog_response_msg->has_commandbytes) {
+		return kstatus_err(K_EINTERNAL, KI_ERR_NOCMD, "getlog: extract");
+	}
+
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(getlog_response_msg->commandbytes);
-	if (response_cmd->body->getlog == NULL) { return getlog_status; }
+	if (!response_cmd) {
+		return kstatus_err(K_EINTERNAL, KI_ERR_CMDUNPACK, "getlog: extract");
+	}
 
-	// extract the response status to be returned. prepare this early to make cleanup easy
+	// extract the kinetic response status; copy the data for data independence
 	kproto_status_t *response_status = response_cmd->status;
 
-	// copy the status message so that destroying the unpacked command doesn't get weird
-	if (!response_status->has_code) {
+	if (response_status && response_status->has_code) {
+		// copy protobuf string
 		size_t statusmsg_len     = strlen(response_status->statusmessage);
 		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		if (!response_statusmsg) {
+			getlog_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "getlog: extract status msg");
+			goto extract_glex;
+		}
 		strcpy(response_statusmsg, response_status->statusmessage);
 
+		// copy protobuf bytes field to null-terminated string
 		char *response_detailmsg = NULL;
-		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
-			memcpy(
-				response_detailmsg,
-				response_status->detailedmessage.data,
-				response_status->detailedmessage.len
+		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
+
+		// assume malloc failed if there's a message but our pointer is still NULL
+		if (response_status->has_detailedmessage && !response_detailmsg) {
+			KI_FREE(response_statusmsg);
+			getlog_status = kstatus_err(
+				K_EINTERNAL,
+				KI_ERR_MALLOC,
+				"getlog: extract status detail"
 			);
+
+			goto extract_glex;
 		}
 
 		getlog_status = (kstatus_t) {
@@ -753,7 +729,9 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 		};
 	}
 
-	// ------------------------------
+	// check that there's a command body and getlog data
+	if (!response_cmd->body || !response_cmd->body->getlog) { return getlog_status; }
+
 	// begin extraction of command body into getlog structure
 	getlog_data->kgl_protobuf     = NULL;
 	getlog_data->destroy_protobuf = NULL;
@@ -761,30 +739,24 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	kproto_getlog_t *response = response_cmd->body->getlog;
 
 	// 0 is success, < 0 is failure. Use this for all the extract functions
-	int extract_result        = 0;
-	int num_successful_allocs = 0;
+	int extract_result;
 
 	getlog_data->kgl_typecnt = response->n_types;
 	getlog_data->kgl_type    = response->types;
 
 	// repeated fields
-	extract_result = extract_utilizations(getlog_data, response->n_utilizations, response->utilizations);
-	if (extract_result < 0) { return getlog_status; }
+	extract_result = extract_utilizations(
+		getlog_data, response->n_utilizations, response->utilizations
+	);
+	if (extract_result < 0) { goto extract_glex; }
 
-	extract_result = extract_temperatures(getlog_data, response->n_temperatures, response->temperatures);
-	if (extract_result < 0) {
-		free(getlog_data->kgl_util); 
-
-		return getlog_status;
-	}
+	extract_result = extract_temperatures(
+		getlog_data, response->n_temperatures, response->temperatures
+	);
+	if (extract_result < 0) { goto extract_glex; }
 
 	extract_result = extract_statistics(getlog_data, response->n_statistics, response->statistics);
-	if (extract_result < 0) {
-		free(getlog_data->kgl_util); 
-		free(getlog_data->kgl_temp); 
-
-		return getlog_status;
-	}
+	if (extract_result < 0) { goto extract_glex; }
 
 	// then optional fields (can't use macro because the field needs to be decomposed)
 	if (response->has_messages) {
@@ -794,19 +766,17 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 
 	// then other fields
 	if (response->capacity) {
-		extract_primitive_optional(getlog_data->kgl_cap.kc_total, response->capacity, nominalcapacityinbytes);
-		extract_primitive_optional(getlog_data->kgl_cap.kc_used , response->capacity, portionfull);
+		extract_primitive_optional(
+			getlog_data->kgl_cap.kc_total, response->capacity, nominalcapacityinbytes
+		);
+
+		extract_primitive_optional(
+			getlog_data->kgl_cap.kc_used , response->capacity, portionfull
+		);
 	}
 
 	extract_result = extract_configuration(getlog_data, response->configuration);
-	if (extract_result < 0) {
-		free(getlog_data->kgl_util); 
-		free(getlog_data->kgl_temp); 
-		free(getlog_data->kgl_stat); 
-
-		return getlog_status;
-	}
-	num_successful_allocs++;
+	if (extract_result < 0) { goto extract_glex; }
 
 	// no allocations, so this "can't fail"
 	extract_limits(getlog_data, response->limits);
@@ -820,6 +790,23 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	getlog_data->kgl_protobuf     = response_cmd;
 	getlog_data->destroy_protobuf = destroy_protobuf_getlog;
 
-	getlog_status.ks_code = K_OK;
+	// TODO: test that this is not needed
+	// getlog_status.ks_code = K_OK;
+	return getlog_status;
+
+	// label for cleanup (for errors after allocations)
+extract_glex:
+	// set this so `destroy_protobuf_getlog` can correctly destroy it
+	getlog_data->kgl_protobuf = response_cmd;
+
+	// this function destroys everything we may have allocated
+	destroy_protobuf_getlog(getlog_data);
+
+	// Just make sure we don't return an ok message
+	if (getlog_status.ks_code == K_OK) {
+		getlog_status.ks_code = K_EINTERNAL;
+	}
+
+	// NOTE: We don't free getlog_data, in case it's a non-allocated pointer
 	return getlog_status;
 }
