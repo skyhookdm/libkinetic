@@ -1,14 +1,14 @@
 #include "kinetic_internal.h"
 
 const char *ki_error_msgs[] = {
-	/* 0x00  0 */ "",
-	/* 0x01  1 */ "Unable to allocate memory",
-	/* 0x02  2 */ "Bad Session",
-	/* 0x03  3 */ "Invalid Argument(s)",
-	/* 0x04  4 */ "Unable to unpack kinetic message",
-	/* 0x05  5 */ "Unable to unpack kinetic command",
-	/* 0x06  6 */ "Message has no command data",
-	/* 0x07  7 */ "Unable to construct kinetic request",
-	/* 0x08  8 */ "Failed to receive message",
+	/* KI_ERR_NOMSG     */ "",
+	/* KI_ERR_MALLOC    */ "Unable to allocate memory",
+	/* KI_ERR_BADSESS   */ "Bad Session",
+	/* KI_ERR_INVARGS   */ "Invalid Argument(s)",
+	/* KI_ERR_MSGUNPACK */ "Unable to unpack kinetic message",
+	/* KI_ERR_CMDUNPACK */ "Unable to unpack kinetic command",
+	/* KI_ERR_NOCMD     */ "Message has no command data",
+	/* KI_ERR_CREATEREQ */ "Unable to construct kinetic request",
+	/* KI_ERR_RECVMSG   */ "Failed to receive message",
 };
 const int ki_errmsg_max = 9;
