@@ -243,7 +243,7 @@ kproto_cmd_t *unpack_kinetic_command(ProtobufCBinaryData commandbytes) {
 enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **result_buffer, size_t *result_size) {
 	// Get size for command and allocate buffer
 	size_t msg_size     = com__seagate__kinetic__proto__message__get_packed_size(msg_data);
-	uint8_t *msg_buffer = (uint8_t *) malloc(sizeof(uint8_t) * msg_size);
+	uint8_t *msg_buffer = (uint8_t *) KI_MALLOC(sizeof(uint8_t) * msg_size);
 
 	if (msg_buffer == NULL) { return FAILURE; }
 
@@ -282,7 +282,7 @@ struct kresult_message unpack_kinetic_message(void *response_buffer, size_t resp
 }
 
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes) {
-	kproto_msg_t *kinetic_msg = (kproto_msg_t *) malloc(sizeof(kproto_msg_t));
+	kproto_msg_t *kinetic_msg = (kproto_msg_t *) KI_MALLOC(sizeof(kproto_msg_t));
 	if (kinetic_msg == NULL) {
 		goto create_failure;
 	}
@@ -299,7 +299,9 @@ struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cm
 			kinetic_msg->has_authtype = 1;
 			kinetic_msg->authtype	  = KA_HMAC;
 
-			kauth_hmac *msg_auth_hmac = (kauth_hmac *) malloc(sizeof(kauth_hmac));
+			kauth_hmac *msg_auth_hmac = (kauth_hmac *) KI_MALLOC(sizeof(kauth_hmac));
+			if (!msg_auth_hmac) { goto create_failure; }
+
 			com__seagate__kinetic__proto__message__hmacauth__init(msg_auth_hmac);
 
 			kinetic_msg->hmacauth = msg_auth_hmac;
@@ -319,7 +321,9 @@ struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cm
 			kinetic_msg->has_authtype = 1;
 			kinetic_msg->authtype	  = KA_PIN;
 
-			kauth_pin *msg_auth_pin = (kauth_pin *) malloc(sizeof(kauth_pin));
+			kauth_pin *msg_auth_pin = (kauth_pin *) KI_MALLOC(sizeof(kauth_pin));
+			if (!msg_auth_pin) { goto create_failure; }
+
 			com__seagate__kinetic__proto__message__pinauth__init(msg_auth_pin);
 
 			msg_auth_pin->has_pin = 1;
@@ -386,19 +390,20 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 }
 
 kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data) {
+	kstatus_t extracted_status    = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 	kproto_msg_t *response_msg = (kproto_msg_t *) response_result->result_message;
 
 	// commandbytes should exist, but we should probably be thorough
 	if (!response_msg->has_commandbytes) {
-		return (kstatus_t) {
-			.ks_code    = K_INVALID_SC,
-			.ks_message = "Response message has no command bytes",
-			.ks_detail  = NULL
-		};
+		return kstatus_err(K_INVALID_SC, KI_ERR_NOCMD, "extract command header");
 	}
 
 	// unpack the command bytes into a command structure
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(response_msg->commandbytes);
+	if (!response_cmd) {
+		return kstatus_err(K_EINTERNAL, KI_ERR_CMDUNPACK, "extract command header");
+	}
+
 	kproto_cmdhdr_t *response_cmd_hdr = response_cmd->header;
 
 	extract_primitive_optional(cmdhdr_data->kch_clustvers, response_cmd_hdr, clusterversion);
@@ -408,33 +413,46 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	extract_primitive_optional(cmdhdr_data->kch_quanta   , response_cmd_hdr, timequanta);
 	extract_primitive_optional(cmdhdr_data->kch_batid    , response_cmd_hdr, batchid);
 
-	// ------------------------------
-	// propagate the response status to the caller
+	// extract the kinetic response status; copy the messages for independence from the body data
 	kproto_status_t *response_status = response_cmd->status;
 
-	// copy the status message so that destroying the unpacked command doesn't get weird
-	size_t statusmsg_len     = strlen(response_status->statusmessage);
-	char *response_statusmsg = (char *) malloc(sizeof(char) * statusmsg_len);
-	strcpy(response_statusmsg, response_status->statusmessage);
+	if (response_status && response_status->has_code) {
+		// copy protobuf string
+		size_t statusmsg_len     = strlen(response_status->statusmessage);
+		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		if (!response_statusmsg) {
+			extracted_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract cmdhdr: status msg");
+			goto cmdhdr_cleanup;
+		}
+		strcpy(response_statusmsg, response_status->statusmessage);
 
-	char *response_detailmsg = NULL;
-	if (response_status->has_detailedmessage) {
-		response_detailmsg = (char *) malloc(sizeof(char) * response_status->detailedmessage.len);
-		memcpy(
-			response_detailmsg,
-			response_status->detailedmessage.data,
-			response_status->detailedmessage.len
+		// copy protobuf bytes field to null-terminated string
+		char *response_detailmsg = NULL;
+		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
+
+		// assume malloc failed if there's a message but our pointer is still NULL
+		if (response_status->has_detailedmessage && !response_detailmsg) {
+			KI_FREE(response_statusmsg);
+
+			extracted_status = kstatus_err(
+				K_EINTERNAL, KI_ERR_MALLOC, "extract cmdhdr: status detail"
+			);
+
+			goto cmdhdr_cleanup;
+		}
+
+		extracted_status = kstatus_err(
+			.ks_code    = response_status->code,
+			.ks_message = response_statusmsg,
+			.ks_detail  = response_detailmsg,
 		);
 	}
 
+cmdhdr_cleanup:
 	// cleanup before we return the status data
 	destroy_command(response_cmd);
 
-	return (kstatus_t) {
-		.ks_code    = response_status->has_code ? response_status->code : K_INVALID_SC,
-		.ks_message = response_statusmsg,
-		.ks_detail  = response_detailmsg,
-	};
+	return extracted_status;
 }
 
 kstatus_t extract_cmdstatus(kproto_cmd_t *response_cmd) {
@@ -492,7 +510,7 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 	if (keynames == NULL) { return 0; }
 
 	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * keycnt);
-	if (cumulative_offsets == NULL) { return -1; }
+	if (cumulative_offsets == NULL) { return 0; }
 
 	size_t total_keylen = 0;
 	for (size_t key_ndx = 0; key_ndx < keycnt; key_ndx++) {
