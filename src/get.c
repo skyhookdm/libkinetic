@@ -69,77 +69,49 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
-	if (rc < 0) {
-		return (kstatus_t) {
-			.ks_code    = K_EREJECTED,
-			.ks_message = "Bad session",
-			.ks_detail  = "",
-		};		
-	}
+	if (rc < 0) { return kstatus_err(K_EREJECTED, KI_ERR_BADSESS, "get: ktli config"); }
+
 	ses = (ksession_t *) cf->kcfg_pconf;
 	
 	/* Validate command */
 	switch (msg_type) {
 	case KMT_GETNEXT:
 	case KMT_GETPREV:
-		if (!altkv)
-			return (kstatus_t) {
-				.ks_code    = K_EINVAL,
-				.ks_message = "Missing Parameters",
-				.ks_detail  = "",
-			};
+		if (!altkv) {
+			return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: validation");
+		}
 		/* no break here, all cmds need a kv ptr, so fall through */
 		
 	case KMT_GET:
 	case KMT_GETVERS:
-		if (!kv)
-			return (kstatus_t) {
-				.ks_code    = K_EINVAL,
-				.ks_message = "Missing Parameters",
-				.ks_detail  = "",
-			};
+		if (!kv) {
+			return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: validation");
+		}
 		break;
 
 	default:
-		return (kstatus_t) {
-			.ks_code    = K_EREJECTED,
-			.ks_message = "Bad Command",
-			.ks_detail  = "",
-		};
+		return kstatus_err(K_EREJECTED, KI_ERR_INVARGS, "get: bad command");
 	}
 	
 	/* Validate the passed in kv and if necessary the altkv */
 	/* force=1 to ignore version field in the check */
 	rc = ki_validate_kv(kv, (force=1), &ses->ks_l);
 	if (rc < 0) {
-		return (kstatus_t) {
-			.ks_code    = K_EINVAL,
-			.ks_message = "Invalid KV",
-			.ks_detail  = "",
-		};
+		return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: invalid kv");
 	}
 
 	if (altkv) {
 		/* force=1 to ignore version field in the check */
 		rc = ki_validate_kv(altkv, (force=1), &ses->ks_l);
 		if (rc < 0) {
-			return (kstatus_t) {
-				.ks_code    = K_EINVAL,
-				.ks_message = "Invalid KV",
-				.ks_detail  = "",
-			};
-
+			return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: invalid kv");
 		}
 	}
 		
-	/* create the kio structure */
+	/* create the kio structure; on failure, nothing malloc'd so we just return */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
+		return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get: kio");
 	}
 	memset(kio, 0, sizeof(struct kio));
 	kio->kio_cmd = msg_type;
@@ -153,11 +125,8 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
-		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get* request");
+		goto gex_kio;
 	}
 
 	/* Hang the Packed PDU buffer, packing occurs later */
@@ -175,7 +144,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	 * used later on to calculate the actual HMAC which will then be hung
 	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr 
 	 * in the kmreq. This reference needs to be removed before freeing 
-	 * kmreq. See below at gex2:
+	 * kmreq. See below at gex_req:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
@@ -188,10 +157,11 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 
 	kmreq = create_getkey_message(&msg_hdr, &cmd_hdr, kv);
 	if (kmreq.result_code == FAILURE) {
-		goto gex2;
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "get: request");
+		goto gex_req;
 	}
 
-	/* pack the message and hang it on the kio */
+	/* pack the message and hang it on the kio; this populates kio_sendmsg */
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	rc = pack_kinetic_message(
@@ -217,18 +187,22 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		/* wait for something to come in */
 		ktli_poll(ktd, 0);
 
-		/* Check to see if it our response */
+		/* Check to see if it our response; this populates kio_recvmsg */
 		rc = ktli_receive(ktd, kio);
-		if (rc < 0)
-			if (errno == ENOENT)
-				/* Not our response, so try again */
+		if (rc < 0) {
+			/* Not our response, so try again */
+			if (errno == ENOENT) {
 				continue;
+			}
 			else {
 				/* PAK: need to exit, receive failed */
+				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG, "getlog: recvmsg");
+				goto gex_sendmsg;
 			}
-		else
-			/* Got our response */
-			break;
+		}
+
+		/* Got our response */
+		break;
 	} while (1);
 
 	/* extract the return PDU */
@@ -246,48 +220,47 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		assert(0);
 	}
 
-	/* 
-	 * Now unpack the message remember KIOV_MSG 
-	 * may contain both msg and value
-	 */
+	// unpack the message; KIOV_MSG may contain both msg and value
 	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
-		/* cleanup and return error */
-		krc.ks_code    = K_EINTERNAL;
-		krc.ks_message = strdup("Error unpacking get* request");
-		krc.ks_message = NULL;
-		goto gex2;
+		krc = (kstatus_t) {
+			.ks_code    = K_EINTERNAL,
+			.ks_message = strdup("Error unpacking kinetic message"),
+			.ks_detail  = strdup("get* request"),
+		};
+
+		goto gex_recvmsg;
 	}
 
 	/* 
 	 * Grab the value and hang it on either the kv or altkv as approriate
 	 * Also extract the kv data from response
+	 * On extraction failure, both the response and request need to be cleaned up
 	 */
 	switch (msg_type) {
 	case KMT_GET:
 		kv->kv_val[0].kiov_base = kiov->kiov_base + rpdu.kp_msglen;
 		kv->kv_val[0].kiov_len  = rpdu.kp_vallen;
+
 		krc = extract_getkey(&kmresp, kv);
-		if (krc.ks_code != K_OK) {
-			goto gex1;
-		}
+		if (krc.ks_code != K_OK) { goto gex_resp; }
+
 		break;
 		
 	case KMT_GETNEXT:
 	case KMT_GETPREV:
 		altkv->kv_val[0].kiov_base = kiov->kiov_base + rpdu.kp_msglen;
 		altkv->kv_val[0].kiov_len  = rpdu.kp_vallen;
+
 		krc = extract_getkey(&kmresp, altkv);
-		if (krc.ks_code != K_OK) {
-			goto gex1;
-		}
+		if (krc.ks_code != K_OK) { goto gex_resp; }
+
 		break;
 
 	case KMT_GETVERS:
 		krc = extract_getkey(&kmresp, kv);
-		if (krc.ks_code != K_OK) {
-			goto gex1;
-		}
+		if (krc.ks_code != K_OK) { goto gex_resp; }
+
 		break;
 		
 	default:
@@ -311,30 +284,36 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 
 	
 	/* clean up */
- gex1:
+ gex_resp:
 	destroy_message(kmresp.result_message);
- gex2:
+
+ gex_recvmsg:
+
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg);
+
+ gex_sendmsg:
+
+	/* sendmsg.km_msg[0] Not allocated, static */
+	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_sendmsg.km_msg);
+
+ gex_req:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
 	 * was made in kmreq before calling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
-	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
-	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.len = 0;
+	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
+	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len = 0;
 
 	destroy_message(kmreq.result_message);
 
-	/* sendmsg.km_msg[0] Not allocated, static */
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg);
-
-	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_sendmsg.km_msg);
-
+ gex_kio:
 	KI_FREE(kio);
 
-	return(krc);
+	return (krc);
 }
 
 /**
@@ -443,12 +422,18 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	if (extract_result == 0) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
-			.result_message = NULL,
+			.result_message = "Unable to copy key name to protobuf",
 		};
 	}
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
+	if (!command_bytes.data) {
+		return (struct kresult_message) {
+			.result_code    = FAILURE,
+			.result_message = "Unable to create or pack command data",
+		}
+	}
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)
@@ -496,11 +481,18 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	if (response_status->has_code) {
 		size_t statusmsg_len     = strlen(response_status->statusmessage);
 		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		if (!response_statusmsg) { return kv_status; }
+
 		strcpy(response_statusmsg, response_status->statusmessage);
 
 		char *response_detailmsg = NULL;
 		if (response_status->has_detailedmessage) {
 			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
+			if (!response_detailmsg) {
+				KI_FREE(response_statusmsg);
+				return kv_status;
+			}
+
 			memcpy(
 				response_detailmsg,
 				response_status->detailedmessage.data,
@@ -526,13 +518,20 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	kv_data->kv_keycnt = 1;
 
 	// extract key name, db version, tag, and data integrity algorithm
-	extract_bytes_optional(kv_data->kv_key->kiov_base,
-			       kv_data->kv_key->kiov_len, response, key);
+	extract_bytes_optional(
+		kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len,
+		response, key
+	);
 
-	extract_bytes_optional(kv_data->kv_ver,
-			       kv_data->kv_verlen, response, dbversion);
-	extract_bytes_optional(kv_data->kv_disum,
-			       kv_data->kv_disumlen, response, tag);
+	extract_bytes_optional(
+		kv_data->kv_ver, kv_data->kv_verlen,
+		response, dbversion
+	);
+
+	extract_bytes_optional(
+		kv_data->kv_disum, kv_data->kv_disumlen,
+		response, tag
+	);
 
 	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
 
