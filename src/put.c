@@ -39,7 +39,7 @@ create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 kstatus_t
 p_put_generic(int ktd, kv_t *kv, int force)
 {
-	int rc, i, n;
+	int rc, i;
 	kstatus_t krc;
 	struct kio *kio;
 	struct kiovec *kiov;
@@ -54,36 +54,19 @@ p_put_generic(int ktd, kv_t *kv, int force)
 
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
-	if (rc < 0) {
-		return (kstatus_t) {
-			.ks_code    = K_EREJECTED,
-			.ks_message = "Bad session",
-			.ks_detail  = "",
-		};		
-	}
-	ses = (ksession_t *)cf->kcfg_pconf;
+	if (rc < 0) { return kstatus_err(K_EREJECTED, KI_ERR_BADSESS, "put: ktli config"); }
+
+	ses = (ksession_t *) cf->kcfg_pconf;
 	
 	/* Validate the passed in kv */
 	rc = ki_validate_kv(kv, force, &ses->ks_l);
-	if (rc < 0) {
-		return (kstatus_t) {
-			.ks_code    = errno,
-			.ks_message = "Invalid KV",
-			.ks_detail  = "",
-		};
-	}
+	if (rc < 0) { return kstatus_err(errno, KI_ERR_INVARGS, "put: validation"); }
 
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
-	if (!kio) {
-		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
-	}
+	if (!kio) { return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "put: kio"); }
+
 	memset(kio, 0, sizeof(struct kio));
-	kio->kio_cmd = KMT_PUT;
 
 	/* 
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
@@ -91,15 +74,16 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	 * for the value. The size is variable as the value can come in 
 	 * many parts from the caller. See message.h for more details.
 	 */
+	kio->kio_cmd            = KMT_PUT;
 	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt;
-	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
+
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
+	);
+
 	if (!kio->kio_sendmsg.km_msg) {
-		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "put: malloc sendmsg");
+		goto pex_kio;
 	}
 
 	/* Hang the PDU buffer, packing occurs later */
@@ -136,7 +120,10 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	cmd_hdr.kch_type = KMT_PUT;
 
 	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, force);
-	if (kmreq.result_code == FAILURE) { goto pex2; }
+	if (kmreq.result_code == FAILURE) {
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "put: request");
+		goto pex_sendmsg;
+	}
 
 	/* pack the message and hang it on the kio */
 	/* PAK: Error handling */
@@ -153,8 +140,9 @@ p_put_generic(int ktd, kv_t *kv, int force)
 
 	/* for kp_vallen, need to run through kv_val vector and add it up */ 
 	pdu.kp_vallen = 0;
-	for (i=0;i<kv->kv_valcnt; i++)
+	for (i = 0;i < kv->kv_valcnt; i++) {
 		pdu.kp_vallen += kv->kv_val[i].kiov_len;
+	}
 	
 	PACK_PDU(&pdu, ppdu);
 	printf("p_put_generic: PDU(x%2x, %d, %d)\n",
@@ -162,7 +150,7 @@ p_put_generic(int ktd, kv_t *kv, int force)
 
 	/* Send the request */
 	ktli_send(ktd, kio);
-	printf ("Sent Kio: %p\n", kio);
+	printf("Sent Kio: %p\n", kio);
 
 	// Wait for the response
 	do {
@@ -176,7 +164,10 @@ p_put_generic(int ktd, kv_t *kv, int force)
 			if (errno == ENOENT) { continue; }
 
 			/* PAK: need to exit, receive failed */
-			else { ; }
+			else { 
+				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG, "put: recvmsg");
+				goto pex_req;
+			}
 		}
 
 		else { break; }
@@ -200,39 +191,40 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	/* Now unpack the message */ 
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		/* cleanup and return error */
-		rc = -1;
-		goto pex2;
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "put: unpack msg");
+		goto pex_recvmsg;
 	}
 
 	krc = extract_putkey(&kmresp, kv);
-	if (krc.ks_code != K_OK) {
-		rc = -1;
-		goto pex1;
-	}
+
+	// on failure, free anything that was allocated
+	if (krc.ks_code != K_OK) { kv->destroy_protobuf(kv); }
 
 	/* clean up */
- pex1:
 	destroy_message(kmresp.result_message);
- pex2:
+
+ pex_recvmsg:
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg);
+
+ pex_req:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
 	 * was made in kmreq before calling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
-	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.data = NULL;
-	((kproto_msg_t *)kmreq.result_message)->hmacauth->hmac.len = 0;
+	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
+	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len  = 0;
 	
 	destroy_message(kmreq.result_message);
 
+ pex_sendmsg:
 	/* sendmsg.km_msg[KIOV_PDU] Not allocated, static */
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg);
-
 	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_sendmsg.km_msg);
 
+ pex_kio:
 	KI_FREE(kio);
 
 	return (krc);
@@ -289,10 +281,8 @@ ki_cas(int ktd, kv_t *kv)
 /*
  * Helper functions
  */
-struct kresult_message create_put_message(kmsghdr_t *msg_hdr,
-					  kcmdhdr_t *cmd_hdr,
-                                          kv_t *cmd_data,
-					  int bool_shouldforce) {
+struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
+                                          kv_t *cmd_data, int bool_shouldforce) {
 
 	// declare protobuf structs on stack
 	kproto_cmdhdr_t proto_cmd_header;
@@ -340,9 +330,19 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr,
 		&proto_cmd_header, (void *) &proto_cmd_body
 	);
 
+	if (!command_bytes.data) {
+		// free allocated key space first
+		KI_FREE(proto_cmd_body.key.data);
+
+		return (struct kresult_message) {
+			.result_code    = FAILURE,
+			.result_message = NULL,
+		};
+	}
+
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)
-	free(proto_cmd_body.key.data);
+	KI_FREE(proto_cmd_body.key.data);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
@@ -355,21 +355,11 @@ void destroy_protobuf_putkey(kv_t *kv_data) {
 
 	// first destroy the allocated memory for the message data
 	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
-
-	// then free arrays of pointers that point to the message data
-
-	// free the struct itself last
-	// NOTE: we may want to leave this to a caller?
-	free(kv_data);
 }
 
 kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// assume failure status
-	kstatus_t kv_status = (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = NULL,
-		.ks_detail  = NULL,
-	};
+	kstatus_t kv_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 
 	// commandbytes should exist, but we should probably be thorough
 	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
@@ -377,25 +367,32 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	// unpack the command bytes
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
-	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+	if (!response_cmd) { return kv_status; }
 
 	// extract the response status to be returned. prepare this early to make cleanup easy
 	kproto_status_t *response_status = response_cmd->status;
 
 	// copy the status message so that destroying the unpacked command doesn't get weird
-	if (response_status->has_code) {
+	if (response_status && response_status->has_code) {
+		// copy protobuf string
 		size_t statusmsg_len     = strlen(response_status->statusmessage);
 		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		if (!response_statusmsg) {
+			kv_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract put: status msg");
+			goto extract_pex;
+		}
 		strcpy(response_statusmsg, response_status->statusmessage);
 
+		// copy protobuf bytes field to null-terminated string
 		char *response_detailmsg = NULL;
-		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
-			memcpy(
-				response_detailmsg,
-				response_status->detailedmessage.data,
-				response_status->detailedmessage.len
-			);
+		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
+
+		// assume malloc failed if there's a message but our pointer is still NULL
+		if (response_status->has_detailedmessage && !response_detailmsg) {
+			KI_FREE(response_statusmsg);
+			kv_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract put: detail msg");
+
+			goto extract_pex;
 		}
 
 		kv_status = (kstatus_t) {
@@ -407,13 +404,13 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	// check if there's any keyvalue information to parse
 	// (for PUT we expect this to be NULL or empty)
-	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+	if (!response_cmd->body || !response_cmd->body->keyvalue) { goto extract_pex; }
 
 	// ------------------------------
 	// begin extraction of command body into kv_t structure
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
-	// we set the number of keys to 1, since this is not a range request
+	// we set the number of keys to 1, since protobuf returns a contiguous key
 	kv_data->kv_keycnt = response->has_key ? 1 : 0;
 
 	// extract key name, db version, tag, and data integrity algorithm
@@ -430,6 +427,12 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// set fields used for cleanup
 	kv_data->kv_protobuf      = response_cmd;
 	kv_data->destroy_protobuf = destroy_protobuf_putkey;
+
+	return kv_status;
+
+ extract_pex:
+	// set this so that the destroy function can correctly free it
+	kv_data->kv_protobuf = response_cmd;
 
 	return kv_status;
 }
