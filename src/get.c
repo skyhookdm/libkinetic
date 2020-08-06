@@ -41,8 +41,8 @@ struct kresult_message create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
  * 		kv_vers and kv_verslen are optional
- * 		kv_disum and kv_disumlen are optional. 
- *		kv_ditype is returned by the server, but it should 
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
  * 		have either a 0 or a valid ditype in it to start with
  *  altkv	 used for holding prev or next kv
  *  msg_type Can be KMT_GET, KMT_GETNEXT, KMT_GETPREV, KMT_GETVERS
@@ -72,7 +72,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	if (rc < 0) { return kstatus_err(K_EREJECTED, KI_ERR_BADSESS, "get: ktli config"); }
 
 	ses = (ksession_t *) cf->kcfg_pconf;
-	
+
 	/* Validate command */
 	switch (msg_type) {
 	case KMT_GETNEXT:
@@ -81,7 +81,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 			return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: validation");
 		}
 		/* no break here, all cmds need a kv ptr, so fall through */
-		
+
 	case KMT_GET:
 	case KMT_GETVERS:
 		if (!kv) {
@@ -92,7 +92,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	default:
 		return kstatus_err(K_EREJECTED, KI_ERR_INVARGS, "get: bad command");
 	}
-	
+
 	/* Validate the passed in kv and if necessary the altkv */
 	/* force=1 to ignore version field in the check */
 	rc = ki_validate_kv(kv, (force=1), &ses->ks_l);
@@ -107,34 +107,16 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 			return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: invalid kv");
 		}
 	}
-		
+
 	/* create the kio structure; on failure, nothing malloc'd so we just return */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
 		return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get: kio");
 	}
 	memset(kio, 0, sizeof(struct kio));
-	kio->kio_cmd = msg_type;
 
-	/* 
-	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
-	 * is for the protobuf message. There is no value.
-	 * See message.h for more details.
-	 */
-	kio->kio_sendmsg.km_cnt = 2; 
-	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
-	if (!kio->kio_sendmsg.km_msg) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get* request");
-		goto gex_kio;
-	}
-
-	/* Hang the Packed PDU buffer, packing occurs later */
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
-
-	/* 
-	 * Setup msg_hdr 
+	/*
+	 * Setup msg_hdr
 	 * One thing to note here is that although the msg hdr is being setup
 	 * it is too early to complete. The msg hdr will ultimately have a
 	 * HMAC cryptographic checksum of the requests command bytes, so that
@@ -142,8 +124,8 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	 * bytes don't actually get finalized until a ktli_send is initiated.
 	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
 	 * used later on to calculate the actual HMAC which will then be hung
-	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr 
-	 * in the kmreq. This reference needs to be removed before freeing 
+	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr
+	 * in the kmreq. This reference needs to be removed before freeing
 	 * kmreq. See below at gex_req:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
@@ -161,14 +143,40 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		goto gex_req;
 	}
 
+	/*
+	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
+	 * is for the protobuf message. There is no value.
+	 * See message.h for more details.
+	 */
+	kio->kio_cmd            = msg_type;
+	kio->kio_sendmsg.km_cnt = 2;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
+	);
+
+	if (!kio->kio_sendmsg.km_msg) {
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get* request");
+		goto gex_kio;
+	}
+
+	/* Hang the Packed PDU buffer, packing occurs later */
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
+
 	/* pack the message and hang it on the kio; this populates kio_sendmsg */
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
-	rc = pack_kinetic_message(
+	enum kresult_code pack_result = pack_kinetic_message(
 		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
+
+	if (pack_result == FAILURE) {
+		errno = K_EINTERNAL;
+		krc   = kstatus_err(errno, KI_ERR_MSGPACK, "get: pack msg");
+		goto gex_sendmsg;
+	}
 
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
@@ -208,31 +216,27 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		/* PAK: error handling -need to clean up Yikes! */
-		assert(0);
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU, "get: extract PDU");
+		goto gex_recvmsg;
 	}
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
 
 	/* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len ) {
-		/* PAK: error handling -need to clean up Yikes! */
-		assert(0);
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN, "get: parse pdu");
+		goto gex_recvmsg;
 	}
 
 	// unpack the message; KIOV_MSG may contain both msg and value
 	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
-		krc = (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = strdup("Error unpacking kinetic message"),
-			.ks_detail  = strdup("get* request"),
-		};
-
+		errno = K_EINTERNAL;
+		krc   = kstatus_err(errno, KI_ERR_MSGUNPACK, "get*: unpack msg");
 		goto gex_recvmsg;
 	}
 
-	/* 
+	/*
 	 * Grab the value and hang it on either the kv or altkv as approriate
 	 * Also extract the kv data from response
 	 * On extraction failure, both the response and request need to be cleaned up
@@ -242,47 +246,30 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		kv->kv_val[0].kiov_base = kiov->kiov_base + rpdu.kp_msglen;
 		kv->kv_val[0].kiov_len  = rpdu.kp_vallen;
 
+		/* falls through to KMT_GETVERS to extract command data */
+
+	case KMT_GETVERS:
 		krc = extract_getkey(&kmresp, kv);
-		if (krc.ks_code != K_OK) { goto gex_resp; }
+		if (krc.ks_code != K_OK) { kv->destroy_protobuf(kv); }
 
 		break;
-		
+
 	case KMT_GETNEXT:
 	case KMT_GETPREV:
 		altkv->kv_val[0].kiov_base = kiov->kiov_base + rpdu.kp_msglen;
 		altkv->kv_val[0].kiov_len  = rpdu.kp_vallen;
 
 		krc = extract_getkey(&kmresp, altkv);
-		if (krc.ks_code != K_OK) { goto gex_resp; }
+		if (krc.ks_code != K_OK) { altkv->destroy_protobuf(altkv); }
 
 		break;
 
-	case KMT_GETVERS:
-		krc = extract_getkey(&kmresp, kv);
-		if (krc.ks_code != K_OK) { goto gex_resp; }
-
-		break;
-		
 	default:
 		printf("get: should not get here\n");
 		assert(0);
 		break;
 	}
 
-#if 0
-	/* PAK: Altkv may need to be validated as well */
-	rc = ki_validate_kv(kv, (force=1), &ses->ks_l);
-	if (rc < 0) {
-		/* errno set by validate */
-		rc = -1;
-		goto glex1;
-	}
-
-	if (krc.ks_message != NULL) { KI_FREE(krc.ks_message); }
-	if (krc.ks_detail  != NULL) { KI_FREE(krc.ks_detail);  }
-#endif
-
-	
 	/* clean up */
  gex_resp:
 	destroy_message(kmresp.result_message);
@@ -301,7 +288,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 
  gex_req:
 	/*
-	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
+	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that
 	 * was made in kmreq before calling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
@@ -322,11 +309,11 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
  * 		kv_vers and kv_verslen are optional
- * 		kv_disum and kv_disumlen are optional. 
- *		kv_ditype is returned by the server, but it should 
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
  * 		have either a 0 or a valid ditype in it to start with
  *
- * Get the value specified by the given key. 
+ * Get the value specified by the given key.
  *
  */
 kstatus_t
@@ -341,14 +328,14 @@ ki_get(int ktd, kv_t *key)
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
  * 		kv_vers and kv_verslen are optional
- * 		kv_disum and kv_disumlen are optional. 
- *		kv_ditype is returned by the server, but it should 
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
  * 		have either a 0 or a valid ditype in it to start with
  *  next	returned key value pair
  *		kv_key must contain a zero-ed kiovec array of cnt 1
  *		kv_val must contain a zero-ed kiovec array of cnt 1
  *
- * Get the key value that follows the given key. 
+ * Get the key value that follows the given key.
  *
  */
 kstatus_t
@@ -363,14 +350,14 @@ ki_getnext(int ktd, kv_t *key, kv_t *next)
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
  * 		kv_vers and kv_verslen are optional
- * 		kv_disum and kv_disumlen are optional. 
- *		kv_ditype is returned by the server, but it should 
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
  * 		have either a 0 or a valid ditype in it to start with
  *  prev	returned key value pair
  *		kv_key must contain a zero-ed kiovec array of cnt 1
  *		kv_val must contain a zero-ed kiovec array of cnt 1
  *
- * Get the key value that is prior the given key. 
+ * Get the key value that is prior the given key.
  *
  */
 kstatus_t
@@ -385,8 +372,8 @@ ki_getprev(int ktd, kv_t *key, kv_t *prev)
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain a zero-ed kiovec array of cnt 1
  * 		kv_vers and kv_verslen are optional
- * 		kv_disum and kv_disumlen are optional. 
- *		kv_ditype is returned by the server, but it should 
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
  * 		have either a 0 or a valid ditype in it to start with
  *
  * Get the version specified by the given key.  Do not return the value.

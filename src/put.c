@@ -57,7 +57,7 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	if (rc < 0) { return kstatus_err(K_EREJECTED, KI_ERR_BADSESS, "put: ktli config"); }
 
 	ses = (ksession_t *) cf->kcfg_pconf;
-	
+
 	/* Validate the passed in kv */
 	rc = ki_validate_kv(kv, force, &ses->ks_l);
 	if (rc < 0) { return kstatus_err(errno, KI_ERR_INVARGS, "put: validation"); }
@@ -68,37 +68,8 @@ p_put_generic(int ktd, kv_t *kv, int force)
 
 	memset(kio, 0, sizeof(struct kio));
 
-	/* 
-	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
-	 * is for the protobuf message, and then elements 2 and beyond are
-	 * for the value. The size is variable as the value can come in 
-	 * many parts from the caller. See message.h for more details.
-	 */
-	kio->kio_cmd            = KMT_PUT;
-	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt;
-
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
-	);
-
-	if (!kio->kio_sendmsg.km_msg) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "put: malloc sendmsg");
-		goto pex_kio;
-	}
-
-	/* Hang the PDU buffer, packing occurs later */
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
-
-	/* 
-	 * copy the passed in value vector onto the sendmsg, 
-	 * no value data is copied 
-	 */
-	memcpy(&(kio->kio_sendmsg.km_msg[KIOV_VAL]), kv->kv_val,
-	       (sizeof(struct kiovec) * kv->kv_valcnt));
-	
-	/* 
-	 * Setup msg_hdr 
+	/*
+	 * Setup msg_hdr
 	 * One thing to note here is that although the msg hdr is being setup
 	 * it is too early to complete. The msg hdr will ultimately have a
 	 * HMAC cryptographic checksum of the requests command bytes, so that
@@ -106,8 +77,8 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	 * bytes don't actually get finalized until a ktli_send is initiated.
 	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
 	 * used later on to calculate the actual HMAC which will then be hung
-	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr 
-	 * in the kmreq. This reference needs to be removed before freeing 
+	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr
+	 * in the kmreq. This reference needs to be removed before freeing
 	 * kmreq. See below at pex2:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
@@ -121,29 +92,64 @@ p_put_generic(int ktd, kv_t *kv, int force)
 
 	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, force);
 	if (kmreq.result_code == FAILURE) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "put: request");
-		goto pex_sendmsg;
+		errno = K_EINTERNAL;
+		krc   = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "put: request");
+		goto pex_kio;
 	}
+
+	/*
+	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
+	 * is for the protobuf message, and then elements 2 and beyond are
+	 * for the value. The size is variable as the value can come in
+	 * many parts from the caller. See message.h for more details.
+	 */
+	kio->kio_cmd            = KMT_PUT;
+	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
+	);
+
+	if (!kio->kio_sendmsg.km_msg) {
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "put: malloc sendmsg");
+		goto pex_req;
+	}
+
+	/* Hang the PDU buffer, packing occurs later */
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
+
+	/*
+	 * copy the passed in value vector onto the sendmsg,
+	 * no value data is copied
+	 */
+	memcpy(&(kio->kio_sendmsg.km_msg[KIOV_VAL]), kv->kv_val,
+	       (sizeof(struct kiovec) * kv->kv_valcnt));
 
 	/* pack the message and hang it on the kio */
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
-	rc = pack_kinetic_message(
+	enum kresult_code pack_result = pack_kinetic_message(
 		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
 
+	if (pack_result == FAILURE) {
+		errno = K_EINTERNAL;
+		krc   = kstatus_err(errno, KI_ERR_MSGPACK, "put: pack msg");
+		goto pex_sendmsg;
+	}
+
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 
-	/* for kp_vallen, need to run through kv_val vector and add it up */ 
+	/* for kp_vallen, need to run through kv_val vector and add it up */
 	pdu.kp_vallen = 0;
 	for (i = 0;i < kv->kv_valcnt; i++) {
 		pdu.kp_vallen += kv->kv_val[i].kiov_len;
 	}
-	
+
 	PACK_PDU(&pdu, ppdu);
 	printf("p_put_generic: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
@@ -164,9 +170,9 @@ p_put_generic(int ktd, kv_t *kv, int force)
 			if (errno == ENOENT) { continue; }
 
 			/* PAK: need to exit, receive failed */
-			else { 
+			else {
 				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG, "put: recvmsg");
-				goto pex_req;
+				goto pex_sendmsg;
 			}
 		}
 
@@ -176,19 +182,19 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		/* PAK: error handling -need to clean up Yikes! */
-		assert(0);
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU, "put: extract PDU");
+		goto pex_recvmsg;
 	}
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
 
 	/* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
-		/* PAK: error handling -need to clean up Yikes! */
-		assert(0);
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN, "put: parse pdu");
+		goto pex_recvmsg;
 	}
 
-	/* Now unpack the message */ 
+	/* Now unpack the message */
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
 		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "put: unpack msg");
@@ -208,21 +214,21 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg);
 
+ pex_sendmsg:
+	/* sendmsg.km_msg[KIOV_PDU] Not allocated, static */
+	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_sendmsg.km_msg);
+
  pex_req:
 	/*
-	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
+	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that
 	 * was made in kmreq before calling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len  = 0;
-	
-	destroy_message(kmreq.result_message);
 
- pex_sendmsg:
-	/* sendmsg.km_msg[KIOV_PDU] Not allocated, static */
-	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_sendmsg.km_msg);
+	destroy_message(kmreq.result_message);
 
  pex_kio:
 	KI_FREE(kio);
@@ -236,13 +242,13 @@ p_put_generic(int ktd, kv_t *kv, int force)
  *  kv		kv_key must contain a fully populated kiovec array
  *		kv_val must contain kiovec array representing the value
  * 		kv_vers and kv_verslen are optional
- * 		kv_dival and kv_divalen are optional. 
+ * 		kv_dival and kv_divalen are optional.
  *		kv_ditype must be set if kv_dival is set
  *		kv_cpolicy sets the caching strategy for this put
  *			cpolicy of flush will flush the entire cache
  *
- * Put the value specified by the given key, data integrity value/type, and 
- * new version, using the specified cache policy. This call will force the 
+ * Put the value specified by the given key, data integrity value/type, and
+ * new version, using the specified cache policy. This call will force the
  * put to the new values without any version checks.
  */
 kstatus_t
@@ -259,17 +265,17 @@ ki_put(int ktd, kv_t *kv)
  *		kv_val must contain kiovec array representing the value
  * 		kv_vers and kv_verslen are required.
  * 		kv_newvers and kv_newverslen are required.
- * 		kv_disum and kv_disumlen are optional. 
+ * 		kv_disum and kv_disumlen are optional.
  *		kv_ditype must be set if kv_dival is set
  *		kv_cpolicy sets the caching strategy for this put
  *			cpolicy of flush will flush the entire cache
  *
  * CAS performs a compare and swap for the given key value. The key is only
  * put into the DB if kv_version matches the version in the DB. If there is
- * no match the operation fails with the error K_EVERSION. 
- * Once the check is complete, the value specified by the given key, 
- * data integrity value/type, and new version is put into the DB, using the 
- * specified cache policy. 
+ * no match the operation fails with the error K_EVERSION.
+ * Once the check is complete, the value specified by the given key,
+ * data integrity value/type, and new version is put into the DB, using the
+ * specified cache policy.
  */
 kstatus_t
 ki_cas(int ktd, kv_t *kv)
@@ -330,19 +336,16 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 		&proto_cmd_header, (void *) &proto_cmd_body
 	);
 
-	if (!command_bytes.data) {
-		// free allocated key space first
-		KI_FREE(proto_cmd_body.key.data);
+	// since the command structure goes away after this function, cleanup the allocated key buffer
+	// (see `keyname_to_proto` above)
+	KI_FREE(proto_cmd_body.key.data);
 
+	if (!command_bytes.data) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
 			.result_message = NULL,
 		};
 	}
-
-	// since the command structure goes away after this function, cleanup the allocated key buffer
-	// (see `keyname_to_proto` above)
-	KI_FREE(proto_cmd_body.key.data);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
@@ -410,7 +413,7 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// begin extraction of command body into kv_t structure
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
-	// we set the number of keys to 1, since protobuf returns a contiguous key
+	// we set the number of keys to 1, since the key name is contiguous
 	kv_data->kv_keycnt = response->has_key ? 1 : 0;
 
 	// extract key name, db version, tag, and data integrity algorithm
@@ -432,7 +435,8 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
  extract_pex:
 	// set this so that the destroy function can correctly free it
-	kv_data->kv_protobuf = response_cmd;
+	kv_data->kv_protobuf      = response_cmd;
+	kv_data->destroy_protobuf = destroy_protobuf_putkey;
 
 	return kv_status;
 }

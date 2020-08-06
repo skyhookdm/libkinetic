@@ -299,23 +299,6 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	memset(kio, 0, sizeof(struct kio));
 
-	/* Alocate the kio vectors */
-	kio->kio_cmd = KMT_GETLOG;
-
-	kio->kio_sendmsg.km_cnt = 2; /* PDU and request */
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
-	);
-
-	if (!kio->kio_sendmsg.km_msg) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "getlog: kio_sendmsg");
-		goto glex_kio;
-	}
-
-	/* Hang the Packed PDU buffer, packing occurs later */
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) ppdu;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
-
 	/* 
 	 * Setup msg_hdr 
 	 * One thing to note here is that although the msg hdr is being setup
@@ -341,17 +324,39 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kmreq = create_getlog_message(&msg_hdr, &cmd_hdr, glog);
 	if (kmreq.result_code == FAILURE) {
 		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "getlog: request");
+		goto glex_kio;
+	}
+
+	/* Alocate the kio vectors */
+	kio->kio_cmd            = KMT_GETLOG;
+	kio->kio_sendmsg.km_cnt = 2; /* PDU and request */
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
+	);
+
+	if (!kio->kio_sendmsg.km_msg) {
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "getlog: kio_sendmsg");
 		goto glex_req;
 	}
+
+	/* Hang the Packed PDU buffer, packing occurs later */
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) ppdu;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
 	/* pack the message and hang it on the kio */
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
-	rc = pack_kinetic_message(
+	enum kresult_code pack_result = pack_kinetic_message(
 		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
+
+	if (pack_result == FAILURE) {
+		errno = K_EINTERNAL;
+		krc   = kstatus_err(errno, KI_ERR_MSGPACK, "getlog: pack msg");
+		goto glex_sendmsg;
+	}
 	
 	/* Now that the message length is known, setup the PDU and pack it */
 	pdu.kp_magic  = KP_MAGIC;
@@ -404,6 +409,9 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	// if successful, memcpy into glog (no separate validation at the moment)
 	if (krc.ks_code == K_OK) {
 		memcpy(glog, &glog2, sizeof(kgetlog_t));
+	}
+	else {
+		glog2.destroy_protobuf(&glog2);
 	}
 
 	/* clean up */
@@ -673,10 +681,6 @@ void destroy_protobuf_getlog(kgetlog_t *getlog_data) {
 	if (getlog_data->kgl_conf.kcf_interfaces) {
 		KI_FREE(getlog_data->kgl_conf.kcf_interfaces);
 	}
-
-	// free the struct itself last
-	// NOTE: sometimes a non-allocated pointer is provided
-	// KI_FREE(getlog_data);
 }
 
 kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog_data) {
@@ -797,10 +801,8 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	// label for cleanup (for errors after allocations)
 extract_glex:
 	// set this so `destroy_protobuf_getlog` can correctly destroy it
-	getlog_data->kgl_protobuf = response_cmd;
-
-	// this function destroys everything we may have allocated
-	destroy_protobuf_getlog(getlog_data);
+	getlog_data->kgl_protobuf     = response_cmd;
+	getlog_data->destroy_protobuf = destroy_protobuf_getlog;
 
 	// Just make sure we don't return an ok message
 	if (getlog_status.ks_code == K_OK) {
