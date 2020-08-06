@@ -11,12 +11,12 @@
  */
 
 /* Abstracting malloc and free, permits testing  */ 
-#define UNALLOC_VAL 0xDEADCAFE
+#define UNALLOC_VAL ((void *) 0xDEADCAFE)
 
 #define KI_MALLOC(_l) malloc((_l))
-#define KI_FREE(_p) {            \
-	free((_p));                  \
-	(_p) = (void *) UNALLOC_VAL; \
+#define KI_FREE(_p) {   \
+	free((_p));         \
+	(_p) = UNALLOC_VAL; \
 }
 
 /* ------------------------------
