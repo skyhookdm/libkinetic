@@ -10,21 +10,13 @@
  * Constants
  */
 
-#define KIO_LEN_NOVAL   2
-#define KIO_LEN_WITHVAL 3
-
 /* Abstracting malloc and free, permits testing  */ 
-#define KI_MALLOC(_l) malloc((_l))
-#define KI_FREE(_p) free((_p))
+#define UNALLOC_VAL 0xDEADCAFE
 
-// NOTE: this is not yet used; just thinking of ways to make code faster to read
-/* To shorten inline construction of kstatus_t */
-#define inline_kstatus(code, msg, detail) { \
-	return (kstatus_t) {                    \
-		.ks_code = (code),                  \
-		.ks_message = (msg),                \
-		.ks_detail = (detail),              \
-	};                                      \
+#define KI_MALLOC(_l) malloc((_l))
+#define KI_FREE(_p) {   \
+	free((_p));         \
+	(_p) = UNALLOC_VAL; \
 }
 
 /* ------------------------------
@@ -86,10 +78,38 @@
 #define kstatus_err(kerror_code, ki_errtype, kerror_detail) ( \
 	(kstatus_t) {                                             \
 		.ks_code    = (kerror_code)  ,                        \
-		.ks_message = (ki_error_msgs[(ki_errtype)]),          \
+		.ks_message = (char *) (ki_error_msgs[(ki_errtype)]), \
 		.ks_detail  = (kerror_detail),                        \
 	}                                                         \
 )
+
+
+// some forward declarations of what's in kerrors.c
+enum ki_error_type {
+	KI_ERR_NOMSG   = 0, /* 0x00  0 */
+	KI_ERR_MALLOC     ,
+	KI_ERR_BADSESS    ,
+	KI_ERR_INVARGS    ,
+	KI_ERR_MSGUNPACK  ,
+	KI_ERR_CMDUNPACK  , /* 0x05  5 */
+	KI_ERR_NOCMD      ,
+	KI_ERR_CREATEREQ  ,
+	KI_ERR_RECVMSG    ,
+};
+
+const char *ki_error_msgs[] = {
+	/* 0x00  0 */ "",
+	/* 0x01  1 */ "Unable to allocate memory",
+	/* 0x02  2 */ "Bad Session",
+	/* 0x03  3 */ "Invalid Argument(s)",
+	/* 0x04  4 */ "Unable to unpack kinetic message",
+	/* 0x05  5 */ "Unable to unpack kinetic command",
+	/* 0x06  6 */ "Message has no command data",
+	/* 0x07  7 */ "Unable to construct kinetic request",
+	/* 0x08  8 */ "Failed to receive message",
+};
+
+const int ki_errmsg_max = 9;
 
 
 /* Some utilities */
