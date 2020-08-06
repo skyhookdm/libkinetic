@@ -91,11 +91,14 @@ enum ki_error_type {
 	KI_ERR_MALLOC     ,
 	KI_ERR_BADSESS    ,
 	KI_ERR_INVARGS    ,
-	KI_ERR_MSGUNPACK  ,
-	KI_ERR_CMDUNPACK  , /* 0x05  5 */
+	KI_ERR_MSGPACK    ,
+	KI_ERR_MSGUNPACK  , /* 0x05  5 */
+	KI_ERR_CMDUNPACK  ,
 	KI_ERR_NOCMD      ,
 	KI_ERR_CREATEREQ  ,
 	KI_ERR_RECVMSG    ,
+	KI_ERR_RECVPDU    , /* 0x10 10 */
+	KI_ERR_PDUMSGLEN  ,
 };
 
 
