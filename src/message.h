@@ -32,6 +32,9 @@ enum kio_index {
 	KIOV_VAL	= 2, 
 };
 
+#define KIO_LEN_NOVAL   2
+#define KIO_LEN_WITHVAL 3
+
 /**
  * Kinetic PDU structure
  * The Kinetic pdu are the first bits on the wire and defines the total
