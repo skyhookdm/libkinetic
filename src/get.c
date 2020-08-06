@@ -432,7 +432,7 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
 			.result_message = "Unable to create or pack command data",
-		}
+		};
 	}
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer

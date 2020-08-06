@@ -304,7 +304,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	kio->kio_sendmsg.km_cnt = 2; /* PDU and request */
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
 
 	if (!kio->kio_sendmsg.km_msg) {
@@ -389,7 +389,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kiov   = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_UNPACK, "getlog: unpack response");
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "getlog: unpack response");
 		goto glex_recvmsg;
 	}
 

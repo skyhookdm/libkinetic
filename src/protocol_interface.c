@@ -441,11 +441,11 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 			goto cmdhdr_cleanup;
 		}
 
-		extracted_status = kstatus_err(
+		extracted_status = (kstatus_t) {
 			.ks_code    = response_status->code,
 			.ks_message = response_statusmsg,
 			.ks_detail  = response_detailmsg,
-		);
+		};
 	}
 
 cmdhdr_cleanup:
