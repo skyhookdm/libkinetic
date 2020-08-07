@@ -197,7 +197,7 @@ typedef struct krange {
 	size_t		kr_keyscnt;	/* kr_keys array elemnt count */
 #define KVR_COUNT_INF			(-1)
 #define KR_FLAG_SET(_kvr, _kvrf)	((_kvr)->kr_flags |= (_kvrf))
-#define KR_FLAG_CLR(_kvr, _kvrf)	((_kvr)->kr_flags ^= ~(_kvrf))
+#define KR_FLAG_CLR(_kvr, _kvrf)	((_kvr)->kr_flags &= ~(_kvrf))
 #define KR_FLAG_ISSET(_kvr, _kvrf)	((_kvr)->kr_flags & (_kvrf))
 #define KR_ISTART(_kvr)			((_kvr)->kr_flags & KRF_ISTART)
 #define KR_IEND(_kvr)			((_kvr)->kr_flags & KRF_IEND)
@@ -212,14 +212,17 @@ typedef struct krange {
  * Key Range Iter structure
  *
  * This structure permits the iteration through a key a defined keyrange
- * Unlike the the key 
+ * 
  */
-typedef struct kv_iter {
+typedef struct kiter {
 	int		ki_ktd;
-	krange_t	ki_range;
-	char 		*ki_cstart;	/* Current start */
-	char 		*ki_cend;	/* Current end */ 
-} kv_iter_t;
+	krange_t	*ki_range;
+	uint32_t	ki_curr;	/* Current key index */
+	uint32_t	ki_maxkeyreq;	/* Max count of keys per request */
+	int32_t		ki_count;	/* Total keys requested, could be INF */
+	struct kiovec   *ki_boundary;	/* Last key special case, always cnt=1, 
+					   see ki_iternext() comment */
+} kiter_t;
 
 #if 0
 typedef struct keyrange {
@@ -301,5 +304,24 @@ kstatus_t ki_range(int ktd, krange_t *kr);
 
 kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
+kiter_t *ki_itercreate(int ktd);
+int      ki_iterfree(kiter_t *kit);
+int      ki_iterdone(kiter_t *kit);
+struct kiovec *ki_iterstart(kiter_t *kit, krange_t *kr);
+struct kiovec *ki_iternext(kiter_t *kit);
+
+int ki_keyfree(struct kiovec *key, size_t keycnt);
+struct kiovec *ki_keycreate(void *keybuf, size_t keylen);	
+struct kiovec *ki_keyprefix(struct kiovec *key, size_t keycnt,
+			    void *keybuf, size_t keylen);
+struct kiovec *ki_keypostfix(struct kiovec *key, size_t keycnt,
+			     void *keybuf, size_t keylen);	
+struct kiovec *ki_keydup(struct kiovec *key, size_t keycnt);	
+struct kiovec *ki_keydupf(struct kiovec *key, size_t keycnt);	
+struct kiovec *ki_keyfirst();
+struct kiovec *ki_keylast(size_t len);
+
+krange_t *ki_rangedup(krange_t *kr);
+int ki_rangefree(krange_t *kr);
 
 #endif /*  _KINETIC_H */

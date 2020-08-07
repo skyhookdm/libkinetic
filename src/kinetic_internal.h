@@ -15,6 +15,7 @@
 
 /* Abstracting malloc and free, permits testing  */ 
 #define KI_MALLOC(_l) malloc((_l))
+#define KI_REALLOC(_p,_l) realloc((_p),(_l))
 #define KI_FREE(_p) free((_p))
 
 // NOTE: this is not yet used; just thinking of ways to make code faster to read
