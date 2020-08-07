@@ -14,7 +14,8 @@
 #define UNALLOC_VAL ((void *) 0xDEADCAFE)
 
 #define KI_MALLOC(_l) malloc((_l))
-#define KI_FREE(_p) {   \
+#define KI_REALLOC(_p,_l) realloc((_p),(_l))
+#define KI_FREE(_p) {	    \
 	free((_p));         \
 	(_p) = UNALLOC_VAL; \
 }

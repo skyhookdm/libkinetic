@@ -103,10 +103,15 @@ ki_range(int ktd, krange_t *kr)
 	}
 
 	/* Create the start and end keys if not provided */
+#if 1
+	/* 
+	 * No longer needed, server assumes first key if no start
+	 * and last key if no end 
+	 */
 	rc = 0;
 	if (!kr->kr_start) {
-		rc = ki_mk_firstkey(&kr->kr_start,
-				    &kr->kr_startcnt, &ses->ks_l);
+		kr->kr_start = ki_keyfirst();
+		kr->kr_startcnt = 1;
 		freestart = 1;
 	}
 	
@@ -120,8 +125,8 @@ ki_range(int ktd, krange_t *kr)
 	}
 	
 	if (!kr->kr_end) {
-		rc = ki_mk_lastkey(&kr->kr_end,
-				   &kr->kr_endcnt, &ses->ks_l);
+		kr->kr_end = ki_keylast(ses->ks_l.kl_keylen);
+		kr->kr_endcnt = 1;
 		freeend = 1;
 	}
 	
@@ -133,7 +138,8 @@ ki_range(int ktd, krange_t *kr)
 		};
 		goto rex2;
 	}
-
+#endif
+	
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
@@ -283,10 +289,10 @@ ki_range(int ktd, krange_t *kr)
 	krc = extract_keyrange(&kmresp, kr);
 
 	/* clean up */
- rex7:
+ rex8:
 	destroy_message(kmresp.result_message);
 
- rex6:
+ rex7:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
 	 * was made in kmreq before freeingcalling destroy.
@@ -295,26 +301,28 @@ ki_range(int ktd, krange_t *kr)
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len  = 0;
 
-	destroy_message(kmreq.result_message);
-
 	/* sendmsg.km_msg[0] Not allocated, static */
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg);
- rex5:
 	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+ rex6:
+	destroy_message(kmreq.result_message);
+ rex5:
 	KI_FREE(kio->kio_sendmsg.km_msg);
  rex4:
 	KI_FREE(kio);
  rex3:
 	if (freeend) {
-		KI_FREE(kr->kr_end[0].kiov_base);
-		KI_FREE(kr->kr_end);
+		ki_keyfree(kr->kr_end, kr->kr_endcnt);
+		kr->kr_end = NULL;
+		kr->kr_endcnt = 0;
 	}
  rex2:			
 	if (freestart) {
-		KI_FREE(kr->kr_start[0].kiov_base);
-		KI_FREE(kr->kr_start);
+		ki_keyfree(kr->kr_start, kr->kr_startcnt);
+		kr->kr_start = NULL;
+		kr->kr_startcnt = 0;
 	}
  rex1:
 	return (krc);
@@ -338,26 +346,29 @@ struct kresult_message create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cm
 	);
 	proto_cmd_body.has_startkey = extract_startkey_result;
 
+#if 0
 	if (extract_startkey_result == 0) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
 			.result_message = NULL,
 		};
 	}
-
+#endif
 	int extract_endkey_result = keyname_to_proto(
 		&(proto_cmd_body.endkey),
 		cmd_data->kr_end, cmd_data->kr_endcnt
 	);
 	proto_cmd_body.has_endkey = extract_endkey_result;
 
+#if 0
 	if (extract_endkey_result == 0) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
 			.result_message = NULL,
 		};
 	}
-
+#endif
+	
 	set_primitive_optional(&proto_cmd_body, startkeyinclusive, KR_ISTART(cmd_data));
 	set_primitive_optional(&proto_cmd_body, endkeyinclusive  , KR_IEND(cmd_data));
 	set_primitive_optional(&proto_cmd_body, reverse          , KR_REVERSE(cmd_data));

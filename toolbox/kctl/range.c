@@ -43,15 +43,18 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
         extern int	optind, opterr, optopt;
         char		c, *cp;
 	char 		*start = NULL, *end = NULL;
+	int		i;
 	int 		starti = 0, endi = 0;
         int 		count = KVR_COUNT_INF;
 	int		reverse = 0;
 	int		adump = 0, hdump = 0;
 	kstatus_t 	kstatus;
 	krange_t	kr;
+	kiter_t		*kit;
 	struct kiovec	startkey[1] = {0, 0};
 	struct kiovec	endkey[1] = {0, 0};
-
+	struct kiovec	*k;
+	
         while ((c = getopt(argc, argv, "rs:S:e:E:n:AXh?")) != EOF) {
                 switch (c) {
 		case 'r':
@@ -182,7 +185,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 		KR_FLAG_SET(&kr, KRF_REVERSE);
 	}
 
-	kr.kr_count = count;
+	kr.kr_count = ((count < 0)?KVR_COUNT_INF:count);
 
 	// If verbose dump the range we are acting on
 	// Print first 5 chars of each key defining the range
@@ -214,13 +217,17 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 			printf("unlimited]\n");
 	}
 
-	// Iterate over all the keys and print them out
-
-	// If 0 < count <= GETKEYRANGE_MAX_COUNT (count=-1 is unlimited)
-	// then use a single GetKeyRange call, no need to iterate.
-	// Of course this is unnecessary but allows the caller to test
-	// GetKeyRange directly without going through the IterateKeyRange code.
+	/*
+	 * Iterate over all the keys and print them out
+	 *
+	 * If 0 < count <= MAX keys per range call(count=-1 is unlimited)
+	 * then use a single ki_range call, no need to iterate.
+	 * Of course this is unnecessary but allows the caller to test
+	 * ki_range call directly without going through the key iterator code.
+	 */
 	if ((count > 0) && (count <= ka->ka_limits.kl_rangekeycnt)) {
+		if (ka->ka_verbose) printf("Single Range Call...\n");
+
 		kstatus = ki_range(ktd, &kr);
 		if(kstatus.ks_code != K_OK) {
 			fprintf(stderr,
@@ -228,8 +235,6 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 				ka->ka_cmdstr, kstatus.ks_message);
 			return(-1);
 		}
-
-		if (ka->ka_verbose) printf("GKR\n");
 
 		if (!kr.kr_keyscnt) {
 			printf("No Keys Found.\n");
@@ -249,48 +254,38 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 				printf("%s\n", (char *)kr.kr_keys[i].kiov_base);
 		}
 
-		// Success so return
+		/* Success so return */
 		return(0);
 	}
-#if 0
-	// Keys requested are larger than a single GetKeyRange call
-	// can return, so use IterateKeyRange. Set framesize to
-	// GETKEYRANGE_MAX_COUNT to maximize network efficiency,
-	// making as few server calls as possible.
-	// the IterateKeyRange call throws failures when they occur
-	// not catching them means more error checking of the
-	// returned data so lets catch them and exit quickly.
-	if (ka->ka_verbose) printf("IKR\n");
-	try {
-		// Init the kinetic range iterator
-		unsigned int framesz = GETKEYRANGE_MAX_COUNT, i=1;
 
-		krit = kcon->IterateKeyRange(startk, starti, endk, endi,framesz);
-		while (krit != kinetic::KeyRangeEnd() && count) {
-			if (ka->ka_verbose)
-				printf("%u: ", i++);
+	/*
+	 * Number of keys requested are larger than a single ki_range call
+	 * can return, so use IterateKeyRangethe key iterator.
+	 */
+	if (ka->ka_verbose) printf("Iterating...\n");
 
-			// Dump the keys as requested
-			if (hdump)
-				hexdump(krit->c_str(),krit->length());
-			else if (adump)
-				asciidump(krit->c_str(),krit->length()), printf("\n");
-			else
-				printf("%s\n", krit->c_str());		
+	/* Create the kinetic range iterator */
+	kit = ki_itercreate(ktd);
 
-			++krit; // Advance the iter
+	/* Iterate */
+	i=0;
+	for ( k = ki_iterstart(kit, &kr);
+	     !ki_iterdone(kit) && k;
+	      k = ki_iternext(kit)) {
 
-				// count == -1; means unlimited count
-			if (count < 0 )
-				continue;
+		if (ka->ka_verbose)
+			printf("%u: ", i++);
 
-			count--;
-		}
-	} catch (std::runtime_error &e) {
-		printf("Iterator Failed: %s\n", e.what());
-		return(-1);
+		/* Dump the key */
+		if (hdump)
+			hexdump(k->kiov_base, k->kiov_len);
+		else if (adump)
+			asciidump(k->kiov_base, k->kiov_len), printf("\n");
+		else 
+			printf("%s\n", (char *)k->kiov_base);		
 	}
-#endif	
+
+	ki_iterfree(kit);
 	return(0);
 }
 

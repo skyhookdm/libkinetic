@@ -1351,7 +1351,7 @@ ktli_receiver(void *p)
 		 * call the corresponding driver poll fn, 
 		 * wait for 500ms, arbitrary delay
 		 */ 
-		rc = (de->ktlid_fns->ktli_dfns_poll)(dh, 500);
+		rc = (de->ktlid_fns->ktli_dfns_poll)(dh, 50);
 		printf("BE Poll returned: %d\n", rc);
 	
 		/* -1 error, 0 timeout, 1 need to receive data */
