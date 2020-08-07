@@ -25,6 +25,8 @@
 #include <endian.h>
 #include <errno.h>
 
+#include <time.h>
+
 #include "kio.h"
 #include "ktli.h"
 #include "kinetic.h"
@@ -65,6 +67,8 @@ ki_range(int ktd, krange_t *kr)
 	ksession_t *ses;          // reference to the kinetic session
 	struct kresult_message kmreq, kmresp;
 
+	clock_t clock_rangestart = clock();
+
 	// Get KTLI config
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
@@ -90,6 +94,8 @@ ki_range(int ktd, krange_t *kr)
 	/* If kr_count is set to infinity, fix it */
 	if (kr->kr_count == KVR_COUNT_INF)
 		kr->kr_count = ses->ks_l.kl_rangekeycnt;
+
+	clock_t clock_validatestart = clock();
 	
 	/* validate the input keyrange */
 	rc = ki_validate_range(kr, &ses->ks_l);
@@ -101,6 +107,8 @@ ki_range(int ktd, krange_t *kr)
 		};
 		goto rex1;
 	}
+
+	clock_t clock_validateend = clock();
 
 	/* Create the start and end keys if not provided */
 #if 1
@@ -139,7 +147,7 @@ ki_range(int ktd, krange_t *kr)
 		goto rex2;
 	}
 #endif
-	
+
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
@@ -196,6 +204,8 @@ ki_range(int ktd, krange_t *kr)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_GETRANGE;
 
+	clock_t clock_reqstart = clock();
+
 	kmreq = create_rangekey_message(&msg_hdr, &cmd_hdr, kr);
 	if (kmreq.result_code == FAILURE) {
 		krc   = (kstatus_t) {
@@ -207,6 +217,8 @@ ki_range(int ktd, krange_t *kr)
 		goto rex5;
 	}
 
+	clock_t clock_reqend = clock();
+
 	// pack the message and hang it on the kio
 	// PAK: Error handling
 	// success: rc = 0; failure: rc = 1 (see enum kresult_code)
@@ -215,6 +227,7 @@ ki_range(int ktd, krange_t *kr)
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
+
 	if (pack_result == FAILURE) {
 		krc   = (kstatus_t) {
 			.ks_code    = K_EINTERNAL,
@@ -225,6 +238,8 @@ ki_range(int ktd, krange_t *kr)
 		goto rex6;
 	}
 
+	clock_t clock_packend = clock();
+
 	// now that the message length is known, setup the PDU
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
@@ -234,6 +249,8 @@ ki_range(int ktd, krange_t *kr)
 	PACK_PDU(&pdu, ppdu);
 	printf("ki_range: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+
+	clock_t clock_send = clock();
 
 	/* Send the request */
 	ktli_send(ktd, kio);
@@ -257,6 +274,8 @@ ki_range(int ktd, krange_t *kr)
 		// Got our response
 		else { break; }
 	} while (1);
+
+	clock_t clock_recv = clock();
 
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
@@ -286,7 +305,11 @@ ki_range(int ktd, krange_t *kr)
 		goto rex7;
 	}
 
+	clock_t clock_unpack = clock();
+
 	krc = extract_keyrange(&kmresp, kr);
+
+	clock_t clock_extract = clock();
 
 	/* clean up */
  rex8:
@@ -324,7 +347,17 @@ ki_range(int ktd, krange_t *kr)
 		kr->kr_start = NULL;
 		kr->kr_startcnt = 0;
 	}
+
  rex1:
+	debug_printf(("Times for ki_range:\n"));
+	debug_printf(("\tTotal           : %lu\n", clock_extract - clock_rangestart));
+	debug_printf(("\tValidation      : %lu\n", clock_validateend - clock_validatestart));
+	debug_printf(("\tCreate request  : %lu\n", clock_reqend - clock_reqstart));
+	debug_printf(("\tPack request    : %lu\n", clock_packend - clock_reqend));
+	debug_printf(("\tKTLI (send/recv): %lu\n", clock_recv - clock_send));
+	debug_printf(("\tUnpack response : %lu\n", clock_unpack - clock_recv));
+	debug_printf(("\tExtract response: %lu\n", clock_extract - clock_unpack));
+
 	return (krc);
 }
 
