@@ -151,12 +151,12 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	}
 
 	PACK_PDU(&pdu, ppdu);
-	printf("p_put_generic: PDU(x%2x, %d, %d)\n",
+	debug_printf("p_put_generic: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
 	/* Send the request */
 	ktli_send(ktd, kio);
-	printf("Sent Kio: %p\n", kio);
+	debug_printf("Sent Kio: %p\n", kio);
 
 	// Wait for the response
 	do {

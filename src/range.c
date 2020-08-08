@@ -247,14 +247,14 @@ ki_range(int ktd, krange_t *kr)
 	pdu.kp_vallen = 0;
 
 	PACK_PDU(&pdu, ppdu);
-	printf("ki_range: PDU(x%2x, %d, %d)\n",
-	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+	debug_printf("ki_range: PDU(x%2x, %d, %d)\n",
+	       pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen);
 
 	clock_t clock_send = clock();
 
 	/* Send the request */
 	ktli_send(ktd, kio);
-	printf("Sent Kio: %p\n", kio);
+	debug_printf("Sent Kio: %p\n", kio);
 
 	// Wait for the response
 	do {
@@ -349,14 +349,14 @@ ki_range(int ktd, krange_t *kr)
 	}
 
  rex1:
-	debug_printf(("Times for ki_range:\n"));
-	debug_printf(("\tTotal           : %lu\n", clock_extract - clock_rangestart));
-	debug_printf(("\tValidation      : %lu\n", clock_validateend - clock_validatestart));
-	debug_printf(("\tCreate request  : %lu\n", clock_reqend - clock_reqstart));
-	debug_printf(("\tPack request    : %lu\n", clock_packend - clock_reqend));
-	debug_printf(("\tKTLI (send/recv): %lu\n", clock_recv - clock_send));
-	debug_printf(("\tUnpack response : %lu\n", clock_unpack - clock_recv));
-	debug_printf(("\tExtract response: %lu\n", clock_extract - clock_unpack));
+	debug_printf("Times for ki_range:\n");
+	debug_printf("\tTotal           : %lu\n", clock_extract - clock_rangestart);
+	debug_printf("\tValidation      : %lu\n", clock_validateend - clock_validatestart);
+	debug_printf("\tCreate request  : %lu\n", clock_reqend - clock_reqstart);
+	debug_printf("\tPack request    : %lu\n", clock_packend - clock_reqend);
+	debug_printf("\tKTLI (send/recv): %lu\n", clock_recv - clock_send);
+	debug_printf("\tUnpack response : %lu\n", clock_unpack - clock_recv);
+	debug_printf("\tExtract response: %lu\n", clock_extract - clock_unpack);
 
 	return (krc);
 }

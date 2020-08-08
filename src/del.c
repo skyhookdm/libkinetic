@@ -152,14 +152,14 @@ d_del_generic(int ktd, kv_t *kv, int force)
 
 	PACK_PDU(&pdu, ppdu);
 
-	printf("d_del_generic: PDU(x%2x, %d, %d)\n",
+	debug_printf("d_del_generic: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
 	/* Communication over the network */
 
 	/* Send the request */
 	ktli_send(ktd, kio);
-	printf("Sent Kio: %p\n", kio);
+	debug_printf("Sent Kio: %p\n", kio);
 
 	/* Wait for the response */
 	do {

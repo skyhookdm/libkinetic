@@ -363,12 +363,12 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[1].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, ppdu);
-	printf("getlog: PDU(x%2x, %d, %d)\n",
+	debug_printf("getlog: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
 	/* Send the request */
 	ktli_send(ktd, kio);
-	printf ("Sent Kio: %p\n", kio);
+	debug_printf ("Sent Kio: %p\n", kio);
 
 	/* Wait for the response */
 	do {
