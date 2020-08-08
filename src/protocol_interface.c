@@ -174,7 +174,7 @@ ProtobufCBinaryData pack_kinetic_command(kproto_cmd_t *cmd_data) {
 	size_t packed_bytes = com__seagate__kinetic__proto__command__pack(cmd_data, command_buffer);
 
 	if (packed_bytes != command_size) {
-		fprintf(
+		debug_fprintf(
 			stderr,
 			"Unexpected amount of bytes packed. %ld bytes packed, expected %ld\n",
 			packed_bytes,
@@ -250,7 +250,7 @@ enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **result_buf
 	size_t num_bytes_packed = com__seagate__kinetic__proto__message__pack(msg_data, msg_buffer);
 
 	if (num_bytes_packed != msg_size) {
-		fprintf(
+		debug_fprintf(
 			stderr,
 			"Unexpected amount of bytes packed. %ld bytes packed, expected %ld\n",
 			num_bytes_packed,
