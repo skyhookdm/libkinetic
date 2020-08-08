@@ -5,6 +5,34 @@
 #include "protocol_types.h"
 #include "getlog.h"
 
+/* macros for printing/logging */
+
+// define log levels
+#define LOGLEVEL_NONE  0
+#define LOGLEVEL_INFO  1
+#define LOGLEVEL_DEBUG 2
+
+// this is the log level set for the program
+#define LOGLEVEL LOGLEVEL_DEBUG
+
+// macros that use the log level
+#if LOGLEVEL >= LOGLEVEL_DEBUG
+	#define debug_fprintf(...) fprintf(__VA_ARGS__)
+#else
+	#define debug_fprintf(...) {}
+#endif
+
+#if LOGLEVEL >= LOGLEVEL_INFO
+	#define info_fprintf(...) fprintf(__VA_ARGS__)
+#else
+	#define info_fprintf(...) {}
+#endif
+
+
+// printf's as an alias to fprintf's for convenience
+#define debug_printf(...) debug_fprintf(stdout, __VA_ARGS__)
+#define info_printf(...)  info_fprintf(stdout, __VA_ARGS__)
+
 //Forward declarations of operation-specific structs used in the API
 enum header_field_type;
 

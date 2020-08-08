@@ -84,18 +84,6 @@
 	}                                                         \
 )
 
-// macros for printing/logging
-#define LOGLEVEL_NONE  0
-#define LOGLEVEL_INFO  1
-#define LOGLEVEL_DEBUG 2
-
-#define LOGLEVEL LOGLEVEL_DEBUG
-
-#if LOGLEVEL >= LOGLEVEL_DEBUG
-	#define debug_printf(printf_args) { printf printf_args ; }
-#else
-	#define debug_printf(printf_args) {}
-#endif
 
 // some forward declarations of what's in kerrors.c
 extern const char *ki_error_msgs[];
