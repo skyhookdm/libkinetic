@@ -331,7 +331,7 @@ ktli_close(int kts)
 	pthread_cond_signal(&q->ktq_cv);
 	pthread_mutex_unlock(&q->ktq_m);
 	pthread_join(tid, &res);
-	printf("Sender: %p\n",res);
+	debug_printf("Sender: %p\n",res);
 
 	/* free the sender list and queue */
 	/* Pull any kio's off the list and free them */
@@ -353,7 +353,7 @@ ktli_close(int kts)
 	pthread_cond_signal(&q->ktq_cv);
 	pthread_mutex_unlock(&q->ktq_m);
 	pthread_join(tid, &res);
-	printf("Receiver: %p\n",res);
+	debug_printf("Receiver: %p\n",res);
 
 	/* free the receiver list and queue*/
 	/* Pull any kio's off the list and free them */
@@ -991,7 +991,7 @@ ktli_sender(void *p)
 	assert(de->ktlid_fns);
 	assert(de->ktlid_fns->ktli_dfns_send);
 
-	printf("Sender: starting %d (%p)\n", kts, p);
+	debug_printf("Sender: starting %d (%p)\n", kts, p);
 	
 	/* Main processing loop, continue until told to leave */
 	do {
@@ -1010,7 +1010,7 @@ ktli_sender(void *p)
 
 		pthread_mutex_unlock(&sq->ktq_m);
 		
-		printf("Sender: caught signal\n");
+		debug_printf("Sender: caught signal\n");
 		
 		if (sq->ktq_exit) break;
 
@@ -1047,7 +1047,7 @@ ktli_sender(void *p)
 
 			if (rc < 0) {
 				/* Error, hang it on the completed Q */
-				printf("KTLI Send Error\n");
+				debug_printf("KTLI Send Error\n");
 				kio->kio_state = KIO_FAILED;
 				
 				pthread_mutex_lock(&cq->ktq_m);
@@ -1076,7 +1076,7 @@ ktli_sender(void *p)
 		
 	} while (1); /* forever */
 	
-	printf("Sender: exiting\n");
+	debug_printf("Sender: exiting\n");
 
 	pthread_exit(p);
 }
@@ -1149,7 +1149,7 @@ ktli_recvmsg(int kts)
 	msg.km_msg = KTLI_MALLOC(sizeof(struct kiovec) * 2);
 	if (!msg.km_msg) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		printf("%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 
@@ -1157,7 +1157,7 @@ ktli_recvmsg(int kts)
 	msg.km_msg[0].kiov_base = KTLI_MALLOC(kh->kh_recvhdr_len);
 	if (!msg.km_msg[0].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		printf("%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 	msg.km_msg[0].kiov_len = kh->kh_recvhdr_len;
@@ -1166,7 +1166,7 @@ ktli_recvmsg(int kts)
 	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[0], 1);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		printf("%s:%d: receive failed %d\n", __FILE__, __LINE__, rc);
+		debug_fprintf(stderr, "%s:%d: receive failed %d\n", __FILE__, __LINE__, rc);
 		goto recvmsgerr;
 	}
 
@@ -1174,7 +1174,7 @@ ktli_recvmsg(int kts)
 	msg.km_msg[1].kiov_len = (kh->kh_msglen_fn)(&msg.km_msg[0]);
 	if (msg.km_msg[1].kiov_len < 0) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		printf("%s:%d: Helper msglen failed failed\n",
+		debug_printf("%s:%d: Helper msglen failed failed\n",
 		       __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
@@ -1186,7 +1186,7 @@ ktli_recvmsg(int kts)
 	msg.km_msg[1].kiov_base = KTLI_MALLOC(msg.km_msg[1].kiov_len);
 	if (!msg.km_msg[1].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		printf("%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 
@@ -1194,7 +1194,7 @@ ktli_recvmsg(int kts)
 	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[1], 1);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		printf("%s:%d: receive failed %d\n", __FILE__, __LINE__, errno);
+		debug_printf("%s:%d: receive failed %d\n", __FILE__, __LINE__, errno);
 		perror("");
 		goto recvmsgerr;
 		assert(0);
@@ -1202,7 +1202,7 @@ ktli_recvmsg(int kts)
 
 	/* We have the message. Find its matching request */
 	aseq = (kh->kh_getaseq_fn)(msg.km_msg, 2);
-	printf("KTLI Received ASeq: %ld\n", aseq);
+	debug_printf("KTLI Received ASeq: %ld\n", aseq);
 
 	/* search through the recvq, need the mutex */
 	pthread_mutex_lock(&rq->ktq_m);
@@ -1213,17 +1213,17 @@ ktli_recvmsg(int kts)
 		 * No matching kio.  Allocate a kio, set it up and mark it as
 		 * received. Let the upper layers deal with it.
 		 */
-		printf("KTLI Received Unsolicited\n");
+		debug_printf("KTLI Received Unsolicited\n");
 		kio = KTLI_MALLOC(sizeof(struct kio));
 		if (!kio) {
-			printf("%s:%d: KTLI_MALLOC failed\n",
+			debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
 			       __FILE__, __LINE__);
 			goto recvmsgerr;
 		}
 		memset((void *)kio, 0, sizeof(struct kio));
 		kio->kio_seq = aseq;
 	} else {
-		printf("KTLI Received Matched KIO\n");
+		debug_printf("KTLI Received Matched KIO\n");
 		lkio = (struct kio **)list_remove_curr(rq->ktq_list);
 		kio = *lkio;
 		KTLI_FREE(lkio);
@@ -1234,7 +1234,7 @@ ktli_recvmsg(int kts)
 
 	if (!kio) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		printf("%s:%d: traverse failed\n", __FILE__, __LINE__);
+		debug_printf("%s:%d: traverse failed\n", __FILE__, __LINE__);
 		assert(0);
 		return(-1);
 	}
@@ -1342,9 +1342,9 @@ ktli_receiver(void *p)
 	assert(de->ktlid_fns->ktli_dfns_receive);
 	assert(de->ktlid_fns->ktli_dfns_poll);
 
-	printf("Receiver: waiting %d (%p)\n", kts, p);
+	debug_printf("Receiver: waiting %d (%p)\n", kts, p);
 	//sleep(1); /* let the connection establish */
-	printf("Receiver: starting %d (%p)\n", kts, p);
+	debug_printf("Receiver: starting %d (%p)\n", kts, p);
 
 	do {
 		/* 
@@ -1352,11 +1352,11 @@ ktli_receiver(void *p)
 		 * wait for 500ms, arbitrary delay
 		 */ 
 		rc = (de->ktlid_fns->ktli_dfns_poll)(dh, 50);
-		printf("BE Poll returned: %d\n", rc);
+		debug_printf("BE Poll returned: %d\n", rc);
 	
 		/* -1 error, 0 timeout, 1 need to receive data */
 		if (rc < 0) {
-			printf("%s:%d: poll failed %d\n",
+			debug_printf("%s:%d: poll failed %d\n",
 			       __FILE__, __LINE__, errno);
 			perror("Poll:");
 			continue;
@@ -1371,26 +1371,26 @@ ktli_receiver(void *p)
 			pthread_cond_wait(&rq->ktq_cv, &rq->ktq_m);
 		}
 		pthread_mutex_unlock(&rq->ktq_m);
- 		printf("Receiver: caught signal\n");
+ 		debug_printf("Receiver: caught signal\n");
 #endif
 
 		/* PAK: need a kio timeout mechanism 
 		 * Maybe after 30 or 60 500ms polls */
 
-		printf("calling ktli_recvmsg\n");
+		debug_printf("calling ktli_recvmsg\n");
 		ktli_recvmsg(kts);
 #if 0
 		/* if the receive q is not empty, get active */
 		while (list_size(rq->ktq_list)) {
 			if (rq->ktq_exit) break;
-			printf("Received Message\n");
+			debug_printf("Received Message\n");
 		}
 #endif
 		if (rq->ktq_exit) break;
 	
 	} while (1);
 	
-	printf("Receiver: exiting\n");
+	debug_printf("Receiver: exiting\n");
 
 	pthread_exit(p);
 }
