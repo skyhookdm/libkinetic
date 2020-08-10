@@ -284,8 +284,8 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 		br = read(dd, p, len);
 		//printf("ktli_socket_recv: read = %d, %d, %d\n",br, len, errno);
 		if (br < 0 && errno == EWOULDBLOCK) {\
-			printf("ktli_socket_recv: sleeping\n");
-			usleep(1000);
+			//printf("ktli_socket_recv: sleeping\n");
+			usleep(500);
 		} else if (br < 0 || !br) {
 			printf("ktli_socket_recv: ERROR\n");
 			/* an error (-1) or EOF (0) ie conn lost */

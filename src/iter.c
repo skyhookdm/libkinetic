@@ -90,12 +90,14 @@ struct kiovec *
 ki_iterstart(kiter_t *kit, krange_t *kr)
 {
 	kstatus_t krc; 
-	
+	krange_t *kr2;
 	if (!kit || !kr || !kr->kr_count)
 		return(NULL);
 
-	/* Cleanup the old range */
+	/* Cleanup the old range and boundary keys if any */
 	ki_rangefree(kit->ki_range);
+	ki_keyfree(kit->ki_boundary, 1);
+	kit->ki_boundary = NULL;
 
 	/* Copy the passed in range */
 	kit->ki_range = ki_rangedup(kr);
@@ -126,6 +128,17 @@ ki_iterstart(kiter_t *kit, krange_t *kr)
 	if (krc.ks_code != K_OK)
 		return(NULL);
 
+	/* for an iter of size 1 */
+	if (kit->ki_curr == (kit->ki_range->kr_keyscnt - 1)) {
+		/* Last key - handle boundary condition */
+		kit->ki_boundary = ki_keydupf(&kit->ki_range->kr_keys[kit->ki_curr], 1);
+		if (!kit->ki_boundary) {
+			return(NULL);
+		}
+		if (kit->ki_count > 0) kit->ki_count--;
+		return(kit->ki_boundary);
+	}
+
 	if (kit->ki_count > 0) kit->ki_count--;
 	return(&kit->ki_range->kr_keys[kit->ki_curr]);
 }
@@ -140,6 +153,14 @@ ki_iterdone(kiter_t *kit)
 		/* error = done */
 		return(1);
 
+	if (!kr->kr_keyscnt) {
+		/* 
+		 * Last range call to fill the cache came up empty, 
+		 * so the iter is done
+		 */
+		return(1);
+	}
+	
 	/* shorthand var */
 	kr = kit->ki_range;
 
@@ -183,10 +204,13 @@ ki_iterdone(kiter_t *kit)
 
 	/* Load the next batch of keys */
 	krc = ki_range(kit->ki_ktd, kr);
-	if ((krc.ks_code != K_OK) || !kr->kr_keyscnt)
+	if ((krc.ks_code != K_OK))
 		/* no more keys to get = done */
 		return(1);
 
+	/* kr_keyscnt could be 0 from a successful range call 
+	   catch next time through */
+	
 	/* reset curr for this new batch */
 	kit->ki_curr = 0; 
 
@@ -219,7 +243,6 @@ ki_iternext(kiter_t *kit)
 	 * Logic: If ki_curr equals the last key we copy it, if ki_curr equals 
 	 * 0 we free it. The destory code will also free it if set.
 	 */
-
 	if ((kit->ki_curr == 0) && kit->ki_boundary) {
 		/* first key of a new batch, boundary key not needed */
 		ki_keyfree(kit->ki_boundary, 1);
@@ -241,7 +264,7 @@ ki_iternext(kiter_t *kit)
 		if (kit->ki_count > 0) kit->ki_count--;
 		return(&kr->kr_keys[kit->ki_curr]);
 	} else {
-		printf("Shouldn't ever return NULL here\n");
+		/* No more keys, ki_iterdone will catch it and return true */
 		return(NULL);
 	}
 }
