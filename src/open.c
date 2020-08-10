@@ -112,18 +112,20 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 		return(-1);
 	}
 
-	/* Get the limits structure and save it on the session */
-	/* Wait for the response */
+	/* 
+	 * Connections always trigger an Unsolicited Status from the server.
+	 * Wait for it and then extract the klimits structure and save it
+	 * on the session.
+	 */
 	do {
-		printf("Polling\n");
-		/* wait for something to come in */
+		/* wait indefinitely for something to come in */
+		//printf("Polling\n");
 		ktli_poll(ktd, 0);
-		
-		printf("Done Polling\n");		
+		//printf("Done Polling\n");		
 
 		/* Check to see if it our response */
 		rc = ktli_receive_unsolicited(ktd, &kio);
-		printf("Received\n");
+		//printf("Received\n");
 		if (rc < 0)
 			if (errno == ENOENT)
 				/* Not our response, so try again */

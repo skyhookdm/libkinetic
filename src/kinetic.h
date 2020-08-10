@@ -13,7 +13,7 @@
 #define LOGLEVEL_DEBUG 2
 
 // this is the log level set for the program
-#define LOGLEVEL LOGLEVEL_DEBUG
+#define LOGLEVEL LOGLEVEL_
 
 // macros that use the log level
 #if LOGLEVEL >= LOGLEVEL_DEBUG

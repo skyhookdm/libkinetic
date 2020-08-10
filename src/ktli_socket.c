@@ -146,18 +146,18 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 		   fprintf(stderr, "Error setting socket recv buffer size\n"); 
 	   }
 
+	   /* 
+	    * NODELAY means that segments are always sent as soon as possible,
+	    * even if there is only a small amount of data. When not set, 
+	    * data is buffered until there is a sufficient amount to send out,
+	    * thereby avoiding the frequent sending of small packets, which 
+	    * results in poor utilization of the network. This option is 
+	    * overridden by TCP_CORK; however, setting this option forces 
+	    * an explicit flush of pending output, even if TCP_CORK is 
+	    * currently set.
+	    */
 	   on = 1;
 	   setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
-
-#if !defined(__APPLE__)
-	   /* 
-	    * TCP_CORK is NOT available on OSX
-	    * Not sure this is needed as we should be writing a complete
-	    * message with a single writev call.  But we will see...
-	    * might want to enable disable around the writev
-	    */
-	   setsockopt(sfd, IPPROTO_TCP, TCP_CORK, &on, sizeof(on));
-#endif
 
 	   flags = fcntl(sfd, F_GETFL, 0);
 	   if (flags == -1) {
@@ -194,7 +194,7 @@ int
 ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 {
 	struct iovec *iov;
-	int i, len, dd, bw;
+	int i, len, dd, bw, on = 1, off = 0;
 
 	if (!dh) {
 		errno -EINVAL;
@@ -215,12 +215,36 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		len += msg[i].kiov_len;
 	}
 
+/ * Cork code seems redundant with a single writev so disable */
+#define KTLI_CORK 0
+	  
+#if KTLI_CORK && !defined(__APPLE__)
+	/* 
+	 * TCP_CORK is NOT available on OSX
+	 * Not sure this is needed as we should be writing a complete
+	 * message with a single writev call.  But we will see...
+	 * might want to enable disable around the writev
+	 */
+	printf("Putting in the cork\n");
+	
+	setsockopt(dd, IPPROTO_TCP, TCP_CORK, &on, sizeof(on));
+#endif
+
 	bw = writev(dd, iov, msgcnt);
 	if (bw < 0) {
 		/* Return the error */
 		return(bw);
 	}
-	printf("socket_send: %d == %d \n", bw, len);
+	
+#if KTLI_CORK && !defined(__APPLE__)
+	   /* 
+	    * If cork is used, need to flush by resetting NODELAY.
+	    */
+	setsockopt(dd, IPPROTO_TCP, TCP_NODELAY, &on,  sizeof(on));
+
+#endif
+
+	//printf("socket_send: %d == %d \n", bw, len);
 	if (bw != len) {
 		errno = ECOMM;
 		return(-1);
@@ -258,10 +282,10 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 	p = (char *)msg[0].kiov_base;
 	while (len) {
 		br = read(dd, p, len);
-		printf("ktli_socket_recv: read = %d, %d, %d\n",br, len, errno);
+		//printf("ktli_socket_recv: read = %d, %d, %d\n",br, len, errno);
 		if (br < 0 && errno == EWOULDBLOCK) {\
 			printf("ktli_socket_recv: sleeping\n");
-			usleep(10000);
+			usleep(1000);
 		} else if (br < 0 || !br) {
 			printf("ktli_socket_recv: ERROR\n");
 			/* an error (-1) or EOF (0) ie conn lost */
@@ -278,8 +302,8 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 		       (msg[0].kiov_len - len), msg[0].kiov_len);
 		return(-1);
 	}
-	printf("ktli_socket_recv: bytes read(%lu) != msg[0].kiov_len(%lu)\n",
-		       (msg[0].kiov_len - len), msg[0].kiov_len);
+	//printf("ktli_socket_recv: bytes read(%lu) != msg[0].kiov_len(%lu)\n",
+	//	       (msg[0].kiov_len - len), msg[0].kiov_len);
 
 	return(msg[0].kiov_len);
 }

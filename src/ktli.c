@@ -418,6 +418,7 @@ ktli_connect(int kts)
 	void *dh; 			/* driver handle */
 	struct ktli_driver *de; 	/* driver entry */
 	enum ktli_sstate st;
+	struct ktli_queue *rq;
 	struct ktli_config *cf;
 	
 	if (!kts_isvalid(kts)) {
@@ -429,6 +430,7 @@ ktli_connect(int kts)
 	de = kts_driver(kts);
 	st = kts_state(kts);
 	cf = kts_config(kts);
+	rq = kts_recvq(kts);
 	
 	if (st != KTLI_SSTATE_OPENED) {
 		/* invalid kts */
@@ -455,6 +457,14 @@ ktli_connect(int kts)
 	}
 
 	kts_set_state(kts, KTLI_SSTATE_CONNECTED); 
+
+	/* 
+	 * Receiver thread was launched at open and is waiting 
+	 * for the connectioN. Wake it up to start the receiver service. 
+	 */
+	pthread_mutex_lock(&rq->ktq_m);
+	pthread_cond_signal(&rq->ktq_cv);
+	pthread_mutex_unlock(&rq->ktq_m);
 
 	return(0);
 }
@@ -1326,6 +1336,7 @@ ktli_receiver(void *p)
 	struct ktli_driver *de; 	/* driver entry */
 	struct ktli_queue *rq;
 	struct ktli_queue *cq;
+	enum ktli_sstate st;
 	struct kio *kio;
 	
 	assert(p);
@@ -1342,16 +1353,28 @@ ktli_receiver(void *p)
 	assert(de->ktlid_fns->ktli_dfns_receive);
 	assert(de->ktlid_fns->ktli_dfns_poll);
 
-	debug_printf("Receiver: waiting %d (%p)\n", kts, p);
-	//sleep(1); /* let the connection establish */
+	/* 
+	 * wait for the connection to start 
+	 * should be signalled by ktli_connect 
+	 */
+	do {
+		pthread_mutex_lock(&rq->ktq_m);
+		pthread_cond_wait(&rq->ktq_cv, &rq->ktq_m);
+		pthread_mutex_unlock(&rq->ktq_m);
+
+		/* verify kts is connected */
+		st = kts_state(kts);
+	} while (st != KTLI_SSTATE_CONNECTED);
+	
 	debug_printf("Receiver: starting %d (%p)\n", kts, p);
 
+	/* main forever loop */
 	do {
 		/* 
 		 * call the corresponding driver poll fn, 
-		 * wait for 500ms, arbitrary delay
+		 * wait for 10ms, arbitrary delay
 		 */ 
-		rc = (de->ktlid_fns->ktli_dfns_poll)(dh, 50);
+		rc = (de->ktlid_fns->ktli_dfns_poll)(dh, 10);
 		debug_printf("BE Poll returned: %d\n", rc);
 	
 		/* -1 error, 0 timeout, 1 need to receive data */
