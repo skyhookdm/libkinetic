@@ -215,7 +215,7 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		len += msg[i].kiov_len;
 	}
 
-/ * Cork code seems redundant with a single writev so disable */
+/* Cork code seems redundant with a single writev so disable */
 #define KTLI_CORK 0
 	  
 #if KTLI_CORK && !defined(__APPLE__)
