@@ -110,44 +110,6 @@ ki_range(int ktd, krange_t *kr)
 
 	clock_t clock_validateend = clock();
 
-	/* Create the start and end keys if not provided */
-#if 1
-	/* 
-	 * No longer needed, server assumes first key if no start
-	 * and last key if no end 
-	 */
-	rc = 0;
-	if (!kr->kr_start) {
-		kr->kr_start = ki_keyfirst();
-		kr->kr_startcnt = 1;
-		freestart = 1;
-	}
-	
-	if (rc < 0) {
-		krc = (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
-		goto rex1;
-	}
-	
-	if (!kr->kr_end) {
-		kr->kr_end = ki_keylast(ses->ks_l.kl_keylen);
-		kr->kr_endcnt = 1;
-		freeend = 1;
-	}
-	
-	if (rc < 0) {
-		krc = (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
-		goto rex2;
-	}
-#endif
-
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
@@ -159,7 +121,11 @@ ki_range(int ktd, krange_t *kr)
 		goto rex3;
 	}
 	memset(kio, 0, sizeof(struct kio));
+
+	/* Setup the KIO */
 	kio->kio_cmd = KMT_GETRANGE;
+	kio->kio_flags		= KIOF_INIT;
+	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
 
 	/* 
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1

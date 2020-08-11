@@ -19,6 +19,16 @@ struct kio_msg {
 	int km_errno;
 };
 
+enum kio_flags {
+	KIOF_INIT	= 0x0000,
+	KIOF_REQRESP	= 0x0001,	/* Normal case, an RPC */
+	KIOF_REQONLY	= 0x0002,	/* Special case for one way traffic */
+					/* mutually exclusive wrt normal case */
+#define KIOF_SET(_kio, _kiof)	((_kio)->kio_flags |= (_kiof))
+#define KIOF_CLR(_kio, _kiof)	((_kio)->kio_flags &= ~(_kiof))
+#define KIOF_ISSET(_kio, _kiof)	((_kio)->kio_flags & (_kiof))
+};
+
 /**
  * This is a client lib and everything in kinetic is an RPC, ie. req then resp.
  * So a kio has both send (req) and recv (resp) data structures. Since
@@ -36,6 +46,7 @@ struct kio {
 					   for debugging only */
 	int64_t kio_seq;		/* kinetic sequence */
 
+	uint32_t kio_flags;		/* Flags modifying KIO behavior */		
 	enum kio_state kio_state;	/* Internal status of the KIO */
 
 	struct kio_msg kio_sendmsg;	/* fully allocated and populated

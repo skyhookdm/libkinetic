@@ -109,12 +109,16 @@ d_del_generic(int ktd, kv_t *kv, int force)
 		goto dex_kio;
 	}
 
-	/*
+	/* Setup the KIO */
+	kio->kio_cmd            = KMT_DEL;
+	kio->kio_flags		= KIOF_INIT;
+	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
+
+	/* 
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
 	 * is for the protobuf message. There is no value.
 	 * See message.h for more details.
 	 */
-	kio->kio_cmd            = KMT_DEL;
 	kio->kio_sendmsg.km_cnt = 2;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt

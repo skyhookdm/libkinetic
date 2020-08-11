@@ -249,7 +249,7 @@ ki_batch_generic(int ktd, kv_t *kv, int force)
  * ki_put(int ktd, kv_t *kv)
  */
 kstatus_t
-ki_startbatch(int ktd, kv_t *kv)
+ki_batchstart(int ktd, kv_t *key)
 {
 	int force;
 	return (p_put_generic(ktd, kv, force=1));
@@ -260,12 +260,24 @@ ki_startbatch(int ktd, kv_t *kv)
  *
  */
 kstatus_t
-ki_endbatch(int ktd, kv_t *kv)
+ki_batchend(int ktd, kv_t *kv)
 {
 	int force;
 	return (p_put_generic(ktd, kv, force=0));
 }
 
+kstatus_t
+ki_batchput(int ktd, kv_t *kv)
+{
+	int force;
+	return (p_put_generic(ktd, kv, force=1));
+}
+kstatus_t
+ki_batchdel(int ktd, kv_t *key)
+{
+	int force;
+	return (p_put_generic(ktd, kv, force=1));
+}
 /*
  * Helper functions
  */

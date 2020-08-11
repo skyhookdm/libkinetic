@@ -64,7 +64,8 @@ p_put_generic(int ktd, kv_t *kv, int force)
 
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
-	if (!kio) { return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "put: kio"); }
+	if (!kio) { return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC,
+				       "put: kio"); }
 
 	memset(kio, 0, sizeof(struct kio));
 
@@ -93,24 +94,31 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, force);
 	if (kmreq.result_code == FAILURE) {
 		errno = K_EINTERNAL;
-		krc   = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "put: request");
+		krc   = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ,
+				    "put: request");
 		goto pex_kio;
 	}
+
+	/* Setup the KIO */
+	kio->kio_cmd            = KMT_PUT;
+	kio->kio_flags		= KIOF_INIT;
+	KIOF_SET(kio, KIOF_REQRESP);			/* Normal RPC */
 
 	/*
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
 	 * is for the protobuf message, and then elements 2 and beyond are
 	 * for the value. The size is variable as the value can come in
-	 * many parts from the caller. See message.h for more details.
+	 * many parts from the caller. 
+	 * See message.h for more details.
 	 */
-	kio->kio_cmd            = KMT_PUT;
 	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
 
 	if (!kio->kio_sendmsg.km_msg) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "put: malloc sendmsg");
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC,
+				  "put: malloc sendmsg");
 		goto pex_req;
 	}
 

@@ -30,6 +30,37 @@
 #include "kinetic.h"
 #include "kinetic_internal.h"
 
+/*
+ * The kinetic iterator. 
+ * An iterator must created (ki_itercreate) before it can be used. Once 
+ * created it can be used many times before it is destroyed (ki_iterdestroy). 
+ * Although a given iterator can be used many times, it can not be shared
+ * and used simultaneously.
+ *
+ * An iterator is started by calling ki_iterstart with a valid range to 
+ * iterate though. The provided range is copied for internal use. As for the
+ * range, the kinetic iterator honors start and end keys, but also
+ * honors the abscence of these keys.  If these keys not provided, the first 
+ * legal key and last legal key are substituted. The Kinetic iterator also 
+ * honors the inclusive flags for both the start and end keys. Key counts
+ * from 1 to infinity are also supprted.  NOTE: Currently reverse is NOT
+ * supported. Successive calls to ki_iterstart reset the iterator to the 
+ * new range provided. ki_iterstart always returns the first key. 
+ *
+ * The boolean ki_iterdone must always be called on each iteration to check 
+ * all boundary conditions. If true the iteration is complete. 
+ *
+ * ki_iternext returns the next key in the sequence. 
+ *
+ * An example would be:
+ *	struct kiovec   *k;
+ *	krange_t	kr;
+ *	kiter_t		*kit;
+ *
+ *	for (k = ki_iterstart(kit, &kr); 
+ * 	     !ki_iterdone(kit) && k;  k = ki_iternext(kit)) {
+ *	}
+ */
 
 kiter_t *
 ki_itercreate(int ktd)
