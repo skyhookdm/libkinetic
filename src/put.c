@@ -343,92 +343,51 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 	return create_message(msg_hdr, command_bytes);
 }
 
-// This may get a partially defined structure if we hit an error during the construction.
 void destroy_protobuf_putkey(kv_t *kv_data) {
-	// Don't do anything if we didn't get a valid pointer
 	if (!kv_data) { return; }
 
-	// first destroy the allocated memory for the message data
+	// destroy protobuf allocated memory
 	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
 }
 
 kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// assume failure status
-	kstatus_t kv_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
-
-	// commandbytes should exist, but we should probably be thorough
+	kstatus_t kv_status           = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
+
+	// check commandbytes exists
 	if (!kv_response_msg->has_commandbytes) { return kv_status; }
 
-	// unpack the command bytes
+	// unpack command, and hang it on kv_data to be destroyed at any time
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
-	if (!response_cmd) { return kv_status; }
+	kv_data->kv_protobuf       = response_cmd;
 
-	// extract the response status to be returned. prepare this early to make cleanup easy
-	kproto_status_t *response_status = response_cmd->status;
-
-	// copy the status message so that destroying the unpacked command doesn't get weird
-	if (response_status && response_status->has_code) {
-		// copy protobuf string
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		if (!response_statusmsg) {
-			kv_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract put: status msg");
-			goto extract_pex;
-		}
-		strcpy(response_statusmsg, response_status->statusmessage);
-
-		// copy protobuf bytes field to null-terminated string
-		char *response_detailmsg = NULL;
-		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
-
-		// assume malloc failed if there's a message but our pointer is still NULL
-		if (response_status->has_detailedmessage && !response_detailmsg) {
-			KI_FREE(response_statusmsg);
-			kv_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract put: detail msg");
-
-			goto extract_pex;
-		}
-
-		kv_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
-
-	// check if there's any keyvalue information to parse
-	// (for PUT we expect this to be NULL or empty)
-	if (!response_cmd->body || !response_cmd->body->keyvalue) { goto extract_pex; }
+	// extract the status. On failure, skip to cleanup
+	kv_status = extract_status(response_cmd);
+	if (kv_status.ks_code != K_OK) { goto extract_pex; }
 
 	// ------------------------------
-	// begin extraction of command body into kv_t structure
+	// begin extraction of command data
+
+	// check if there's command data to parse, otherwise cleanup and exit
+	if (!response_cmd->body || !response_cmd->body->keyvalue) { goto extract_pex; }
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
-	// we set the number of keys to 1, since the key name is contiguous
+	// get the command data from the response
 	kv_data->kv_keycnt = response->has_key ? 1 : 0;
-
-	// extract key name, db version, tag, and data integrity algorithm
-	extract_bytes_optional(kv_data->kv_key->kiov_base,
-			       kv_data->kv_key->kiov_len, response, key);
-
-	extract_bytes_optional(kv_data->kv_ver,
-			       kv_data->kv_verlen, response, dbversion);
-	extract_bytes_optional(kv_data->kv_disum,
-			       kv_data->kv_disumlen, response, tag);
-
+	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len, response, key);
+	extract_bytes_optional(kv_data->kv_ver  , kv_data->kv_verlen  , response, dbversion);
+	extract_bytes_optional(kv_data->kv_disum, kv_data->kv_disumlen, response, tag      );
 	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
 
-	// set fields used for cleanup
-	kv_data->kv_protobuf      = response_cmd;
+	// set the function pointer for deconstruction so that it can be called later
 	kv_data->destroy_protobuf = destroy_protobuf_putkey;
 
 	return kv_status;
 
  extract_pex:
-	// set this so that the destroy function can correctly free it
-	kv_data->kv_protobuf      = response_cmd;
-	kv_data->destroy_protobuf = destroy_protobuf_putkey;
+	// since we hit an error, destroy the protobuf data now and return the status
+	destroy_protobuf_putkey(kv_data);
 
 	return kv_status;
 }
