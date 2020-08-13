@@ -72,17 +72,17 @@ typedef struct kpdu {
 #define KP_PLENGTH 9
 
 /* this macro unpacks a Kinetic PDU from a sequential set of KP_LENGTH bytes */
-#define UNPACK_PDU(_pdu, _p)                                        \
-	do {                                                            \
-		(_pdu)->kp_magic  = (char)(_p)[0];                          \
+#define UNPACK_PDU(_pdu, _p)                                                \
+	do {                                                                \
+		(_pdu)->kp_magic  = (uint8_t)(_p)[0];                          \
 		                                                            \
 		(_pdu)->kp_msglen = (uint32_t)(                             \
-			(_p)[4] << 24 | (_p)[3] << 16 | (_p)[2] << 8 | (_p)[1]  \
-		);                                                          \
+                      (_p)[4] << 24 | (_p)[3] << 16 | (_p)[2] << 8 | (_p)[1]\
+		);							    \
 		(_pdu)->kp_msglen = ntohl((_pdu)->kp_msglen);               \
 		                                                            \
 		(_pdu)->kp_vallen = (uint32_t)(                             \
-			(_p)[8] << 24 | (_p)[7] << 16 | (_p)[6] << 8 | (_p)[5]  \
+		      (_p)[8] << 24 | (_p)[7] << 16 | (_p)[6] << 8 | (_p)[5]\
 		);                                                          \
 		(_pdu)->kp_vallen = ntohl((_pdu)->kp_vallen);               \
 		                                                            \
@@ -92,7 +92,7 @@ typedef struct kpdu {
 #define PACK_PDU(_pdu, _p)						    \
 	do {								    \
 		uint32_t d;						    \
-		(_p)[0] = (char)(_pdu)->kp_magic;			    \
+		(_p)[0] = (uint8_t)(_pdu)->kp_magic;			    \
 		d = htonl((_pdu)->kp_msglen);				    \
 		(_p)[4] = (d & 0xff000000)>>24;				    \
 		(_p)[3] = (d & 0x00ff0000)>>16;				    \
@@ -130,6 +130,8 @@ enum {
 	HIGHEST	= KPCP(HIGHEST),
 };
 
+typedef uint64_t kseq_t;
+typedef uint32_t kbid_t;
 
 typedef struct kmsghdr {
 	kauth_t		kmh_atype;	/* Message Auth Type */
@@ -144,14 +146,14 @@ typedef struct kmsghdr {
 typedef struct kcmdhdr {
 	int64_t		kch_clustvers;	/* Cluster Version Number */
 	int64_t		kch_connid;	/* Connection ID */
-	int64_t		kch_seq;	/* Request Sequence Number */
-	int64_t		kch_ackseq;	/* Response Sequence Number */
+	kseq_t		kch_seq;	/* Request Sequence Number */
+	kseq_t		kch_ackseq;	/* Response Sequence Number */
 	kmtype_t	kch_type;	/* Request Message Type */
-	int64_t		kch_timeout;	/* Timeout Period */
+	uint64_t	kch_timeout;	/* Timeout Period */
 	kpriority_t	kch_pri;		/* Request Priority */
-	int64_t		kch_quanta;	/* Time Quanta */
+	uint64_t	kch_quanta;	/* Time Quanta */
 	int32_t		kch_qexit;	/* Boolean: Quick Exit */
-	int32_t		kch_batid;	/* Batch ID */
+	kbid_t		kch_bid;	/* Batch ID */
 } kcmdhdr_t;
 
 

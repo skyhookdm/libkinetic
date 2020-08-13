@@ -1,10 +1,12 @@
 #ifndef _KINETIC_INT_H
 #define _KINETIC_INT_H
 
+#include <pthread.h>
 #include "kinetic.h"
 #include "message.h"
 #include "session.h"
 #include "getlog.h"
+#include "list.h"
 
 /* ------------------------------
  * Constants
@@ -106,8 +108,24 @@ enum ki_error_type {
 	KI_ERR_RECVMSG    ,
 	KI_ERR_RECVPDU    , /* 0x10 10 */
 	KI_ERR_PDUMSGLEN  ,
+	KI_ERR_BATCH      ,
 };
 
+/**
+ * This is the internal structure for managing a batch across many API calls.
+ * It is meant to be completely opaque to the caller. The kbatch_t type
+ * in kinetic.h is just a void and all APIs use a kbatch_t pointer (void *). 
+ * These caller provided ptrs will be cast kb_t ptrs internally.
+ */  
+typedef struct kb {
+	int		kb_ktd;
+	kbid_t		kb_bid;		/* Batch ID */
+	uint32_t	kb_ops;		/* Batch Ops count */
+	uint32_t	kb_dels;	/* Batch Delete Ops count */
+	uint32_t	kb_bytes;	/* Batch total bytes */ 
+	LIST		*kb_seqs;	/* the batch ops, perserved as seq# */
+	pthread_mutex_t  kb_m;		/* mutex protecting this structure */
+} kb_t;
 
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
@@ -117,6 +135,7 @@ int ki_validate_range(krange_t *kr, klimits_t *lim);
 int ki_validate_glog(kgetlog_t *glrq);
 int ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp);
 
+int b_batch_addop(kb_t *kb, kcmdhdr_t *kc);
 
 char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes);
 

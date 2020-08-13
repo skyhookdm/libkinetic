@@ -179,9 +179,9 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 	
         if (cmpswp)
-		kstatus = ki_cas(ktd, &kv);
+		kstatus = ki_cas(ktd, NULL, &kv);
 	else
-		kstatus = ki_put(ktd, &kv);
+		kstatus = ki_put(ktd, NULL, &kv);
 	
 	fprintf(stderr, "%s: %s: %s: %s\n",
 		ka->ka_cmdstr, ka->ka_key,

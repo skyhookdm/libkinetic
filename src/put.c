@@ -37,7 +37,7 @@ struct kresult_message
 create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
 kstatus_t
-p_put_generic(int ktd, kv_t *kv, int force)
+p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 {
 	int rc, i;
 	kstatus_t krc;
@@ -50,17 +50,19 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
 	ksession_t *ses;
-	struct kresult_message kmreq, kmresp;
+	struct kresult_message kmreq, kmresp, kmbat;
 
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
-	if (rc < 0) { return kstatus_err(K_EREJECTED, KI_ERR_BADSESS, "put: ktli config"); }
+	if (rc < 0) { return kstatus_err(K_EREJECTED, KI_ERR_BADSESS,
+					 "put: ktli config"); }
 
 	ses = (ksession_t *) cf->kcfg_pconf;
 
 	/* Validate the passed in kv */
 	rc = ki_validate_kv(kv, force, &ses->ks_l);
-	if (rc < 0) { return kstatus_err(errno, KI_ERR_INVARGS, "put: validation"); }
+	if (rc < 0) { return kstatus_err(errno, KI_ERR_INVARGS,
+					 "put: validation"); }
 
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
@@ -91,6 +93,13 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_PUT;
 
+	/* sequence number gets set during the send */
+	
+	/* if necessary setup the batchid before creating the mesg */
+	if (kb) {
+		cmd_hdr.kch_bid = kb->kb_bid;
+	}
+	
 	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, force);
 	if (kmreq.result_code == FAILURE) {
 		errno = K_EINTERNAL;
@@ -102,7 +111,12 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	/* Setup the KIO */
 	kio->kio_cmd            = KMT_PUT;
 	kio->kio_flags		= KIOF_INIT;
-	KIOF_SET(kio, KIOF_REQRESP);			/* Normal RPC */
+	if (kb)
+		/* This is a batch put, there is no response */
+		KIOF_SET(kio, KIOF_REQONLY);
+	else
+		/* This is a normal put, there is a response */
+		KIOF_SET(kio, KIOF_REQRESP);
 
 	/*
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
@@ -162,6 +176,29 @@ p_put_generic(int ktd, kv_t *kv, int force)
 	debug_printf("p_put_generic: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
+	/* Some batch accounting */
+	if (kb) {
+		pthread_mutex_lock(&kb->kb_m);
+		
+		kb->kb_ops++;
+
+		/*
+		 * PAK: this is an approximation, don't know what the 
+		 * server actually implements for batch byte limits
+		 */
+		kb->kb_bytes += (pdu.kp_msglen + pdu.kp_vallen);
+
+		pthread_mutex_unlock(&kb->kb_m);
+
+		if ((kb->kb_bytes > ses->ks_l.kl_batlen) ||
+		    (kb->kb_ops > ses->ks_l.kl_batopscnt)) {
+			krc   = kstatus_err(errno, KI_ERR_BATCH,
+					    "batch: limits exceeded");
+			goto pex_sendmsg;
+		}
+	}
+	
+
 	/* Send the request */
 	ktli_send(ktd, kio);
 	debug_printf("Sent Kio: %p\n", kio);
@@ -187,6 +224,41 @@ p_put_generic(int ktd, kv_t *kv, int force)
 		else { break; }
 	} while (1);
 
+	/* Special case a batch put handling */
+	if (kb) {
+		/* 
+		 * Batch receives only get the sendmsg KIO back, no resp.
+		 * Therefore the rest of this put routine is not needed 
+		 * except for the cleanup.
+		 *
+		 * Unpack the send message to get the final sequence
+		 * number. The seq# represents an op in a batch. When the 
+		 * batch is committed the server will return all of the 
+		 * sequence numbers for each op in the batch. By preserving 
+		 * each of the sent sequence numbers the batchend call can 
+		 * validate all sequence numbers/ops are accounted for. 
+		 */
+		kiov = &kio->kio_sendmsg.km_msg[KIOV_MSG];
+		kmbat = unpack_kinetic_message(kiov->kiov_base,
+						kiov->kiov_len);
+		if (kmbat.result_code == FAILURE) {
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK,
+					  "put: unpack batch send msg");
+			goto pex_sendmsg;
+		}
+
+		krc = extract_cmdhdr(&kmbat, &cmd_hdr);
+		if (krc.ks_code == K_OK) {
+			/* Preserve the req on the batch */
+			b_batch_addop(kb, &cmd_hdr);
+		}
+		
+		destroy_message(kmbat.result_message);
+		
+		/* normal exit, jump past all response handling */
+		goto pex_sendmsg;
+	}
+	       
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
@@ -260,10 +332,10 @@ p_put_generic(int ktd, kv_t *kv, int force)
  * put to the new values without any version checks.
  */
 kstatus_t
-ki_put(int ktd, kv_t *kv)
+ki_put(int ktd, kbatch_t *kb, kv_t *kv)
 {
 	int force;
-	return(p_put_generic(ktd, kv, force=1));
+	return(p_put_generic(ktd, kv, (kb_t *)kb, force=1));
 }
 
 /**
@@ -286,10 +358,10 @@ ki_put(int ktd, kv_t *kv)
  * specified cache policy.
  */
 kstatus_t
-ki_cas(int ktd, kv_t *kv)
+ki_cas(int ktd, kbatch_t *kb, kv_t *kv)
 {
 	int force;
-	return(p_put_generic(ktd, kv, force=0));
+	return(p_put_generic(ktd, kv, (kb_t *)kb, force=0));
 }
 
 /*

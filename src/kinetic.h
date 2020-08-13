@@ -252,34 +252,14 @@ typedef struct kiter {
 					   see ki_iternext() comment */
 } kiter_t;
 
-#if 0
-typedef struct keyrange {
-	struct kiovec  *start_key;
-	size_t          start_keycnt;
+/**
+ * Key Batch type
+ *
+ * This opaque type permits the multi-call batch operation.
+ * 
+ */
+typedef void kbatch_t;
 
-	struct kiovec  *kr_endkey;
-	size_t          kr_endkeycnt;
-
-	int             kr_bool_is_start_inclusive;
-	int             kr_bool_is_end_inclusive;
-	int             kr_bool_reverse_keyorder;
-
-	uint32_t        kr_max_keylistcnt;
-
-	// result_keys is an array of keys, where each iovec holds a single, contiguous key name
-	struct kiovec *kr_result_keylist;
-	size_t         kr_result_keylistcnt;
-
-	// NOTE: currently, this also frees keyrange_data
-	void        *keyrange_protobuf;
-	void        (*destroy_protobuf)(struct keyrange *keyrange_data);
-} kr_t;
-
-// TODO
-typedef struct batch {
-} kb_t;
-
-#endif
 
 /* ------------------------------
  * Types for interfacing with API
@@ -322,11 +302,14 @@ klimits_t ki_limits(int ktd);
 
 kstatus_t ki_setclustervers(int ktd, int64_t vers);
 
-kstatus_t ki_put(int ktd, kv_t *key);
-kstatus_t ki_cas(int ktd, kv_t *key);
+kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);
+kstatus_t ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
 
-kstatus_t ki_del(int ktd, kv_t *key);
-kstatus_t ki_cad(int ktd, kv_t *key);
+kstatus_t ki_del(int ktd, kbatch_t *kb, kv_t *key);
+kstatus_t ki_cad(int ktd, kbatch_t *kb, kv_t *key);
+
+kbatch_t *ki_batchcreate(int ktd);
+kstatus_t ki_batchend(int ktd, kbatch_t *kb);
 
 kstatus_t ki_get(int ktd, kv_t *key);
 kstatus_t ki_getnext(int ktd, kv_t *key, kv_t *next);
@@ -337,24 +320,24 @@ kstatus_t ki_range(int ktd, krange_t *kr);
 
 kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
-kiter_t *ki_itercreate(int ktd);
-int      ki_iterfree(kiter_t *kit);
-int      ki_iterdone(kiter_t *kit);
-struct kiovec *ki_iterstart(kiter_t *kit, krange_t *kr);
-struct kiovec *ki_iternext(kiter_t *kit);
+kiter_t 	*ki_itercreate(int ktd);
+int      	ki_iterfree(kiter_t *kit);
+int      	ki_iterdone(kiter_t *kit);
+struct kiovec	*ki_iterstart(kiter_t *kit, krange_t *kr);
+struct kiovec	*ki_iternext(kiter_t *kit);
 
-int ki_keyfree(struct kiovec *key, size_t keycnt);
-struct kiovec *ki_keycreate(void *keybuf, size_t keylen);	
-struct kiovec *ki_keyprefix(struct kiovec *key, size_t keycnt,
-			    void *keybuf, size_t keylen);
-struct kiovec *ki_keypostfix(struct kiovec *key, size_t keycnt,
-			     void *keybuf, size_t keylen);	
-struct kiovec *ki_keydup(struct kiovec *key, size_t keycnt);	
-struct kiovec *ki_keydupf(struct kiovec *key, size_t keycnt);	
-struct kiovec *ki_keyfirst();
-struct kiovec *ki_keylast(size_t len);
+struct kiovec	*ki_keycreate(void *keybuf, size_t keylen);	
+struct kiovec	*ki_keyprefix(struct kiovec *key, size_t keycnt,
+			      void *keybuf, size_t keylen);
+struct kiovec	*ki_keypostfix(struct kiovec *key, size_t keycnt,
+			       void *keybuf, size_t keylen);	
+struct kiovec	*ki_keydup(struct kiovec *key, size_t keycnt);	
+struct kiovec	*ki_keydupf(struct kiovec *key, size_t keycnt);	
+struct kiovec	*ki_keyfirst();
+struct kiovec	*ki_keylast(size_t len);
+int 		ki_keyfree(struct kiovec *key, size_t keycnt);
 
-krange_t *ki_rangedup(krange_t *kr);
-int ki_rangefree(krange_t *kr);
+krange_t	*ki_rangedup(krange_t *kr);
+int		ki_rangefree(krange_t *kr);
 
 #endif /*  _KINETIC_H */

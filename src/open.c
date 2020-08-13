@@ -148,7 +148,6 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	}
 
 	memset(&glog, 0, sizeof(kgetlog_t));
-
 	kstatus_t command_status = extract_getlog(&kmresp, &glog);
 	if (command_status.ks_code != K_OK) {
 		rc = -1;
@@ -164,6 +163,10 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 		goto oex1;
 	}
 	memcpy(&ks->ks_ch, &cmd_hdr, sizeof(kcmdhdr_t));
+
+	/* Init session next batch id counter and active batches */
+	ks->ks_bid = 1000;
+	ks->ks_bats = 0;
 
  oex1:
 	destroy_message(kmresp.result_message);

@@ -217,9 +217,11 @@ kctl_dump(kgetlog_t *glog)
 		printf("  %-18s: %d\n", "Max Read QD", l->kl_pendrdcnt);
 		printf("  %-18s: %d\n", "Max Write QD", l->kl_pendwrcnt);
 		printf("  %-18s: %d\n", "Max Connections", l->kl_conncnt);
+		printf("  %-18s: %d\n", "Max User IDs", l->kl_idcnt);
 		printf("  %-18s: %d\n", "Max Keys/Range", l->kl_rangekeycnt);
+		printf("  %-18s: %d\n", "Max Ops/Batch", l->kl_batopscnt);
 		printf("  %-18s: %d\n", "Max Dels/Batch", l->kl_batdelcnt);
-
+		printf("  %-18s: %d\n", "Max Active Batches", l->kl_devbatcnt);
 		printf("\n");
 	}
 
