@@ -127,7 +127,9 @@ char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes) {
 	size_t proto_len = proto_bytes.len;
 
 	// allocate and copy byte data
-	char *str_buffer = (char *) malloc(sizeof(char) * (proto_len + 1));
+	char *str_buffer = (char *) KI_MALLOC(sizeof(char) * (proto_len + 1));
+	if (!str_buffer) { return NULL; }
+
 	memcpy(str_buffer, proto_bytes.data, proto_len);
 
 	// null terminate the string
@@ -135,7 +137,6 @@ char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes) {
 
 	return str_buffer;
 }
-
 
 // Protobuf convenience functions
 struct kresult_message unpack_response(struct kbuffer response_buffer) {
@@ -186,47 +187,8 @@ ProtobufCBinaryData pack_kinetic_command(kproto_cmd_t *cmd_data) {
 
 	return (ProtobufCBinaryData) { .len = packed_bytes, .data = command_buffer };
 
-pack_failure:
+ pack_failure:
 	return (ProtobufCBinaryData) { .len = 0, .data = NULL };
-}
-
-/*
- * Handles boilerplate code for creating and stitching together a kinetic `Command` and returns the
- * packed result (serialized to wire format). The message type
- */
-ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd_data) {
-	// Structs to use
-	kproto_cmd_t  proto_cmd;
-	kproto_body_t proto_cmdbdy;
-
-	// initialize the structs
-	com__seagate__kinetic__proto__command__init(&proto_cmd);
-	com__seagate__kinetic__proto__command__body__init(&proto_cmdbdy);
-
-	// stitch the Command together
-	switch(cmd_hdr->messagetype) {
-		case KMT_GET:
-		case KMT_GETVERS:
-		case KMT_GETNEXT:
-		case KMT_GETPREV:
-		case KMT_PUT:
-		case KMT_DEL:
-			proto_cmdbdy.keyvalue = (kproto_kv_t *) proto_cmd_data;
-			break;
-
-		case KMT_GETLOG:
-			proto_cmdbdy.getlog   = (kproto_getlog_t *) proto_cmd_data;
-			break;
-
-		case KMT_GETRANGE:
-			proto_cmdbdy.range    = (kproto_keyrange_t *) proto_cmd_data;
-			break;
-	}
-
-	proto_cmd.header = cmd_hdr;
-	proto_cmd.body	 = &proto_cmdbdy;
-
-	return pack_kinetic_command(&proto_cmd);
 }
 
 kproto_cmd_t *unpack_kinetic_command(ProtobufCBinaryData commandbytes) {
@@ -257,7 +219,7 @@ enum kresult_code pack_kinetic_message(kproto_msg_t *msg_data, void **result_buf
 			msg_size
 		);
 
-		free(msg_buffer);
+		KI_FREE(msg_buffer);
 		return FAILURE;
 	}
 
@@ -279,6 +241,55 @@ struct kresult_message unpack_kinetic_message(void *response_buffer, size_t resp
 		.result_code    = unpacked_msg == NULL ? FAILURE : SUCCESS,
 		.result_message = (void *) unpacked_msg
 	};
+}
+
+/*
+ * Handles boilerplate code for creating and stitching together a kinetic `Command` and returns the
+ * packed result (serialized to wire format). The message type
+ */
+// ProtobufCBinaryData create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd_data) {
+ProtobufCBinaryData create_command_bytes(kcmdhdr_t *cmd_hdr, void *proto_cmd_data) {
+	// Structs to use
+	kproto_cmdhdr_t proto_cmd_hdr;
+	kproto_cmd_t    proto_cmd;
+	kproto_body_t   proto_cmdbdy;
+
+	// initialize the structs
+	com__seagate__kinetic__proto__command__init(&proto_cmd);
+	com__seagate__kinetic__proto__command__body__init(&proto_cmdbdy);
+
+	// populate protobuf command header struct
+	extract_to_command_header(&proto_cmd_hdr, cmd_hdr);
+
+	// stitch the Command together
+	switch(proto_cmd_hdr.messagetype) {
+		case KMT_GET:
+		case KMT_GETVERS:
+		case KMT_GETNEXT:
+		case KMT_GETPREV:
+		case KMT_PUT:
+		case KMT_DEL:
+			proto_cmdbdy.keyvalue = (kproto_kv_t *) proto_cmd_data;
+			break;
+
+		case KMT_GETLOG:
+			proto_cmdbdy.getlog   = (kproto_getlog_t *) proto_cmd_data;
+			break;
+
+		case KMT_GETRANGE:
+			proto_cmdbdy.range    = (kproto_keyrange_t *) proto_cmd_data;
+			break;
+
+		case KMT_STARTBAT:
+		case KMT_ENDBAT:
+			proto_cmdbdy.batch    = (kproto_batch_t *) proto_cmd_data;
+			break;
+	}
+
+	proto_cmd.header = &proto_cmd_hdr;
+	proto_cmd.body	 = &proto_cmdbdy;
+
+	return pack_kinetic_command(&proto_cmd);
 }
 
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes) {
@@ -389,12 +400,45 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 	}
 }
 
+kstatus_t extract_status(kproto_cmd_t *protobuf_command) {
+	if (!protobuf_command || !protobuf_command->status || !protobuf_command->status->has_code) {
+		return kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+	}
+
+	kproto_status_t *response_status = protobuf_command->status;
+
+	// copy protobuf string
+	size_t statusmsg_len     = strlen(response_status->statusmessage);
+	char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+	if (!response_statusmsg) { return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, ""); }
+
+	strcpy(response_statusmsg, response_status->statusmessage);
+
+	// copy protobuf bytes field to null-terminated string
+	char *response_detailmsg = NULL;
+	if (response_status->has_detailedmessage) {
+		response_detailmsg = helper_bytes_to_str(response_status->detailedmessage);
+
+		// if we fail to malloc in helper_bytes_to_str()
+		if (!response_detailmsg) {
+			KI_FREE(response_statusmsg);
+			return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "");
+		}
+	}
+
+	return (kstatus_t) {
+		.ks_code    = response_status->code,
+		.ks_message = response_statusmsg,
+		.ks_detail  = response_detailmsg,
+	};
+}
+
 kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data) {
-	kstatus_t extracted_status    = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+	kstatus_t extracted_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 	kproto_msg_t *response_msg = (kproto_msg_t *) response_result->result_message;
 
 	// commandbytes should exist, but we should probably be thorough
-	if (!response_msg->has_commandbytes) {
+	if (!response_msg || !response_msg->has_commandbytes) {
 		return kstatus_err(K_INVALID_SC, KI_ERR_NOCMD, "extract command header");
 	}
 
@@ -414,41 +458,8 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	extract_primitive_optional(cmdhdr_data->kch_batid    , response_cmd_hdr, batchid);
 
 	// extract the kinetic response status; copy the messages for independence from the body data
-	kproto_status_t *response_status = response_cmd->status;
+	extracted_status = extract_status(response_cmd);
 
-	if (response_status && response_status->has_code) {
-		// copy protobuf string
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		if (!response_statusmsg) {
-			extracted_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract cmdhdr: status msg");
-			goto cmdhdr_cleanup;
-		}
-		strcpy(response_statusmsg, response_status->statusmessage);
-
-		// copy protobuf bytes field to null-terminated string
-		char *response_detailmsg = NULL;
-		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
-
-		// assume malloc failed if there's a message but our pointer is still NULL
-		if (response_status->has_detailedmessage && !response_detailmsg) {
-			KI_FREE(response_statusmsg);
-
-			extracted_status = kstatus_err(
-				K_EINTERNAL, KI_ERR_MALLOC, "extract cmdhdr: status detail"
-			);
-
-			goto cmdhdr_cleanup;
-		}
-
-		extracted_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
-
-cmdhdr_cleanup:
 	// cleanup before we return the status data
 	destroy_command(response_cmd);
 
