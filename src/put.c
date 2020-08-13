@@ -313,24 +313,17 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 		};
 	}
 
-	// if the keyval has a version set, then it is passed as newversion and we need to pass the old
-	// version as dbversion
+	// if newver or ver is set, propagate them (ver is passed as dbversion)
 	if (cmd_data->kv_newver != NULL || cmd_data->kv_ver != NULL) {
-		set_bytes_optional(&proto_cmd_body, newversion,
-				   cmd_data->kv_newver, cmd_data->kv_newverlen);
-		set_bytes_optional(&proto_cmd_body, dbversion,
-				   cmd_data->kv_ver, cmd_data->kv_verlen);
+		set_bytes_optional(&proto_cmd_body, newversion, cmd_data->kv_newver, cmd_data->kv_newverlen);
+		set_bytes_optional(&proto_cmd_body, dbversion , cmd_data->kv_ver   , cmd_data->kv_verlen);
 	}
 
-	// we could potentially compute disum here (based on integrity algorithm) if desirable
-	set_primitive_optional(&proto_cmd_body, algorithm, cmd_data->kv_ditype);
-	set_bytes_optional(&proto_cmd_body, tag,
-			   cmd_data->kv_disum, cmd_data->kv_disumlen);
-
 	// if force is specified, then the dbversion is essentially ignored.
-	set_primitive_optional(&proto_cmd_body, force, bool_shouldforce);
-	set_primitive_optional(&proto_cmd_body,
-			       synchronization, cmd_data->kv_cpolicy);
+	set_primitive_optional(&proto_cmd_body, force          , bool_shouldforce    );
+	set_primitive_optional(&proto_cmd_body, synchronization, cmd_data->kv_cpolicy);
+	set_primitive_optional(&proto_cmd_body, algorithm      , cmd_data->kv_ditype );
+	set_bytes_optional(&proto_cmd_body, tag, cmd_data->kv_disum, cmd_data->kv_disumlen);
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, (void *) &proto_cmd_body);
