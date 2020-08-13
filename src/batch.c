@@ -33,28 +33,41 @@
 /**
  * Internal prototypes
  */
-struct kresult_message
-create_startbatch_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
+struct kresult_message create_batch_message(kmsghdr_t *, kcmdhdr_t *);
+kstatus_t extract_seqlist(struct kresult_message *response_msg,
+			  kseq_t **seqlist, size_t *seqlistcnt);
+kstatus_t extract_status(struct kresult_message *response_msg);
 
-struct kresult_message
-create_endbatch_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
+/* 
+ * KTLIBatch uses GCC builtin CAS for lockless atomic updates
+ * bool __sync_bool_compare_and_swap (type *ptr, type oldval type newval, ...)
+ *
+ * atomic: if the curr value of *ptr == oldval, then write newval into *ptr. 
+ * But does it have to be so long of a function name? Make it smaller
+ */
+#define SBCAS __sync_bool_compare_and_swap
+
 
 kstatus_t
-ki_batch_generic(int ktd, kv_t *kv, int force)
+b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 {
-	int rc, i;
+	int rc, i, retries;
+	kbid_t bid;
+	uint32_t batcnt;
 	kstatus_t krc;
 	struct kio *kio;
 	struct kiovec *kiov;
 	struct ktli_config *cf;
 	uint8_t ppdu[KP_PLENGTH];
+	size_t seqlistcnt;
+	kseq_t *seqlist;
 	kpdu_t pdu;
 	kpdu_t rpdu;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
 	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
-
+	
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
@@ -66,57 +79,80 @@ ki_batch_generic(int ktd, kv_t *kv, int force)
 	}
 	ses = (ksession_t *)cf->kcfg_pconf;
 	
-	/* Validate the passed in kv */
-	rc = ki_validate_kv(kv, force, &ses->ks_l);
-	if (rc < 0) {
+	switch (msg_type) {
+	case KMT_STARTBAT:
+		/* Get a batch ID */
+		/* arbitray large number to prevent an infinite loop */
+		retries = 1000; 
+		bid = ses->ks_bid;
+		while (!SBCAS(&ses->ks_bid, bid, bid + 1) && retries--)
+		       bid = ses->ks_bid;
+
+		if (!retries) {
+			return (kstatus_t) {
+				.ks_code = K_EINTERNAL,
+				.ks_message = "Unable to get Batch ID",
+				.ks_detail  = "",
+			};
+		}
+
+		/* Increment the number of active batches */
+		/* arbitray large number to prevent an infinite loop */
+		retries = 1000;
+		batcnt = ses->ks_bats;
+		while (!SBCAS(&ses->ks_bats, batcnt, batcnt + 1) && retries--)
+		       batcnt = ses->ks_bats;
+		
+		if (!retries) {
+			return (kstatus_t) {
+				.ks_code = K_EINTERNAL,
+				.ks_message = "Unable to get Batch ID",
+				.ks_detail  = "",
+			};
+		}
+		
+		if (batcnt > ses->ks_l.kl_devbatcnt) {
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH,
+					  "batch: Too many active");
+			goto bex_kb;
+		}
+		
+		*kb = (kb_t *) KI_MALLOC(sizeof(kb_t));
+		if (!(*kb)) {
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC,
+					  "batch: kb");
+			goto bex_kb;
+		}
+
+		(*kb)->kb_ktd = ktd;
+		(*kb)->kb_bid = bid;
+		(*kb)->kb_seqs = list_init();
+		(*kb)->kb_ops = 0;
+		(*kb)->kb_dels = 0;
+		(*kb)->kb_bytes = 0;
+		pthread_mutex_init(&((*kb)->kb_m), NULL);
+		break;
+		
+	case KMT_ENDBAT:
+		break;
+
+	default:
 		return (kstatus_t) {
-			.ks_code    = errno,
-			.ks_message = "Invalid KV",
+			.ks_code    = K_EREJECTED,
+			.ks_message = "batch: bad command",
 			.ks_detail  = "",
 		};
 	}
-
+	
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "batch: kio");
+		goto bex_kb;
+		
 	}
 	memset(kio, 0, sizeof(struct kio));
 
-	/* 
-	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
-	 * is for the protobuf message, and then elements 2 and beyond are
-	 * for the value. The size is variable as the value can come in 
-	 * many parts from the caller. See message.h for more details.
-	 */
-	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt; 
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-			     sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt);
-
-	if (!kio->kio_sendmsg.km_msg) {
-		return (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
-	}
-
-	/* Hang the PDU buffer */
-	kio->kio_cmd = KMT_PUT;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
-
-	/* 
-	 * copy the passed in value vector onto the sendmsg, 
-	 * no value data is copied 
-	 */
-	memcpy(&(kio->kio_sendmsg.km_msg[KIOV_VAL]), kv->kv_val,
-	       (sizeof(struct kiovec) * kv->kv_valcnt));
-	
 	/* 
 	 * Setup msg_hdr 
 	 * One thing to note here is that although the msg hdr is being setup
@@ -137,31 +173,59 @@ ki_batch_generic(int ktd, kv_t *kv, int force)
 
 	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
-	cmd_hdr.kch_type = KMT_PUT;
+	cmd_hdr.kch_type = msg_type;
 
-	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, force);
-	if (kmreq.result_code == FAILURE) { goto pex2; }
+	kmreq = create_batch_message(&msg_hdr, &cmd_hdr);
+	if (kmreq.result_code == FAILURE) {
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ,
+				  "batch: request");
+		goto bex_req;
+	}
+
+	/* Setup the KIO */
+	kio->kio_cmd            = msg_type;
+	kio->kio_flags		= KIOF_INIT;
+	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
+
+	/* 
+	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
+	 * is for the protobuf message. There is no value.
+	 * See message.h for more details.
+	 */
+	kio->kio_sendmsg.km_cnt = 2; 
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
+			     sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt);
+
+	if (!kio->kio_sendmsg.km_msg) {
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "batch: request");
+		goto bex_kio;
+	}
+
+	/* Hang the Packed PDU buffer, packing occurs later */
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
 	/* pack the message and hang it on the kio */
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
-	rc = pack_kinetic_message(
+	enum kresult_code pack_result = pack_kinetic_message(
 		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
 	);
 
+	if (pack_result == FAILURE) {
+		errno = K_EINTERNAL;
+		krc   = kstatus_err(errno, KI_ERR_MSGPACK, "batch: pack msg");
+		goto bex_sendmsg;
+	}
+
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
-
-	/* for kp_vallen, need to run through kv_val vector and addit up */ 
 	pdu.kp_vallen = 0;
-	for (i=0;i<kv->kv_valcnt; i++)
-		pdu.kp_vallen += kv->kv_val[i].kiov_len;
-	
 	PACK_PDU(&pdu, ppdu);
-	printf("p_put_generic: PDU(x%2x, %d, %d)\n",
+	printf("b_batch_generic: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
 	/* Send the request */
@@ -177,51 +241,75 @@ ki_batch_generic(int ktd, kv_t *kv, int force)
 		rc = ktli_receive(ktd, kio);
 		if (rc < 0) {
 			// Not our response, so try again
-			if (errno == ENOENT) { continue; }
-
-			/* PAK: need to exit, receive failed */
-			else { ; }
+			if (errno == ENOENT) {
+				continue;
+			} else {
+				/* PAK: need to exit, receive failed */
+				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG,
+						  "batch: recvmsg");
+				goto bex_sendmsg;
+			}
 		}
 
-		else { break; }
+		/* Got our response */
+	        break;
 	} while (1);
 
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		/* PAK: error handling -need to clean up Yikes! */
-		assert(0);
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU,
+				  "batch: extract PDU");
+		goto bex_recvmsg;
 	}
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
 
 	/* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
-		/* PAK: error handling -need to clean up Yikes! */
-		assert(0);
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN,
+				  "batch: parse pdu");
+		goto bex_recvmsg;
 	}
 
 	/* Now unpack the message */ 
-	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
+	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
-		/* cleanup and return error */
-		rc = -1;
-		goto pex2;
+		krc   = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK,
+				    "batch: unpack msg");
+		goto bex_recvmsg;
 	}
 
-	krc = extract_putkey(&kmresp, kv);
-	if (krc.ks_code != K_OK) {
-		rc = -1;
-		goto pex1;
+	/* Handle the response based on msg_type */
+	switch (msg_type) {
+	case KMT_STARTBAT:
+		krc = extract_status(&kmresp);
+		break;
+		
+	case KMT_ENDBAT:
+		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
+		break;
+
+	default:
+		debug_printf("batch: should not get here\n");
+		assert(0);
+		break;
 	}
 
-	/* errno set by validate */
-	// rc = gl_validate_resp(glog);
 
-	/* clean up */
- pex1:
+ bex_resp:
 	destroy_message(kmresp.result_message);
- pex2:
+
+ bex_recvmsg:
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg);
+
+ bex_sendmsg:
+	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_sendmsg.km_msg);
+
+ bex_req:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
 	 * was made in kmreq before freeingcalling destroy.
@@ -232,57 +320,87 @@ ki_batch_generic(int ktd, kv_t *kv, int force)
 	
 	destroy_message(kmreq.result_message);
 
-	/* sendmsg.km_msg[KIOV_PDU] Not allocated, static */
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg);
-
-	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_sendmsg.km_msg);
-
+ bex_kio:
 	KI_FREE(kio);
 
+ bex_kb:
+	if ((krc.ks_code != K_OK) || (msg_type == KMT_ENDBAT)) {
+		/* 
+		 * an error occurred or this is the exit of BATCHEND
+		 * either way get rid of the batch and decrement the active 
+		 * batches.
+		 */
+		if (*kb) {
+			KI_FREE(*kb);
+			*kb = NULL;
+		}
+		
+		/* Decrement the number of active batches */
+		/* arbitray large number to prevent an infinite loop */
+		retries = 1000;
+		batcnt = ses->ks_bats;
+		while (!SBCAS(&ses->ks_bats, batcnt, batcnt - 1) && retries--)
+		       batcnt = ses->ks_bats;
+
+		if (!retries) {
+			return (kstatus_t) {
+				.ks_code = K_EINTERNAL,
+				.ks_message = "Unable to release batch",
+				.ks_detail  = "",
+			};
+		}
+		/* fall though using the krc from the op */
+	}
+	
 	return (krc);
 }
 
-/**
- * ki_put(int ktd, kv_t *kv)
- */
-kstatus_t
-ki_batchstart(int ktd, kv_t *key)
+int
+b_batch_addop(kb_t *kb, kcmdhdr_t *kc)
 {
-	int force;
-	return (p_put_generic(ktd, kv, force=1));
+	int rc = 0;
+	if (!kb || !kc) return (-1);
+
+	pthread_mutex_lock(&kb->kb_m);
+	(void)list_mvrear(kb->kb_seqs);
+	if (!list_insert_after(kb->kb_seqs, &kc->kch_seq, sizeof(kseq_t))) {
+		errno = ENOMEM;
+		rc = -1;
+	}
+	pthread_mutex_unlock(&kb->kb_m);
+	return(rc);
 }
 
 /**
- * ki_cas(int ktd, kv_t *kv)
+ * ki_batchcreate(int ktd)
+ */
+kbatch_t *
+ki_batchcreate(int ktd)
+{
+	kb_t *kb;
+
+	b_batch_generic(ktd, &kb, KMT_STARTBAT);
+	return ((kbatch_t *)kb);
+}
+
+/**
+ * ki_batchend(int ktd, kbatch_t *kb)
  *
  */
 kstatus_t
-ki_batchend(int ktd, kv_t *kv)
+ki_batchend(int ktd, kbatch_t *kb)
 {
-	int force;
-	return (p_put_generic(ktd, kv, force=0));
+	return (b_batch_generic(ktd, (kb_t **)&kb, KMT_ENDBAT));
 }
 
-kstatus_t
-ki_batchput(int ktd, kv_t *kv)
-{
-	int force;
-	return (p_put_generic(ktd, kv, force=1));
-}
-kstatus_t
-ki_batchdel(int ktd, kv_t *key)
-{
-	int force;
-	return (p_put_generic(ktd, kv, force=1));
-}
 /*
  * Helper functions
  */
-struct kresult_message create_startbatch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr) {
+struct kresult_message
+create_batch_message(kmsghdr_t *msg_hdr,
+		     kcmdhdr_t *cmd_hdr) {
 
+#if 0
 	// declare protobuf structs on stack
 	kproto_cmdhdr_t proto_cmd_header;
 	kproto_batch_t  proto_cmd_body;
@@ -336,7 +454,51 @@ struct kresult_message create_startbatch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
+#endif
 }
+
+
+kstatus_t extract_status(struct kresult_message *response_msg)
+{
+	// assume failure status
+	kstatus_t kv_status = (kstatus_t) {
+		.ks_code    = K_INVALID_SC,
+		.ks_message = NULL,
+		.ks_detail  = NULL,
+	};
+	// commandbytes should exist, but we should probably be thorough
+	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
+	if (!kv_response_msg->has_commandbytes) { return kv_status; }
+
+	// unpack the command bytes
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
+
+	kproto_status_t *response_status = response_cmd->status;
+	if (response_status->has_code) {
+		size_t statusmsg_len     = strlen(response_status->statusmessage);
+		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		strcpy(response_statusmsg, response_status->statusmessage);
+
+		char *response_detailmsg = NULL;
+		if (response_status->has_detailedmessage) {
+			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
+			memcpy(
+				response_detailmsg,
+				response_status->detailedmessage.data,
+				response_status->detailedmessage.len
+			);
+		}
+
+		kv_status = (kstatus_t) {
+			.ks_code    = response_status->code,
+			.ks_message = response_statusmsg,
+			.ks_detail  = response_detailmsg,
+		};
+	}
+	return(kv_status);
+}
+
+#if 0
 
 // This may get a partially defined structure if we hit an error during the construction.
 void destroy_protobuf_putkey(kv_t *kv_data) {
@@ -353,7 +515,7 @@ void destroy_protobuf_putkey(kv_t *kv_data) {
 	free(kv_data);
 }
 
-kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
+kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist, size_t *seqlistcnt) {
 	// assume failure status
 	kstatus_t kv_status = (kstatus_t) {
 		.ks_code    = K_INVALID_SC,
@@ -423,3 +585,6 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	return kv_status;
 }
+
+
+#endif

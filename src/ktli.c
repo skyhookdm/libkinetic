@@ -1054,12 +1054,18 @@ ktli_sender(void *p)
 
 			kio->kio_sendmsg.km_status = rc;
 			kio->kio_sendmsg.km_errno = errno;
+			kio->kio_state = KIO_SENT;
 
-			if (rc < 0) {
-				/* Error, hang it on the completed Q */
-				debug_printf("KTLI Send Error\n");
-				kio->kio_state = KIO_FAILED;
+			/* Handle the REQONLY case with the error case */
+			if (rc < 0 || KIOF_ISSET(kio, KIOF_REQONLY)) {
+				if ( rc < 0) {
+					debug_printf("KTLI Send Error\n");
+					kio->kio_state = KIO_FAILED;
+				} 
 				
+				/* 
+				 * In either case hang it on the completed Q
+				 */
 				pthread_mutex_lock(&cq->ktq_m);
 				(void)list_mvrear(cq->ktq_list);
 				list_insert_before(cq->ktq_list,
@@ -1070,9 +1076,8 @@ ktli_sender(void *p)
 				continue;
 			}
 			
-			/* Success */
-			kio->kio_state = KIO_SENT;
 
+			/* Success */
 			/* Hang it on the receive queue */
 			pthread_mutex_lock(&rq->ktq_m);
 			(void)list_mvrear(rq->ktq_list);

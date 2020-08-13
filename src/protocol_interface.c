@@ -383,8 +383,8 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 		proto_cmdhdr->has_timequanta = 1;
 	}
 
-	if (cmdhdr_data->kch_batid) {
-		proto_cmdhdr->batchid	  = cmdhdr_data->kch_batid;
+	if (cmdhdr_data->kch_bid) {
+		proto_cmdhdr->batchid	  = cmdhdr_data->kch_bid;
 		proto_cmdhdr->has_batchid = 1;
 	}
 }
@@ -411,7 +411,7 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	extract_primitive_optional(cmdhdr_data->kch_timeout  , response_cmd_hdr, timeout);
 	extract_primitive_optional(cmdhdr_data->kch_pri      , response_cmd_hdr, priority);
 	extract_primitive_optional(cmdhdr_data->kch_quanta   , response_cmd_hdr, timequanta);
-	extract_primitive_optional(cmdhdr_data->kch_batid    , response_cmd_hdr, batchid);
+	extract_primitive_optional(cmdhdr_data->kch_bid      , response_cmd_hdr, batchid);
 
 	// extract the kinetic response status; copy the messages for independence from the body data
 	kproto_status_t *response_status = response_cmd->status;
@@ -445,6 +445,13 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 			.ks_code    = response_status->code,
 			.ks_message = response_statusmsg,
 			.ks_detail  = response_detailmsg,
+		};
+	} else {
+		/* status in the message but everything went OK */
+		extracted_status = (kstatus_t) {
+			.ks_code    = K_OK,
+			.ks_message = "",
+			.ks_detail  = "",
 		};
 	}
 

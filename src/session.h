@@ -10,9 +10,11 @@
 #include "getlog.h"
 
 typedef struct ksession {
-	klimits_t		ks_l;
+	kbid_t			ks_bid;		/* Next Session Batch ID */
+	uint32_t		ks_bats;	/* Active Batches */
+	klimits_t		ks_l;		/* Preserved session limits */
 	kconfiguration_t	ks_conf;
-	kcmdhdr_t		ks_ch;		
+	kcmdhdr_t		ks_ch;		/* Preserved cmdhdr limits */	
 } ksession_t;
 
 #endif /* _SESSION_H */

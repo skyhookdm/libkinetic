@@ -240,9 +240,9 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		/* ka_yes must be first to short circuit the conditional */
 		if (ka->ka_yes || yorn("Please answer y or n [yN]: ", 0, 5)) {
 			if (cmpdel)
-				kstatus = ki_cad(ktd, &kv);
+				kstatus = ki_cad(ktd, NULL, &kv);
 			else
-				kstatus = ki_del(ktd, &kv);
+				kstatus = ki_del(ktd, NULL, &kv);
 				
 			if (kstatus.ks_code != K_OK) {
 				fprintf(stderr,
@@ -256,6 +256,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	} else if ((argc - optind == 0) && (HAVE_RANGE)) {
 #if 0
+		/* PAK; Add ki_iter support here, look at range.c */
 		/* 
 		 * No key but a range define, bueno.
 		 *

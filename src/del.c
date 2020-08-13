@@ -37,7 +37,7 @@ struct kresult_message
 create_delkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
 kstatus_t
-d_del_generic(int ktd, kv_t *kv, int force)
+d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 {
 	int rc;                /* numeric return codes */
 	kstatus_t krc;            /* Holds kinetic return code and messages */
@@ -50,8 +50,8 @@ d_del_generic(int ktd, kv_t *kv, int force)
 	kmsghdr_t msg_hdr;        /* Header of a kinetic `Message` */
 	kcmdhdr_t cmd_hdr;        /* Header of a kinetic `Command` */
 	ksession_t *ses;          /* Reference to the kinetic session */
-	struct kresult_message kmreq, kmresp; 	/* Message representation */
-						/* of the req and resp */
+	struct kresult_message kmreq, kmresp, kmbat;/* Message representation */
+						    /* of the req and resp */
 
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
@@ -100,6 +100,13 @@ d_del_generic(int ktd, kv_t *kv, int force)
 	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_DEL;
+	
+	/* sequence number gets set during the send */
+	
+	/* if necessary setup the batchid */
+	if (kb)
+		cmd_hdr.kch_bid = kb->kb_bid;
+	
 
 	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, force);
 	if (kmreq.result_code == FAILURE) {
@@ -112,7 +119,12 @@ d_del_generic(int ktd, kv_t *kv, int force)
 	/* Setup the KIO */
 	kio->kio_cmd            = KMT_DEL;
 	kio->kio_flags		= KIOF_INIT;
-	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
+	if (kb)
+		/* This is a batch put, there is no response */
+		KIOF_SET(kio, KIOF_REQONLY);
+	else
+		/* This is a normal put, there is a response */
+		KIOF_SET(kio, KIOF_REQRESP);
 
 	/* 
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
@@ -159,6 +171,30 @@ d_del_generic(int ktd, kv_t *kv, int force)
 	debug_printf("d_del_generic: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
+	/* Some batch accounting */
+	if (kb) {
+		pthread_mutex_lock(&kb->kb_m);
+		
+		kb->kb_ops++;
+		kb->kb_dels++;
+		
+		/*
+		 * PAK: this is an approximation, don't know what the 
+		 * server actually implements for batch byte limits
+		 */
+		kb->kb_bytes += (pdu.kp_msglen + pdu.kp_vallen);
+
+		pthread_mutex_unlock(&kb->kb_m);
+
+		if ((kb->kb_bytes > ses->ks_l.kl_batlen) ||
+		    (kb->kb_ops > ses->ks_l.kl_batopscnt) ||
+		    (kb->kb_dels > ses->ks_l.kl_batdelcnt)) {
+			krc   = kstatus_err(errno, KI_ERR_BATCH,
+					    "batch: limits exceeded");
+			goto dex_sendmsg;
+		}
+	}
+
 	/* Communication over the network */
 
 	/* Send the request */
@@ -188,6 +224,41 @@ d_del_generic(int ktd, kv_t *kv, int force)
 	} while (1);
 
 
+	/* Special case a batch put handling */
+	if (kb) {
+		/* 
+		 * Batch receives only get the sendmsg KIO back, no resp.
+		 * Therefore the rest of this put routine is not needed 
+		 * except for the cleanup.
+		 *
+		 * Unpack the send message to get the final sequence
+		 * number. The seq# represents an op in a batch. When the 
+		 * batch is committed the server will return all of the 
+		 * sequence numbers for each op in the batch. By preserving 
+		 * each of the sent sequence numbers the batchend call can 
+		 * validate all sequence numbers/ops are accounted for. 
+		 */
+		kiov = &kio->kio_sendmsg.km_msg[KIOV_MSG];
+		kmbat = unpack_kinetic_message(kiov->kiov_base,
+						kiov->kiov_len);
+		if (kmbat.result_code == FAILURE) {
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK,
+					  "del: unpack batch send msg");
+			goto dex_sendmsg;
+		}
+
+		krc = extract_cmdhdr(&kmbat, &cmd_hdr);
+		if (krc.ks_code == K_OK) {
+			/* Preserve the req on the batch */
+			b_batch_addop(kb, &cmd_hdr);
+		}
+		
+		destroy_message(kmbat.result_message);
+		
+		/* normal exit, jump past all response handling */
+		goto dex_sendmsg;
+	}
+	
 	/* Parse response */
 
 	/* extract the return PDU */
@@ -262,10 +333,10 @@ d_del_generic(int ktd, kv_t *kv, int force)
  * delete to complete without any version checks.
  */
 kstatus_t
-ki_del(int ktd, kv_t *kv)
+ki_del(int ktd, kbatch_t *kb, kv_t *kv)
 {
 	int force;
-	return(d_del_generic(ktd, kv, force=1));
+	return(d_del_generic(ktd, kv, (kb_t *)kb, force=1));
 }
 
 /**
@@ -287,10 +358,10 @@ ki_del(int ktd, kv_t *kv)
  * deleted.
  */
 kstatus_t
-ki_cad(int ktd, kv_t *kv)
+ki_cad(int ktd, kbatch_t *kb, kv_t *kv)
 {
 	int force;
-	return(d_del_generic(ktd, kv, force=0));
+	return(d_del_generic(ktd, kv, (kb_t *)kb, force=0));
 }
 
 struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,

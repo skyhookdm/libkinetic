@@ -13,5 +13,6 @@ const char *ki_error_msgs[] = {
 	/* KI_ERR_RECVMSG   */ "Failed to receive message",
 	/* KI_ERR_RECVPDU   */ "Unexpected PDU length",
 	/* KI_ERR_PDUMSGLEN */ "Length mismatch: PDU != message + value",
+	/* KI_ERR_BATCH     */ "General Batch Error",
 };
 const int ki_errmsg_max = 12;

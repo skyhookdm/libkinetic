@@ -143,11 +143,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		goto gex_req;
 	}
 
-	/*
-	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
-	 * is for the protobuf message. There is no value.
-	 * See message.h for more details.
-	 */
+	/* Setup the KIO */
 	kio->kio_cmd            = msg_type;
 	kio->kio_flags		= KIOF_INIT;
 	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
@@ -163,7 +159,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	);
 
 	if (!kio->kio_sendmsg.km_msg) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get* request");
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get: request");
 		goto gex_kio;
 	}
 
@@ -171,7 +167,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 
-	/* pack the message and hang it on the kio; this populates kio_sendmsg */
+	/* pack the message and hang it on the kio */
 	/* PAK: Error handling */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
 	enum kresult_code pack_result = pack_kinetic_message(
@@ -212,7 +208,8 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 			}
 			else {
 				/* PAK: need to exit, receive failed */
-				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG, "getlog: recvmsg");
+				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG,
+						  "get: recvmsg");
 				goto gex_sendmsg;
 			}
 		}
@@ -240,14 +237,15 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
 		errno = K_EINTERNAL;
-		krc   = kstatus_err(errno, KI_ERR_MSGUNPACK, "get*: unpack msg");
+		krc   = kstatus_err(errno, KI_ERR_MSGUNPACK, "get: unpack msg");
 		goto gex_recvmsg;
 	}
 
 	/*
 	 * Grab the value and hang it on either the kv or altkv as approriate
 	 * Also extract the kv data from response
-	 * On extraction failure, both the response and request need to be cleaned up
+	 * On extraction failure, both the response and request need to be 
+	 * cleaned up
 	 */
 	switch (msg_type) {
 	case KMT_GET:
