@@ -297,15 +297,8 @@ ki_cas(int ktd, kv_t *kv)
  */
 struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
                                           kv_t *cmd_data, int bool_shouldforce) {
-
-	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
-	kproto_kv_t     proto_cmd_body;
-
+	kproto_kv_t proto_cmd_body;
 	com__seagate__kinetic__proto__command__key_value__init(&proto_cmd_body);
-
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
 
 	// extract from cmd_data into proto_cmd_body
 	int extract_result = keyname_to_proto(
@@ -340,9 +333,7 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 			       synchronization, cmd_data->kv_cpolicy);
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = create_command_bytes(
-		&proto_cmd_header, (void *) &proto_cmd_body
-	);
+	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, (void *) &proto_cmd_body);
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)
