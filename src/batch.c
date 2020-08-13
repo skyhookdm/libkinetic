@@ -278,6 +278,7 @@ ki_batchdel(int ktd, kv_t *key)
 	int force;
 	return (p_put_generic(ktd, kv, force=1));
 }
+
 /*
  * Helper functions
  */
@@ -287,108 +288,68 @@ struct kresult_message create_startbatch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *
 	kproto_cmdhdr_t proto_cmd_header;
 	kproto_batch_t  proto_cmd_body;
 
-	// TODO
 	com__seagate__kinetic__proto__command__batch__init(&proto_cmd_body);
 
 	// populate protobuf structs
 	extract_to_command_header(&proto_cmd_header, cmd_hdr);
-
-	// extract from cmd_data into proto_cmd_body
-	int extract_result = keyname_to_proto(
-		&(proto_cmd_body.key), cmd_data->kv_key, cmd_data->kv_keycnt
-	);
-	proto_cmd_body.has_key = extract_result;
-
-	if (extract_result == 0) {
-		return (struct kresult_message) {
-			.result_code    = FAILURE,
-			.result_message = NULL,
-		};
-	}
-
-	// if the keyval has a version set, then it is passed as newversion and we need to pass the old
-	// version as dbversion
-	if (cmd_data->kv_newver != NULL || cmd_data->kv_ver != NULL) {
-		set_bytes_optional(&proto_cmd_body, newversion,
-				   cmd_data->kv_newver, cmd_data->kv_newverlen);
-		set_bytes_optional(&proto_cmd_body, dbversion,
-				   cmd_data->kv_ver, cmd_data->kv_verlen);
-	}
-
-	// we could potentially compute disum here (based on integrity algorithm) if desirable
-	set_primitive_optional(&proto_cmd_body, algorithm, cmd_data->kv_ditype);
-	set_bytes_optional(&proto_cmd_body, tag,
-			   cmd_data->kv_disum, cmd_data->kv_disumlen);
-
-	// if force is specified, then the dbversion is essentially ignored.
-	set_primitive_optional(&proto_cmd_body, force, bool_shouldforce);
-	set_primitive_optional(&proto_cmd_body,
-			       synchronization, cmd_data->kv_cpolicy);
 
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(
 		&proto_cmd_header, (void *) &proto_cmd_body
 	);
 
-	// since the command structure goes away after this function, cleanup the allocated key buffer
-	// (see `keyname_to_proto` above)
-	free(proto_cmd_body.key.data);
-
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
 }
 
 // This may get a partially defined structure if we hit an error during the construction.
-void destroy_protobuf_putkey(kv_t *kv_data) {
+void destroy_protobuf_batch(kb_t *kb_data) {
 	// Don't do anything if we didn't get a valid pointer
-	if (!kv_data) { return; }
+	if (!kb_data) { return; }
 
 	// first destroy the allocated memory for the message data
-	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
-
-	// then free arrays of pointers that point to the message data
-
-	// free the struct itself last
-	// NOTE: we may want to leave this to a caller?
-	free(kv_data);
+	destroy_command((kproto_batch_t *) kb_data->kb_protobuf);
 }
 
-kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
+kstatus_t extract_batch(struct kresult_message *response_msg, kb_t *kb_data) {
 	// assume failure status
-	kstatus_t kv_status = (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = NULL,
-		.ks_detail  = NULL,
-	};
+	kstatus_t kb_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 
 	// commandbytes should exist, but we should probably be thorough
-	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
-	if (!kv_response_msg->has_commandbytes) { return kv_status; }
+	kproto_msg_t *kb_response_msg = (kproto_msg_t *) response_msg->result_message;
+	if (!kb_response_msg->has_commandbytes) { return kb_status; }
 
 	// unpack the command bytes
-	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
-	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(kb_response_msg->commandbytes);
+	if (!response_cmd) { return kb_status; }
 
 	// extract the response status to be returned. prepare this early to make cleanup easy
 	kproto_status_t *response_status = response_cmd->status;
 
 	// copy the status message so that destroying the unpacked command doesn't get weird
-	if (response_status->has_code) {
+	if (response_status && response_status->has_code) {
+		// copy protobuf string
 		size_t statusmsg_len     = strlen(response_status->statusmessage);
 		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		if (!response_statusmsg) {
+			kb_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract batch: status msg");
+			goto extract_bex;
+		}
 		strcpy(response_statusmsg, response_status->statusmessage);
 
+		// copy protobuf bytes field to null-terminated string
 		char *response_detailmsg = NULL;
-		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
-			memcpy(
-				response_detailmsg,
-				response_status->detailedmessage.data,
-				response_status->detailedmessage.len
-			);
+		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
+
+		// assume malloc failed if there's a message but our pointer is still NULL
+		if (response_status->has_detailedmessage && !response_detailmsg) {
+			KI_FREE(response_statusmsg);
+			kb_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract put: detail msg");
+
+			goto extract_bex;
 		}
 
-		kv_status = (kstatus_t) {
+		kb_status = (kstatus_t) {
 			.ks_code    = response_status->code,
 			.ks_message = response_statusmsg,
 			.ks_detail  = response_detailmsg,
@@ -397,29 +358,26 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	// check if there's any keyvalue information to parse
 	// (for PUT we expect this to be NULL or empty)
-	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+	if (!response_cmd->body || !response_cmd->body->batch) { return kb_status; }
 
 	// ------------------------------
 	// begin extraction of command body into kv_t structure
-	kproto_kv_t *response = response_cmd->body->keyvalue;
+	kproto_batch_t *response = response_cmd->body->batch;
 
-	// we set the number of keys to 1, since this is not a range request
-	kv_data->kv_keycnt = response->has_key ? 1 : 0;
+	if (response->has_failedsequence) {
+		kb_data->seqlistcnt = 1;
+		kb_data->seqlist    = &(response->failedsequence);
+	}
+	else {
+		kb_data->seqlistcnt = response->n_sequence;
+		kb_data->seqlist    = response->sequence;
+	}
 
-	// extract key name, db version, tag, and data integrity algorithm
-	extract_bytes_optional(kv_data->kv_key->kiov_base,
-			       kv_data->kv_key->kiov_len, response, key);
-
-	extract_bytes_optional(kv_data->kv_ver,
-			       kv_data->kv_verlen, response, dbversion);
-	extract_bytes_optional(kv_data->kv_disum,
-			       kv_data->kv_disumlen, response, tag);
-
-	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
+ extract_bex:
 
 	// set fields used for cleanup
-	kv_data->kv_protobuf      = response_cmd;
-	kv_data->destroy_protobuf = destroy_protobuf_putkey;
+	kv_data->kb_protobuf      = response_cmd;
+	kv_data->destroy_protobuf = destroy_protobuf_batch;
 
-	return kv_status;
+	return kb_status;
 }
