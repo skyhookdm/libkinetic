@@ -147,6 +147,8 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyval, struct kiovec *keynames,
 kproto_cmd_t        *unpack_kinetic_command(ProtobufCBinaryData commandbytes);
 ProtobufCBinaryData  pack_kinetic_command(kproto_cmd_t *cmd_data);
 
+kstatus_t extract_status(kproto_cmd_t *protobuf_command);
+
 /* ktli helpers for directly accessing fields */
 uint64_t ki_getaseq(struct kiovec *msg, int msgcnt);
 void     ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq);
