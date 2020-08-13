@@ -84,6 +84,12 @@
 	}                                                         \
 )
 
+#define protobuf_bytelen(proto_struct, field) ( \
+	(proto_struct)->has_##field ?               \
+		  (proto_struct)->field.len             \
+		: 0                                     \
+)
+
 
 // some forward declarations of what's in kerrors.c
 extern const char *ki_error_msgs[];
