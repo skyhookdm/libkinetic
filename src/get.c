@@ -397,13 +397,8 @@ ki_getversion(int ktd, kv_t *key)
 struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kv_t *cmd_data) {
 
 	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
-	kproto_kv_t     proto_cmd_body;
-
+	kproto_kv_t proto_cmd_body;
 	com__seagate__kinetic__proto__command__key_value__init(&proto_cmd_body);
-
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
 
 	// GET only needs key name from cmd_data
 	int extract_result = keyname_to_proto(
@@ -420,7 +415,7 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	}
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
+	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, &proto_cmd_body);
 	if (!command_bytes.data) {
 		return (struct kresult_message) {
 			.result_code    = FAILURE,
@@ -443,12 +438,6 @@ void destroy_protobuf_getkey(kv_t *kv_data) {
 
 	// first destroy the allocated memory for the message data
 	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
-
-	// then free arrays of pointers that point to the message data
-
-	// free the struct itself last
-	// NOTE: we may want to leave this to a caller?
-	free(kv_data);
 }
 
 kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
@@ -465,72 +454,40 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	// unpack the command bytes
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
-	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+	if (!response_cmd) { return kv_status; }
+	kv_data->kv_protobuf = response_cmd;
 
 	// extract the response status to be returned. prepare this early to make cleanup easy
-	kproto_status_t *response_status = response_cmd->status;
-
-	// copy the status message so that destroying the unpacked command doesn't get weird
-	if (response_status->has_code) {
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		if (!response_statusmsg) { return kv_status; }
-
-		strcpy(response_statusmsg, response_status->statusmessage);
-
-		char *response_detailmsg = NULL;
-		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
-			if (!response_detailmsg) {
-				KI_FREE(response_statusmsg);
-				return kv_status;
-			}
-
-			memcpy(
-				response_detailmsg,
-				response_status->detailedmessage.data,
-				response_status->detailedmessage.len
-			);
-		}
-
-		kv_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
-
-	// check that we received keyvalue information
-	if (response_cmd->body->keyvalue == NULL) { return kv_status; }
+	kv_status = extract_cmdstatus(response_cmd);
+	if (kv_status.ks_code != K_OK) { goto extract_gex; }
 
 	// ------------------------------
 	// begin extraction of command body into kv_t structure
+	if (!response_cmd->body || !response_cmd->body->keyvalue) { goto extract_gex; }
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
 	// we set the number of keys to 1, since this is not a range request
 	kv_data->kv_keycnt = 1;
 
 	// extract key name, db version, tag, and data integrity algorithm
-	extract_bytes_optional(
-		kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len,
-		response, key
-	);
+	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len, response, key);
 
-	extract_bytes_optional(
-		kv_data->kv_ver, kv_data->kv_verlen,
-		response, dbversion
-	);
-
-	extract_bytes_optional(
-		kv_data->kv_disum, kv_data->kv_disumlen,
-		response, tag
-	);
+	extract_bytes_optional(kv_data->kv_ver  , kv_data->kv_verlen  , response, dbversion);
+	extract_bytes_optional(kv_data->kv_disum, kv_data->kv_disumlen, response, tag      );
 
 	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
 
-	// set fields used for cleanup
-	kv_data->kv_protobuf      = response_cmd;
+	// set destructor to be called later
 	kv_data->destroy_protobuf = destroy_protobuf_getkey;
+
+	return kv_status;
+
+ extract_gex:
+	// call destructor to cleanup
+	destroy_protobuf_getkey(kv_data);
+
+	// Just make sure we don't return an ok message
+	if (kv_status.ks_code == K_OK) { kv_status.ks_code = K_EINTERNAL; }
 
 	return kv_status;
 }

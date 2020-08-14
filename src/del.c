@@ -368,13 +368,8 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 											 kv_t *cmd_data, int bool_shouldforce) {
 
 	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
-	kproto_kv_t     proto_cmd_body;
-
+	kproto_kv_t proto_cmd_body;
 	com__seagate__kinetic__proto__command__key_value__init(&proto_cmd_body);
-
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
 
 	// extract from cmd_data into proto_cmd_body
 	int extract_result = keyname_to_proto(
@@ -397,7 +392,7 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	set_primitive_optional(&proto_cmd_body, synchronization, cmd_data->kv_cpolicy);
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
+	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, &proto_cmd_body);
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)
@@ -419,7 +414,7 @@ void destroy_protobuf_delkey(kv_t *kv_data) {
 	// Don't do anything if we didn't get a valid pointer
 	if (!kv_data) { return; }
 
-	// first destroy the allocated memory for the message data
+	// destroy the protobuf allocated memory
 	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
 }
 
@@ -434,42 +429,10 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// unpack the command bytes
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
 	if (!response_cmd) { return kv_status; }
+	kv_data->kv_protobuf = response_cmd;
 
 	// extract the response status to be returned. prepare this early to make cleanup easy
-	kproto_status_t *response_status = response_cmd->status;
-
-	// copy the status message so that destroying the unpacked command doesn't get weird
-	if (response_status->has_code) {
-		// copy protobuf string
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		if (!response_statusmsg) {
-			kv_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract del: status msg");
-			goto extract_dex;
-		}
-		strcpy(response_statusmsg, response_status->statusmessage);
-
-		// copy protobuf bytes field to null-terminated string
-		char *response_detailmsg = NULL;
-		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
-
-		// assume malloc failed if there's a message but our pointer is still NULL
-		if (response_status->has_detailedmessage && !response_detailmsg) {
-			KI_FREE(response_statusmsg);
-			kv_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract del: detail msg");
-
-			goto extract_dex;
-		}
-
-		kv_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
-
-	// check if there's any keyvalue information to parse
-	// (for PUT we expect this to be NULL or empty)
+	kv_status = extract_cmdstatus(response_cmd);
 	if (!response_cmd->body || !response_cmd->body->keyvalue) { goto extract_dex; }
 
 	// ------------------------------
@@ -488,14 +451,15 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
 
 	// set fields used for cleanup
-	kv_data->kv_protobuf      = response_cmd;
 	kv_data->destroy_protobuf = destroy_protobuf_delkey;
 
 	return kv_status;
 
  extract_dex:
-	kv_data->kv_protobuf      = response_cmd;
-	kv_data->destroy_protobuf = destroy_protobuf_delkey;
+	destroy_protobuf_delkey(kv_data);
+
+	// Just make sure we don't return an ok message
+	if (kv_status.ks_code == K_OK) { kv_status.ks_code = K_EINTERNAL; }
 
 	return kv_status;
 }

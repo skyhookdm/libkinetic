@@ -265,15 +265,13 @@ void extract_to_command_body(kproto_getlog_t *proto_getlog, kgetlog_t *cmd_data)
 struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kgetlog_t *cmd_body) {
 
 	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
 	kproto_getlog_t proto_cmd_body;
 
 	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
 	extract_to_command_body(&proto_cmd_body, cmd_body);
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
+	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, &proto_cmd_body);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
@@ -481,50 +479,16 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	if (!response_cmd) {
 		return kstatus_err(K_EINTERNAL, KI_ERR_CMDUNPACK, "getlog: extract");
 	}
+	getlog_data->kgl_protobuf = response_cmd;
 
 	// extract the kinetic response status; copy the data for data independence
-	kproto_status_t *response_status = response_cmd->status;
-
-	if (response_status && response_status->has_code) {
-		// copy protobuf string
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		if (!response_statusmsg) {
-			getlog_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "getlog: extract status msg");
-			goto extract_glex;
-		}
-		strcpy(response_statusmsg, response_status->statusmessage);
-
-		// copy protobuf bytes field to null-terminated string
-		char *response_detailmsg = NULL;
-		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
-
-		// assume malloc failed if there's a message but our pointer is still NULL
-		if (response_status->has_detailedmessage && !response_detailmsg) {
-			KI_FREE(response_statusmsg);
-			getlog_status = kstatus_err(
-				K_EINTERNAL,
-				KI_ERR_MALLOC,
-				"getlog: extract status detail"
-			);
-
-			goto extract_glex;
-		}
-
-		getlog_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
+	getlog_status = extract_cmdstatus(response_cmd);
+	if (getlog_status.ks_code != K_OK) { goto extract_glex; }
 
 	// check that there's a command body and getlog data
 	if (!response_cmd->body || !response_cmd->body->getlog) { return getlog_status; }
 
 	// begin extraction of command body into getlog structure
-	getlog_data->kgl_protobuf     = NULL;
-	getlog_data->destroy_protobuf = NULL;
-
 	kproto_getlog_t *response = response_cmd->body->getlog;
 
 	// 0 is success, < 0 is failure. Use this for all the extract functions
@@ -575,25 +539,17 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 		getlog_data->kgl_log.kdl_len  = response->device->name.len;
 	}
 
-	// only set these at the end, because failures force `free`s
-	getlog_data->kgl_protobuf     = response_cmd;
+	// set destructor to be called later
 	getlog_data->destroy_protobuf = destroy_protobuf_getlog;
 
-	// TODO: test that this is not needed
-	// getlog_status.ks_code = K_OK;
 	return getlog_status;
 
-	// label for cleanup (for errors after allocations)
-extract_glex:
+ extract_glex:
 	// set this so `destroy_protobuf_getlog` can correctly destroy it
-	getlog_data->kgl_protobuf     = response_cmd;
-	getlog_data->destroy_protobuf = destroy_protobuf_getlog;
+	destroy_protobuf_getlog(getlog_data);
 
 	// Just make sure we don't return an ok message
-	if (getlog_status.ks_code == K_OK) {
-		getlog_status.ks_code = K_EINTERNAL;
-	}
+	if (getlog_status.ks_code == K_OK) { getlog_status.ks_code = K_EINTERNAL; }
 
-	// NOTE: We don't free getlog_data, in case it's a non-allocated pointer
 	return getlog_status;
 }
