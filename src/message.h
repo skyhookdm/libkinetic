@@ -166,6 +166,7 @@ void destroy_message(void *unpacked_msg);
 enum kresult_code   pack_kinetic_message(kproto_msg_t *msg_data, void **msg_buffer, size_t *msg_size);
 ProtobufCBinaryData pack_cmd_getlog(kproto_cmdhdr_t *, kproto_getlog_t *);
 ProtobufCBinaryData pack_cmd_keyval(kproto_cmdhdr_t *, kproto_getlog_t *, kmtype_t msgtype_keyval);
+ProtobufCBinaryData create_command_bytes(kcmdhdr_t *cmd_hdr, void *proto_cmd_data);
 
 struct kresult_message unpack_kinetic_message(void *response_buffer, size_t response_size);
 struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cmd_bytes);
@@ -178,7 +179,7 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data);
 kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data);
 kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data);
 
-kstatus_t extract_cmdstatus(kproto_cmd_t *response_cmd);
+kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command);
 
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
 

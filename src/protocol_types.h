@@ -139,15 +139,12 @@ enum header_field_type {
 
 /* creating and extracting to/from protobuf structures */
 struct kresult_message  create_header(uint8_t header_field_bitmap, ...);
-ProtobufCBinaryData     create_command_bytes(kproto_cmdhdr_t *cmd_hdr, void *proto_cmd);
 
 int keyname_to_proto(ProtobufCBinaryData *proto_keyval, struct kiovec *keynames, size_t keycnt);
 
 /* serialization/deserialization */
 kproto_cmd_t        *unpack_kinetic_command(ProtobufCBinaryData commandbytes);
 ProtobufCBinaryData  pack_kinetic_command(kproto_cmd_t *cmd_data);
-
-kstatus_t extract_status(kproto_cmd_t *protobuf_command);
 
 /* ktli helpers for directly accessing fields */
 uint64_t ki_getaseq(struct kiovec *msg, int msgcnt);
