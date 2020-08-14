@@ -432,10 +432,11 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	// unpack command, and hang it on kv_data to be destroyed at any time
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
-	kv_data->kv_protobuf       = response_cmd;
+	if (!response_cmd) { return kv_status; }
+	kv_data->kv_protobuf = response_cmd;
 
 	// extract the status. On failure, skip to cleanup
-	kv_status = extract_status(response_cmd);
+	kv_status = extract_cmdstatus(response_cmd);
 	if (kv_status.ks_code != K_OK) { goto extract_pex; }
 
 	// ------------------------------
@@ -458,8 +459,11 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	return kv_status;
 
  extract_pex:
-	// since we hit an error, destroy the protobuf data now and return the status
+	// call the destructor to cleanup
 	destroy_protobuf_putkey(kv_data);
+
+	// Just make sure we don't return an ok message
+	if (kv_status.ks_code == K_OK) { kv_status.ks_code = K_EINTERNAL; }
 
 	return kv_status;
 }
