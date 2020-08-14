@@ -1,13 +1,14 @@
 BUILDDIR =	../../build
 OBJS = 		kctl.o util.o info.o get.o put.o del.o \
-		range.o
+		range.o batch.o
 #	ping.o cluster.o lock.o acl.o  \
 #	histogram.o
 
 KCTL=		kctl
 CFLAGS =	-g -I$(BUILDDIR)/include
 LDFLAGS =	-L$(BUILDDIR)/lib
-LDLIBS = 	-lkinetic -lpthread -lssl -lcrypto
+LIBRL = 	-Bstatic -lreadline -Bdynamic
+LDLIBS = 	$(LIBRL) -lkinetic -lpthread -lssl -lcrypto
 
 all:		$(KCTL)
 

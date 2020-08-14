@@ -22,7 +22,9 @@ kctl_put_usage(struct kargs *ka)
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY VALUE\n",
 		ka->ka_progname, ka->ka_cmdstr);
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
+	fprintf(stderr, "\t-b           Add to current batch [no]\n");
 	fprintf(stderr, "\t-c           Compare and swap [no]\n");
+	fprintf(stderr, "\t-z len       Construct a length len value of 0s\n");
 	fprintf(stderr, "\t-p [wt|wb|f] Cache policy:\n");
 	fprintf(stderr, "\t             writethrough, writeback, flush [wb]\n");
 	fprintf(stderr, "\t-s sum       Value CRC32 sum (8 hex digits) [0] \n");
@@ -50,9 +52,9 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 {
  	extern char     *optarg;
         extern int	optind, opterr, optopt;
-        char		c;
+        char		c, *cp;
 	kcachepolicy_t	cpolicy = KC_WB;
-	int 		cmpswp=0, exists=0;
+	int 		cmpswp=0, exists=0, zlen=0, bat=0;
 	uint32_t	sum = 0;
 	char		newver[VERLEN]; 	// holds hex representation of
 						// one int: "0x00000000"
@@ -61,8 +63,16 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct kiovec	kv_val[1]  = {0, 0};
 	kstatus_t 	kstatus;
 
-        while ((c = getopt(argc, argv, "ch?p:s:")) != EOF) {
+        while ((c = getopt(argc, argv, "ch?p:s:z:")) != EOF) {
                 switch (c) {
+		case 'b':
+			bat = 1;
+			if (!ka->ka_batch) {
+				fprintf(stderr, "**** No active batch\n");
+				CMD_USAGE(ka);
+				return(-1);
+			}				
+			break;
 		case 'c':
 			cmpswp = 1;
 			break;
@@ -85,6 +95,22 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
+			break;
+		case 'z':
+			zlen = strtol(optarg, &cp, 0);
+			if (!cp || *cp != '\0') {
+				fprintf(stderr, "*** Invalid zlen %s\n",
+				       optarg);
+				CMD_USAGE(ka);
+				return(-1);
+			}
+			
+			if (zlen > ka->ka_limits.kl_vallen) {
+				fprintf(stderr, "*** zlen too long (%d > %d)\n",
+					zlen, ka->ka_limits.kl_vallen);
+				return(-1);
+			}
+
 			break;
 		case 's':
 			if (strlen(optarg) > 8) {
@@ -117,6 +143,22 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			return(-1);
 		}
 		
+	} else if (argc - optind == 1 && zlen) {
+		if (!asciidecode(argv[optind], strlen(argv[optind]),
+				 (void **)&ka->ka_key, &ka->ka_keylen)) {
+			fprintf(stderr, "*** Failed key conversion\n");
+			CMD_USAGE(ka);
+			return(-1);
+		}
+		optind++;
+		ka->ka_val = (char *)malloc(zlen);
+		if (!ka->ka_val) {
+			fprintf(stderr, "*** Unable to alloc zlen buffer\n");
+			return(-1);
+		}
+		ka->ka_vallen = zlen;
+		memset(ka->ka_val, 0, zlen);
+		memcpy(ka->ka_val, ka->ka_key, ka->ka_keylen); /* tag it */
 	} else {
 		fprintf(stderr, "*** Too few or too many args\n");
 		CMD_USAGE(ka);
@@ -179,9 +221,9 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 	
         if (cmpswp)
-		kstatus = ki_cas(ktd, NULL, &kv);
+		kstatus = ki_cas(ktd, (bat?ka->ka_batch:NULL), &kv);
 	else
-		kstatus = ki_put(ktd, NULL, &kv);
+		kstatus = ki_put(ktd, (bat?ka->ka_batch:NULL), &kv);
 	
 	fprintf(stderr, "%s: %s: %s: %s\n",
 		ka->ka_cmdstr, ka->ka_key,

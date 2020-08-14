@@ -8,6 +8,9 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #include <kinetic/kinetic.h>
 #include "kctl.h"
 
@@ -27,8 +30,9 @@ struct kargs kargs = {
 	.ka_host	= (char *)"127.0.0.1",
 	.ka_port	= "8123",
 	.ka_usetls	= 0,
-	.ka_timeout	= 10,
 	.ka_clustervers = -1,
+	.ka_batch	= NULL,
+	.ka_timeout	= 10,
 	.ka_quiet	= 0,
 	.ka_terse	= 0,
 	.ka_verbose	= 0,
@@ -40,6 +44,7 @@ extern int kctl_put(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_del(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_info(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_range(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_batch(int argc, char *argv[], int kts, struct kargs *ka);
 
 #if 0
 extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
@@ -67,6 +72,7 @@ struct ktable {
 	{ KCTL_DEL,     "del",     "Delete key value(s)", &kctl_del},
 	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_info},
 	{ KCTL_RANGE,   "range",   "Print a range of keys", &kctl_range},
+	{ KCTL_BATCH,   "batch",   "Start or End a batch", &kctl_batch},
 
 #if 0
 	{ KCTL_SETCLUSTERV,
@@ -83,6 +89,7 @@ struct ktable {
 };
 
 int	kctl(int, char *[], struct kargs *ka);
+int	kctl_interactive(struct kargs *ka);
 
 void
 usage()
@@ -135,7 +142,7 @@ print_args(struct kargs *ka)
 	
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Host:", ka->ka_host);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Port:", ka->ka_port);
-	printf("%" PA_LABEL_WIDTH "s %ld\n", "UserID:", ka->ka_user);
+	printf("%" PA_LABEL_WIDTH "s %ld\n","UserID:", ka->ka_user);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "HMAC Key:", ka->ka_hkey);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Use TLS:", ka->ka_usetls);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Timeout:", ka->ka_timeout);
@@ -207,8 +214,10 @@ main(int argc, char *argv[])
 
 	/* Check for the cmd [key [value]] parms */
 	if (argc - optind == 0) {
-		fprintf(stderr, "*** No CMD provided\n");
-		usage();
+		if (kargs.ka_verbose)
+			printf("No CMD provided, going interactive\n");
+		kctl_interactive(&kargs);
+		exit(0);
 	}
 
 	/* consume cmd */
@@ -241,25 +250,40 @@ main(int argc, char *argv[])
 }
 
 int
-kctl(int argc, char *argv[], struct kargs *ka)
+kctl_start(struct kargs *ka)
 {
-	int i, rc, ktd;
+	int ktd;
 	
 	ktd = ki_open(ka->ka_host, ka->ka_port,
 		      ka->ka_usetls, ka->ka_user, ka->ka_hkey);
 	
 	if (ktd < 0) {
 		fprintf(stderr, "%s: Connection Failed\n", ka->ka_progname);
-		return(EINVAL);
+		return(-1);
 	}
 
 	ka->ka_limits = ki_limits(ktd);
 	if (!ka->ka_limits.kl_keylen) {
 		fprintf(stderr, "%s: Unable to get kinetic limits\n",
 			ka->ka_progname);
+		return(-1);
+	}
+
+	return(ktd);
+}
+
+
+int
+kctl(int argc, char *argv[], struct kargs *ka)
+{
+	int i, rc, ktd;
+	
+	ktd = kctl_start(ka);	
+	if (ktd < 0) {
+		fprintf(stderr, "%s: UNable to start\n", ka->ka_progname);
 		return(EINVAL);
 	}
-		
+
 	for(i=0; i<KCTL_EOT; i++) {
 		if (ktable[i].ktab_cmd == kargs.ka_cmd) {
 			/* Found a good command, call it */
@@ -273,6 +297,70 @@ kctl(int argc, char *argv[], struct kargs *ka)
 	return rc;
 }
 
+int
+kctl_interactive(struct kargs *ka)
+{
+	enum { maxargs = 1024 };
+	char *line, *sline, *p, *argv[maxargs];
+	int i, rc, ktd, argc;
+	
+	ktd = kctl_start(ka);	
+	if (ktd < 0) {
+		fprintf(stderr, "%s: Unable to start\n", ka->ka_progname);
+		return(EINVAL);
+	}
+
+	while (line = readline("kctl> ")) {
+		if (!strlen(line)) {
+			free(line);
+			continue;
+		}
+
+		add_history(line);
+
+		/* save a copy of the ptr as tokenizing will lose it */
+		sline = line;
+
+		/* Create the argv array */
+		argc = 0;
+		p = strtok(line, " ");
+		while (p && argc < maxargs-1) {
+			argv[argc++] = p;
+			p = strtok(0, " ");
+		}
+		argv[argc] = 0;
+
+		if (ka->ka_verbose)
+			for(i=0; i<argc; i++)
+				printf("ARGV[%d] -> %s\n", i, argv[i]);
+
+		if (strcmp(argv[0], "quit") == 0)
+			break;
+		
+		for(i=0; i<KCTL_EOT; i++) {
+			if (ktable[i].ktab_cmd == kargs.ka_cmd) {
+				/* Found a good command, call it */
+				rc = (*ktable[i].ktab_handler)(argc, argv,
+							       ktd, ka);
+				break;
+			}
+		}
+
+		if (i == KCTL_EOT)
+			fprintf(stderr, "%s: Command not found\n", argv[0]);
+
+		/* free the saved line ptr and go around again */
+		free(sline);
+
+	}
+	
+	if (ka->ka_verbose)
+		printf("\nkctl exiting\n");
+
+	ki_close(ktd);
+	
+	return rc;
+}
 
 int
 kctl_nohandler(int argc, char *argv[], int kts, struct kargs *ka)

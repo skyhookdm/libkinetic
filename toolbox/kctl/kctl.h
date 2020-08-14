@@ -22,6 +22,7 @@ enum kctl_cmd {
 	KCTL_LOCK,
 	KCTL_UNLOCK,
 	KCTL_ACL,
+	KCTL_BATCH,
 	
 	KCTL_EOT // End of Table -  Must be last
 };
@@ -43,6 +44,7 @@ struct kargs {
 	uint32_t	ka_timeout;	/* connection timeout */
 	int64_t		ka_clustervers;	/* Client cluster version number, */
 					/* must match server cluster version */
+	kbatch_t	*ka_batch;	/* holds global batch ptr */
 	uint32_t	ka_quiet;	/* output ctl */
 	uint32_t	ka_terse;	/* output ctl */
 	uint32_t	ka_verbose;	/* output ctl */
