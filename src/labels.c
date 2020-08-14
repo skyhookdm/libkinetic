@@ -32,7 +32,7 @@ char *ki_msgtype_label[] = {
 	/* 0x1d 29 */ "Noop Resp",
 	/* 0x1e 30 */ "Noop",
 	/* 0x1f 31 */ "Flush All Data Resp",
-	/* 0x20 32 */ "FlusH All Data",
+	/* 0x20 32 */ "Flush All Data",
 	/* 0x21 33 */ "Reserved Message Type 33",
 	/* 0x22 34 */ "Reserved Message Type 34",
 	/* 0x23 35 */ "PIN Op Resp",
