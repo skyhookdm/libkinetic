@@ -36,6 +36,8 @@
 struct kresult_message create_batch_message(kmsghdr_t *, kcmdhdr_t *);
 kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist, size_t *seqlistcnt);
 
+static int b_batch_seqmatch(char *data, char *ldata);
+
 /* 
  * KTLIBatch uses GCC builtin CAS for lockless atomic updates
  * bool __sync_bool_compare_and_swap (type *ptr, type oldval type newval, ...)
@@ -56,11 +58,9 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	struct kio *kio;
 	struct kiovec *kiov;
 	struct ktli_config *cf;
-
-	kseq_t *seqlist;
-	size_t  seqlistcnt;
-
 	uint8_t ppdu[KP_PLENGTH];
+	size_t seqlistcnt;
+	kseq_t *seqlist, *seq;
 	kpdu_t pdu;
 	kpdu_t rpdu;
 	kmsghdr_t msg_hdr;
@@ -274,8 +274,48 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		goto bex_recvmsg;
 	}
 
-	// extract_seqlist will retrieve the status only if kb is empty (expected for start batch)
-	krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
+	/* Handle the response based on msg_type */
+	switch (msg_type) {
+	case KMT_STARTBAT:
+		krc = extract_status(&kmresp);
+		break;
+		
+	case KMT_ENDBAT:
+		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
+
+		pthread_mutex_lock(&(*kb)->kb_m);
+		for (i=0;i<seqlistcnt; i++) {
+			rc = list_traverse((*kb)->kb_seqs, (char *)&seqlist[i],
+					   b_batch_seqmatch, LIST_ALTR);
+			if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
+				/*
+				 * Got an acknowledged op seq that is
+				 * not in our op seq list
+				 */
+				krc = kstatus_err(K_EINTERNAL,
+						  KI_ERR_BATCH,
+						  "batch: unsent seq");
+				goto bex_endbat;
+			}
+			seq = (kseq_t *)list_remove_curr((*kb)->kb_seqs);
+			KI_FREE(seq);
+		}
+		if (list_size((*kb)->kb_seqs)) {
+			/*
+			 * Did not get an acknowledged op seq for an
+			 * op seq in our list
+			 */
+			krc = kstatus_err(K_EINTERNAL,
+					  KI_ERR_BATCH,
+					  "batch: unacknowledged seq");
+			goto bex_endbat;
+		}
+
+	bex_endbat:
+		list_free((*kb)->kb_seqs, NULL);
+		pthread_mutex_unlock(&(*kb)->kb_m);
+		pthread_mutex_destroy(&(*kb)->kb_m);
+		break;
 
 	// validate sequences
 	if (krc.ks_code == K_OK && seqlistcnt > 0) {
@@ -345,6 +385,21 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	}
 	
 	return (krc);
+}
+
+/*
+ * List helper function to find a matching kio given a seq number
+ * Return 0 for true or a match
+ */
+static int
+b_batch_seqmatch(char *data, char *ldata)
+{
+	kseq_t seq  = *(kseq_t *)data;
+	kseq_t lseq = *(kseq_t *)ldata;
+
+	if (seq == lseq)
+		return (0); /* match */
+	return (-1);
 }
 
 int

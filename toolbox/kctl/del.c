@@ -19,6 +19,7 @@ kctl_del_usage(struct kargs *ka)
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
 		ka->ka_progname, ka->ka_cmdstr);
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
+	fprintf(stderr, "\t-b           Add to current batch [no]\n");
 	fprintf(stderr, "\t-c           Compare and delete [no]\n");
 	fprintf(stderr, "\t-p [wt|wb|f] Persist Mode: writethrough, writeback, \n");
 	fprintf(stderr, "\t             flush [writeback]\n");
@@ -66,7 +67,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 	char  		*startk = "";  		// Empty start in case none 
 	char 		*endk = "";
         int 		count = -1;
-	int 		cmpdel = 0;
+	int 		cmpdel = 0, bat=0;
 	char		newver[VERLEN]; 	// holds hex representation of
 						// one int: "0x00000000"
 	kv_t		kv;
@@ -76,6 +77,14 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 
         while ((c = getopt(argc, argv, "acp:s:S:e:E:n:h?")) != EOF) {
                 switch (c) {
+		case 'b':
+			bat = 1;
+			if (!ka->ka_batch) {
+				fprintf(stderr, "**** No active batch\n");
+				CMD_USAGE(ka);
+				return(-1);
+			}				
+			break;
 		case 'c':
 			cmpdel = 1;
 			break;
@@ -240,9 +249,11 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		/* ka_yes must be first to short circuit the conditional */
 		if (ka->ka_yes || yorn("Please answer y or n [yN]: ", 0, 5)) {
 			if (cmpdel)
-				kstatus = ki_cad(ktd, NULL, &kv);
+				kstatus = ki_cad(ktd,
+						 (bat?ka->ka_batch:NULL), &kv);
 			else
-				kstatus = ki_del(ktd, NULL, &kv);
+				kstatus = ki_del(ktd,
+						 (bat?ka->ka_batch:NULL), &kv);
 				
 			if (kstatus.ks_code != K_OK) {
 				fprintf(stderr,
