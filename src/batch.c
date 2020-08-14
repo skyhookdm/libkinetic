@@ -380,10 +380,7 @@ ki_batchend(int ktd, kbatch_t *kb)
  * Helper functions
  */
 struct kresult_message
-create_batch_message(kmsghdr_t *msg_hdr,
-		     kcmdhdr_t *cmd_hdr) {
-
-#if 0
+create_batch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr) {
 	// declare protobuf structs on stack
 	kproto_cmdhdr_t proto_cmd_header;
 	kproto_batch_t  proto_cmd_body;
@@ -400,7 +397,6 @@ create_batch_message(kmsghdr_t *msg_hdr,
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
-#endif
 }
 
 
