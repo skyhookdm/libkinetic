@@ -34,8 +34,7 @@
  * Internal prototypes
  */
 struct kresult_message create_batch_message(kmsghdr_t *, kcmdhdr_t *);
-kstatus_t extract_batch(struct kresult_message *response_msg, kb_t *);
-kstatus_t extract_status(struct kresult_message *response_msg);
+kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist, size_t *seqlistcnt);
 
 /* 
  * KTLIBatch uses GCC builtin CAS for lockless atomic updates
@@ -57,6 +56,10 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	struct kio *kio;
 	struct kiovec *kiov;
 	struct ktli_config *cf;
+
+	kseq_t *seqlist;
+	size_t  seqlistcnt;
+
 	uint8_t ppdu[KP_PLENGTH];
 	kpdu_t pdu;
 	kpdu_t rpdu;
@@ -271,21 +274,8 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		goto bex_recvmsg;
 	}
 
-	/* Handle the response based on msg_type */
-	switch (msg_type) {
-	case KMT_STARTBAT:
-		krc = extract_status(&kmresp);
-		break;
-		
-	case KMT_ENDBAT:
-		krc = extract_batch(&kmresp, *kb);
-		break;
-
-	default:
-		debug_printf("batch: should not get here\n");
-		assert(0);
-		break;
-	}
+	// extract_seqlist will retrieve the status only if kb is empty (expected for start batch)
+	krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
 
  bex_resp:
 	destroy_message(kmresp.result_message);
@@ -385,18 +375,6 @@ ki_batchend(int ktd, kbatch_t *kb)
 	return (b_batch_generic(ktd, (kb_t **) &kb, KMT_ENDBAT));
 }
 
-kstatus_t
-ki_batchput(int ktd, kv_t *kv)
-{
-	int force;
-	return (p_put_generic(ktd, kv, force=1));
-}
-kstatus_t
-ki_batchdel(int ktd, kv_t *key)
-{
-	int force;
-	return (p_put_generic(ktd, kv, force=1));
-}
 
 /*
  * Helper functions
@@ -426,122 +404,36 @@ create_batch_message(kmsghdr_t *msg_hdr,
 }
 
 
-kstatus_t extract_status(struct kresult_message *response_msg)
-{
-	// assume failure status
-	kstatus_t kv_status = (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = NULL,
-		.ks_detail  = NULL,
-	};
-	// commandbytes should exist, but we should probably be thorough
-	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
-	if (!kv_response_msg->has_commandbytes) { return kv_status; }
-
-	// unpack the command bytes
-	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
-
-	kproto_status_t *response_status = response_cmd->status;
-	if (response_status->has_code) {
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		strcpy(response_statusmsg, response_status->statusmessage);
-
-		char *response_detailmsg = NULL;
-		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
-			memcpy(
-				response_detailmsg,
-				response_status->detailedmessage.data,
-				response_status->detailedmessage.len
-			);
-		}
-
-		kv_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
-	return(kv_status);
-}
-
-// This may get a partially defined structure if we hit an error during the construction.
-void destroy_protobuf_batch(kb_t *kb_data) {
-	// Don't do anything if we didn't get a valid pointer
-	if (!kb_data) { return; }
-
-	// first destroy the allocated memory for the message data
-	destroy_command((kproto_batch_t *) kb_data->kb_protobuf);
-}
-
-kstatus_t extract_batch(struct kresult_message *response_msg, kb_t *kb_data) {
+kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist, size_t *seqlistcnt) {
 	// assume failure status
 	kstatus_t kb_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 
-	// commandbytes should exist, but we should probably be thorough
+	// check that commandbytes exist, then unpack it
 	kproto_msg_t *kb_response_msg = (kproto_msg_t *) response_msg->result_message;
 	if (!kb_response_msg->has_commandbytes) { return kb_status; }
 
-	// unpack the command bytes
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kb_response_msg->commandbytes);
 	if (!response_cmd) { return kb_status; }
 
-	// extract the response status to be returned. prepare this early to make cleanup easy
-	kproto_status_t *response_status = response_cmd->status;
+	// extract the status from the command data
+	kb_status = extract_cmdstatus(response_cmd);
+	if (!response_cmd->body || !response_cmd->body->batch) { goto extract_emptybatch; }
 
-	// copy the status message so that destroying the unpacked command doesn't get weird
-	if (response_status && response_status->has_code) {
-		// copy protobuf string
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		if (!response_statusmsg) {
-			kb_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract batch: status msg");
-			goto extract_bex;
-		}
-		strcpy(response_statusmsg, response_status->statusmessage);
-
-		// copy protobuf bytes field to null-terminated string
-		char *response_detailmsg = NULL;
-		copy_bytes_optional(response_detailmsg, response_status, detailedmessage);
-
-		// assume malloc failed if there's a message but our pointer is still NULL
-		if (response_status->has_detailedmessage && !response_detailmsg) {
-			KI_FREE(response_statusmsg);
-			kb_status = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "extract put: detail msg");
-
-			goto extract_bex;
-		}
-
-		kb_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
-
-	// check if there's any keyvalue information to parse
-	// (for PUT we expect this to be NULL or empty)
-	if (!response_cmd->body || !response_cmd->body->batch) { return kb_status; }
-
-	// ------------------------------
 	// begin extraction of command body into kv_t structure
 	kproto_batch_t *response = response_cmd->body->batch;
 
 	if (response->has_failedsequence) {
-		kb_data->seqlistcnt = 1;
-		kb_data->seqlist    = &(response->failedsequence);
+		*seqlistcnt = 1;
+		*seqlist    = &(response->failedsequence);
 	}
 	else {
-		kb_data->seqlistcnt = response->n_sequence;
-		kb_data->seqlist    = response->sequence;
+		*seqlistcnt = response->n_sequence;
+		*seqlist    = response->sequence;
 	}
 
- extract_bex:
+ extract_emptybatch:
 
-	// set fields used for cleanup
-	kv_data->kb_protobuf      = response_cmd;
-	kv_data->destroy_protobuf = destroy_protobuf_batch;
+	destroy_command(response_cmd);
 
 	return kb_status;
 }
