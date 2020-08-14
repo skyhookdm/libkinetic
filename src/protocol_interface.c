@@ -400,7 +400,7 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 	}
 }
 
-kstatus_t extract_status(kproto_cmd_t *protobuf_command) {
+kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command) {
 	if (!protobuf_command || !protobuf_command->status || !protobuf_command->status->has_code) {
 		return kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 	}
@@ -458,7 +458,7 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	extract_primitive_optional(cmdhdr_data->kch_bid      , response_cmd_hdr, batchid);
 
 	// extract the kinetic response status; copy the messages for independence from the body data
-	extracted_status = extract_status(response_cmd);
+	extracted_status = extract_cmdstatus(response_cmd);
 	/*
 	 * TODO: check that this is still covered
 	 *
@@ -476,46 +476,6 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 	destroy_command(response_cmd);
 
 	return extracted_status;
-}
-
-kstatus_t extract_cmdstatus(kproto_cmd_t *response_cmd) {
-	// assume failure
-	kstatus_t cmd_status = (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = NULL,
-		.ks_detail  = NULL,
-	};
-
-	// If we're given a bad/empty command; return failure status
-	if (!response_cmd || !response_cmd->status) { return cmd_status; }
-
-	// Extract the status, with messages copied for lifetime independence from the containing
-	// command structure
-	kproto_status_t *response_status = response_cmd->status;
-
-	if (response_status->has_code) {
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		strcpy(response_statusmsg, response_status->statusmessage);
-
-		char *response_detailmsg = NULL;
-		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
-			memcpy(
-				response_detailmsg,
-				response_status->detailedmessage.data,
-				response_status->detailedmessage.len
-			);
-		}
-
-		cmd_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
-
-	return cmd_status;
 }
 
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count) {
