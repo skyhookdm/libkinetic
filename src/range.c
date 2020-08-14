@@ -328,15 +328,11 @@ ki_range(int ktd, krange_t *kr)
 }
 
 
-struct kresult_message create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, krange_t *cmd_data) {
+struct kresult_message
+create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, krange_t *cmd_data) {
 	// declare protobuf structs on stack
-	kproto_cmdhdr_t   proto_cmd_header;
 	kproto_keyrange_t proto_cmd_body;
-
 	com__seagate__kinetic__proto__command__range__init(&proto_cmd_body);
-
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
 
 	// extract from cmd_data into proto_cmd_body
 	int extract_startkey_result = keyname_to_proto(
@@ -371,10 +367,10 @@ struct kresult_message create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cm
 	set_primitive_optional(&proto_cmd_body, startkeyinclusive, KR_ISTART(cmd_data));
 	set_primitive_optional(&proto_cmd_body, endkeyinclusive  , KR_IEND(cmd_data));
 	set_primitive_optional(&proto_cmd_body, reverse          , KR_REVERSE(cmd_data));
-	set_primitive_optional(&proto_cmd_body, maxreturned      , cmd_data->kr_count         );
+	set_primitive_optional(&proto_cmd_body, maxreturned      , cmd_data->kr_count  );
 
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = create_command_bytes(&proto_cmd_header, &proto_cmd_body);
+	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, &proto_cmd_body);
 
 	// since the command structure goes away after this function, cleanup the allocated key buffer
 	// (see `keyname_to_proto` above)
