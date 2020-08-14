@@ -402,7 +402,7 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 
 kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command) {
 	if (!protobuf_command || !protobuf_command->status || !protobuf_command->status->has_code) {
-		return kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+		return kstatus_err(K_OK, KI_ERR_NOMSG, "");
 	}
 
 	kproto_status_t *response_status = protobuf_command->status;

@@ -186,11 +186,23 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 
 		pthread_mutex_unlock(&kb->kb_m);
 
-		if ((kb->kb_bytes > ses->ks_l.kl_batlen) ||
-		    (kb->kb_ops > ses->ks_l.kl_batopscnt) ||
+		if (( ses->ks_l.kl_batlen > 0) &&
+		    (kb->kb_bytes > ses->ks_l.kl_batlen)) {
+			krc   = kstatus_err(errno, KI_ERR_BATCH,
+					    "batch: length exceeded");
+			goto dex_sendmsg;
+		}
+		if ((ses->ks_l.kl_batopscnt > 0) &&
+		    (kb->kb_ops > ses->ks_l.kl_batopscnt)) {
+			krc   = kstatus_err(errno, KI_ERR_BATCH,
+					    "batch: ops count exceeded");
+			goto dex_sendmsg;
+
+		}
+		if ((ses->ks_l.kl_batdelcnt > 0 ) &&
 		    (kb->kb_dels > ses->ks_l.kl_batdelcnt)) {
 			krc   = kstatus_err(errno, KI_ERR_BATCH,
-					    "batch: limits exceeded");
+					    "batch: delete count exceeded");
 			goto dex_sendmsg;
 		}
 	}
@@ -285,7 +297,7 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	}
 
 	krc = extract_delkey(&kmresp, kv);
-	if (krc.ks_code != K_OK) { kv->destroy_protobuf(kv); }
+	//if (krc.ks_code != K_OK) { kv->destroy_protobuf(kv); }
 
 	/* clean up */
  dex_resp:

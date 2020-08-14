@@ -256,7 +256,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 
 	case KMT_GETVERS:
 		krc = extract_getkey(&kmresp, kv);
-		if (krc.ks_code != K_OK) { kv->destroy_protobuf(kv); }
+		//if (krc.ks_code != K_OK) { kv->destroy_protobuf(kv); }
 
 		break;
 
@@ -266,7 +266,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 		altkv->kv_val[0].kiov_len  = rpdu.kp_vallen;
 
 		krc = extract_getkey(&kmresp, altkv);
-		if (krc.ks_code != K_OK) { altkv->destroy_protobuf(altkv); }
+		//if (krc.ks_code != K_OK) { altkv->destroy_protobuf(altkv); }
 
 		break;
 

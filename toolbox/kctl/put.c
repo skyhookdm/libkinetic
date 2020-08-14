@@ -63,7 +63,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct kiovec	kv_val[1]  = {0, 0};
 	kstatus_t 	kstatus;
 
-        while ((c = getopt(argc, argv, "ch?p:s:z:")) != EOF) {
+        while ((c = getopt(argc, argv, "bch?p:s:z:")) != EOF) {
                 switch (c) {
 		case 'b':
 			bat = 1;

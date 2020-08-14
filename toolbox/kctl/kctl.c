@@ -301,9 +301,11 @@ int
 kctl_interactive(struct kargs *ka)
 {
 	enum { maxargs = 1024 };
-	char *line, *sline, *p, *argv[maxargs];
+	char *line, *sline, *hline, *p, *argv[maxargs];
 	int i, rc, ktd, argc;
-	
+	extern char     	*optarg;
+        extern int		optind, opterr, optopt;
+ 	
 	ktd = kctl_start(ka);	
 	if (ktd < 0) {
 		fprintf(stderr, "%s: Unable to start\n", ka->ka_progname);
@@ -316,10 +318,11 @@ kctl_interactive(struct kargs *ka)
 			continue;
 		}
 
-		add_history(line);
-
 		/* save a copy of the ptr as tokenizing will lose it */
 		sline = line;
+
+		/* dup the line for use in the history if appropriate */
+		hline = strdup(line); 
 
 		/* Create the argv array */
 		argc = 0;
@@ -337,21 +340,40 @@ kctl_interactive(struct kargs *ka)
 		if (strcmp(argv[0], "quit") == 0)
 			break;
 		
+		if (strcmp(argv[0], "verbose") == 0) {
+			ka->ka_verbose = 1;
+			continue;
+		}
+		
+		if (strcmp(argv[0], "!verbose") == 0) {
+			ka->ka_verbose = 0;
+			continue;
+		}
+
+		optind = 0;
+		ka->ka_cmdstr = argv[0];
 		for(i=0; i<KCTL_EOT; i++) {
-			if (ktable[i].ktab_cmd == kargs.ka_cmd) {
-				/* Found a good command, call it */
+			if (ktable[i].ktab_cmd == KCTL_EOT)
+				break;
+		
+			if (strcmp(ktable[i].ktab_cmdstr, ka->ka_cmdstr) == 0) {
+				// Found a good command
+				kargs.ka_cmd = ktable[i].ktab_cmd;
+
+				add_history(hline);
+
 				rc = (*ktable[i].ktab_handler)(argc, argv,
 							       ktd, ka);
 				break;
 			}
 		}
 
-		if (i == KCTL_EOT)
+		if ((i == KCTL_EOT) ||(ktable[i].ktab_cmd == KCTL_EOT))
 			fprintf(stderr, "%s: Command not found\n", argv[0]);
 
 		/* free the saved line ptr and go around again */
 		free(sline);
-
+		free(hline);
 	}
 	
 	if (ka->ka_verbose)

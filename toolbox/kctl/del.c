@@ -75,7 +75,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct kiovec	kv_val[1]  = {0, 0};
 	kstatus_t 	kstatus;
 
-        while ((c = getopt(argc, argv, "acp:s:S:e:E:n:h?")) != EOF) {
+        while ((c = getopt(argc, argv, "abcp:s:S:e:E:n:h?")) != EOF) {
                 switch (c) {
 		case 'b':
 			bat = 1;
@@ -257,8 +257,9 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				
 			if (kstatus.ks_code != K_OK) {
 				fprintf(stderr,
-					"%s: Unable to delete key: %s\n", 
-					ka->ka_cmdstr,  kstatus.ks_message);
+					"%s: Unable to delete key: %s: %s\n", 
+					ka->ka_cmdstr,  kstatus.ks_message,
+					kstatus.ks_detail?kstatus.ks_detail:"");
 				return(-1);
 			}
 		}

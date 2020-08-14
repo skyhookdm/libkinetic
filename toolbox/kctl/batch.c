@@ -40,7 +40,7 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 	/* clear global flag vars */
 	start = commit = 0;
 
-        while ((c = getopt(argc, argv, "SE?h")) != EOF) {
+        while ((c = getopt(argc, argv, "SC?h")) != EOF) {
                 switch (c) {
 		case 'S':
 			start = 1;

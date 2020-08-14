@@ -33,8 +33,10 @@
 /**
  * Internal prototypes
  */
-struct kresult_message create_batch_message(kmsghdr_t *, kcmdhdr_t *);
+struct kresult_message create_batch_message(kmsghdr_t *, kcmdhdr_t *, uint32_t);
 kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist, size_t *seqlistcnt);
+
+kstatus_t extract_status(struct kresult_message *response_msg);
 
 static int b_batch_seqmatch(char *data, char *ldata);
 
@@ -91,7 +93,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		if (!retries) {
 			return (kstatus_t) {
 				.ks_code = K_EINTERNAL,
-				.ks_message = "Unable to get Batch ID",
+				.ks_message = "batch; Unable to get Batch ID",
 				.ks_detail  = "",
 			};
 		}
@@ -102,23 +104,27 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		batcnt = ses->ks_bats;
 		while (!SBCAS(&ses->ks_bats, batcnt, batcnt + 1) && retries--)
 		       batcnt = ses->ks_bats;
+		batcnt++;
 		
 		if (!retries) {
 			return (kstatus_t) {
 				.ks_code = K_EINTERNAL,
-				.ks_message = "Unable to get Batch ID",
+				.ks_message = "batch: Unable to inc batch cnt",
 				.ks_detail  = "",
 			};
 		}
 		
-		if (batcnt > ses->ks_l.kl_devbatcnt) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: Too many active");
+		if ((ses->ks_l.kl_devbatcnt > 0) &&
+		    (batcnt > ses->ks_l.kl_devbatcnt)) {
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH,
+					  "batch: Too many active");
 			goto bex_kb;
 		}
 		
 		*kb = (kb_t *) KI_MALLOC(sizeof(kb_t));
 		if (!(*kb)) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "batch: kb");
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC,
+					  "batch: kb");
 			goto bex_kb;
 		}
 
@@ -172,8 +178,9 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = msg_type;
+	cmd_hdr.kch_bid = (*kb)->kb_bid;
 
-	kmreq = create_batch_message(&msg_hdr, &cmd_hdr);
+	kmreq = create_batch_message(&msg_hdr, &cmd_hdr, (*kb)->kb_ops);
 	if (kmreq.result_code == FAILURE) {
 		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "batch: request");
 		goto bex_req;
@@ -281,10 +288,17 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		break;
 		
 	case KMT_ENDBAT:
+#ifdef KBATCH_SEQTRACKING
 		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
-
+		if (krc.ks_code != K_OK)
+			goto bex_endbat;
+		     
 		pthread_mutex_lock(&(*kb)->kb_m);
+		printf("Seq CNT: %lu\n", seqlistcnt);
+		printf("Seq List Size: %d\n", list_size((*kb)->kb_seqs));
 		for (i=0;i<seqlistcnt; i++) {
+			printf("Searching for Seq: %lu", seqlist[i]);
+
 			rc = list_traverse((*kb)->kb_seqs, (char *)&seqlist[i],
 					   b_batch_seqmatch, LIST_ALTR);
 			if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
@@ -292,11 +306,13 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 				 * Got an acknowledged op seq that is
 				 * not in our op seq list
 				 */
+				printf("NOT FOUND\n");
 				krc = kstatus_err(K_EINTERNAL,
 						  KI_ERR_BATCH,
 						  "batch: unsent seq");
 				goto bex_endbat;
 			}
+			printf("FOUND\n");
 			seq = (kseq_t *)list_remove_curr((*kb)->kb_seqs);
 			KI_FREE(seq);
 		}
@@ -310,22 +326,20 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 					  "batch: unacknowledged seq");
 			goto bex_endbat;
 		}
-
+#endif
 	bex_endbat:
 		list_free((*kb)->kb_seqs, NULL);
 		pthread_mutex_unlock(&(*kb)->kb_m);
 		pthread_mutex_destroy(&(*kb)->kb_m);
 		break;
 
-	// validate sequences
-	if (krc.ks_code == K_OK && seqlistcnt > 0) {
-		for (int seq_ndx = 0; seq_ndx < seqlistcnt; seq_ndx++) {
-			// if (seqlist[seq_ndx] != <access (*kb)->kb_seqs>) {
-			//		krc = kstatus_err(K_EINVALBAT, KI_ERR_BATCH, "end batch fails validation");
-			// }
-			;
-		}
+	default:
+		debug_printf("batch: should not get here\n");
+		assert(0);
+		break;
 	}
+
+
 
  bex_resp:
 	destroy_message(kmresp.result_message);
@@ -385,7 +399,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	}
 	
 	return (krc);
-}
+	}
 
 /*
  * List helper function to find a matching kio given a seq number
@@ -407,7 +421,7 @@ b_batch_addop(kb_t *kb, kcmdhdr_t *kc)
 {
 	int rc = 0;
 	if (!kb || !kc) return (-1);
-
+#ifdef KBATCH_SEQTRACKING
 	pthread_mutex_lock(&kb->kb_m);
 	(void)list_mvrear(kb->kb_seqs);
 	if (!list_insert_after(kb->kb_seqs, &kc->kch_seq, sizeof(kseq_t))) {
@@ -415,6 +429,7 @@ b_batch_addop(kb_t *kb, kcmdhdr_t *kc)
 		rc = -1;
 	}
 	pthread_mutex_unlock(&kb->kb_m);
+#endif
 	return(rc);
 }
 
@@ -445,11 +460,13 @@ ki_batchend(int ktd, kbatch_t *kb)
  * Helper functions
  */
 struct kresult_message
-create_batch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr) {
+create_batch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, uint32_t ops) {
 	// declare protobuf structs on stack
 	kproto_batch_t  proto_cmd_body;
 	com__seagate__kinetic__proto__command__batch__init(&proto_cmd_body);
 
+	set_primitive_optional(&proto_cmd_body, count, ops);
+	
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, (void *) &proto_cmd_body);
 
@@ -471,7 +488,10 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 
 	// extract the status from the command data
 	kb_status = extract_cmdstatus(response_cmd);
-	if (!response_cmd->body || !response_cmd->body->batch) { goto extract_emptybatch; }
+	if (!response_cmd->body || !response_cmd->body->batch) {
+		kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+		 goto extract_emptybatch;
+	}
 
 	// begin extraction of command body into kv_t structure
 	kproto_batch_t *response = response_cmd->body->batch;
@@ -485,9 +505,51 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 		*seqlist    = response->sequence;
 	}
 
+	return kb_status;
+	
  extract_emptybatch:
 
 	destroy_command(response_cmd);
 
 	return kb_status;
+}
+
+kstatus_t extract_status(struct kresult_message *response_msg)
+{
+	// assume failure status
+	kstatus_t kv_status = (kstatus_t) {
+		.ks_code    = K_INVALID_SC,
+		.ks_message = NULL,
+		.ks_detail  = NULL,
+	};
+	// commandbytes should exist, but we should probably be thorough
+	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
+	if (!kv_response_msg->has_commandbytes) { return kv_status; }
+
+	// unpack the command bytes
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
+
+	kproto_status_t *response_status = response_cmd->status;
+	if (response_status->has_code) {
+		size_t statusmsg_len     = strlen(response_status->statusmessage);
+		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
+		strcpy(response_statusmsg, response_status->statusmessage);
+
+		char *response_detailmsg = NULL;
+		if (response_status->has_detailedmessage) {
+			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
+			memcpy(
+				response_detailmsg,
+				response_status->detailedmessage.data,
+				response_status->detailedmessage.len
+			);
+		}
+
+		kv_status = (kstatus_t) {
+			.ks_code    = response_status->code,
+			.ks_message = response_statusmsg,
+			.ks_detail  = response_detailmsg,
+		};
+	}
+	return(kv_status);
 }
