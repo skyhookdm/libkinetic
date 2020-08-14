@@ -277,6 +277,16 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	// extract_seqlist will retrieve the status only if kb is empty (expected for start batch)
 	krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
 
+	// validate sequences
+	if (krc.ks_code == K_OK && seqlistcnt > 0) {
+		for (int seq_ndx = 0; seq_ndx < seqlistcnt; seq_ndx++) {
+			// if (seqlist[seq_ndx] != <access (*kb)->kb_seqs>) {
+			//		krc = kstatus_err(K_EINVALBAT, KI_ERR_BATCH, "end batch fails validation");
+			// }
+			;
+		}
+	}
+
  bex_resp:
 	destroy_message(kmresp.result_message);
 
@@ -382,18 +392,11 @@ ki_batchend(int ktd, kbatch_t *kb)
 struct kresult_message
 create_batch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr) {
 	// declare protobuf structs on stack
-	kproto_cmdhdr_t proto_cmd_header;
 	kproto_batch_t  proto_cmd_body;
-
 	com__seagate__kinetic__proto__command__batch__init(&proto_cmd_body);
 
-	// populate protobuf structs
-	extract_to_command_header(&proto_cmd_header, cmd_hdr);
-
 	// construct command bytes to place into message
-	ProtobufCBinaryData command_bytes = create_command_bytes(
-		&proto_cmd_header, (void *) &proto_cmd_body
-	);
+	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, (void *) &proto_cmd_body);
 
 	// return the constructed getlog message (or failure)
 	return create_message(msg_hdr, command_bytes);
