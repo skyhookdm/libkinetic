@@ -3,25 +3,29 @@ BUILDDIR =	$(TLD)/build
 BUILDINC =	$(BUILDDIR)/include
 BUILDLIB =	$(BUILDDIR)/lib
 
-LISTDIR =	$(TLD)/vendor/list
+LISTDIR     =	$(TLD)/vendor/list
 PROTOBUFDIR =	$(TLD)/vendor/protobuf-c
-SRCDIR =	$(TLD)/src
-TBDIR =		$(TLD)/toolbox
+SRCDIR      =	$(TLD)/src
+TBDIR       =	$(TLD)/toolbox
+TESTDIR     =	$(TLD)/tests
 
-LPROTOBUF = 	$(BUILDLIB)/libprotobuf-c.so
-LLIST =		$(BUILDLIB)/liblist.a
-LKINETIC =	$(BUILDLIB)/libkinetic.a
+LPROTOBUF =	$(BUILDLIB)/libprotobuf-c.so
+LLIST     =	$(BUILDLIB)/liblist.a
+LKINETIC  =	$(BUILDLIB)/libkinetic.a
 
-CC =		gcc
-CFLAGS =	-g -I$(BUILDDIR)/include
+CC      =	gcc
+CFLAGS  =	-g -I$(BUILDDIR)/include
 LDFLAGS =	-L$(BUILDDIR)/lib
 
-all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(TBDIR)
+all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(TBDIR) $(TESTDIR)
 
 $(BUILDDIR):
 	@mkdir -p $(BUILDDIR)
 
 $(TBDIR): FORCE
+	(cd $@; BUILDDIR=$(BUILDDIR) make -e all install)
+
+$(TESTDIR): FORCE
 	(cd $@; BUILDDIR=$(BUILDDIR) make -e all install)
 
 $(LPROTOBUF): 
@@ -51,11 +55,15 @@ kineticclean:
 toolboxclean:
 	(cd $(TBDIR); make clean)
 
+testclean:
+	(cd $(TESTDIR); make clean)
+
 distclean:
 	(cd $(PROTOBUFDIR);  [ -f ./Makefile ] && make distclean; true)
 	(cd $(LISTDIR); make clean)
 	(cd $(SRCDIR); make clean)
-	(cd $(TBDIR); make clean)	
+	(cd $(TBDIR); make clean)
+	(cd $(TESTDIR); make clean)
 	rm -rf $(BUILDDIR)
 
 .PHONY: FORCE

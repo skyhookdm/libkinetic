@@ -8,9 +8,9 @@
 // kinetic.h imports getlog.h
 #include <kinetic/kinetic.h>
 
-void helper_add_config(kgetlog_t *glog) {
-	kstatus_t 	kstatus;
+#include "../test_kinetic.h"
 
+void helper_add_config(kgetlog_t *glog) {
 	glog->kgl_type[glog->kgl_typecnt++] = KGLT_CONFIGURATION;
 }
 
@@ -25,4 +25,17 @@ void test_getlog_1() {
 	glog.kgl_typecnt = 0;
 
 	helper_add_config(&glog);
+
+    int conn_desc = start_connection();
+	kstatus_t command_status = ki_getlog(conn_desc, &glog);
+
+    if (command_status.ks_code != K_OK) {
+        fprintf(stderr, "Error\n");
+    }
+
+    ki_close(conn_desc);
+}
+
+int main(int argc, char **argv) {
+    return 0;
 }
