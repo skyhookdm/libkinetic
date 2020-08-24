@@ -25,8 +25,9 @@
 #include "kinetic.h"
 #include "kinetic_internal.h"
 #include "protocol_types.h"
-#include "message.h"
+#include "protocol_interface.h"
 #include "kio.h"
+
 
 /**
  * This file holds the highest-level of the implementation of an interface to the protocol. We want
@@ -433,17 +434,17 @@ kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command) {
 	};
 }
 
-kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmdhdr_data) {
+kstatus_t extract_cmdhdr(struct kresult_message *response_msg, kcmdhdr_t *cmdhdr_data) {
 	kstatus_t extracted_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
-	kproto_msg_t *response_msg = (kproto_msg_t *) response_result->result_message;
+	kproto_msg_t *kinetic_msg = (kproto_msg_t *) response_msg->result_message;
 
 	// commandbytes should exist, but we should probably be thorough
-	if (!response_msg || !response_msg->has_commandbytes) {
+	if (!kinetic_msg || !kinetic_msg->has_commandbytes) {
 		return kstatus_err(K_INVALID_SC, KI_ERR_NOCMD, "extract command header");
 	}
 
 	// unpack the command bytes into a command structure
-	kproto_cmd_t *response_cmd = unpack_kinetic_command(response_msg->commandbytes);
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(kinetic_msg->commandbytes);
 	if (!response_cmd) {
 		return kstatus_err(K_EINTERNAL, KI_ERR_CMDUNPACK, "extract command header");
 	}
@@ -459,18 +460,6 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_result, kcmdhdr_t *cmd
 
 	// extract the kinetic response status; copy the messages for independence from the body data
 	extracted_status = extract_cmdstatus(response_cmd);
-	/*
-	 * TODO: check that this is still covered
-	 *
-	 * else {
-	 * 	// status in the message but everything went OK
-	 * 	extracted_status = (kstatus_t) {
-	 * 		.ks_code    = K_OK,
-	 * 		.ks_message = "",
-	 * 		.ks_detail  = "",
-	 * 	};
-	 * }
-	 */
 
 	// cleanup before we return the status data
 	destroy_command(response_cmd);
