@@ -30,8 +30,6 @@
 #include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
-
-// #include "message.h"
 #include "protocol_interface.h"
 
 /**
