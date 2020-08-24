@@ -11,6 +11,7 @@
 #include "kio.h"
 #include "ktli.h"
 #include "kinetic.h"
+#include "protocol_interface.h"
 #include "kinetic_internal.h"
 
 static int32_t ki_msglen(struct kiovec *msg_hdr);
