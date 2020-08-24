@@ -13,6 +13,7 @@
  * License for more details.
  *
  */
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -29,8 +30,9 @@
 #include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
-#include "getlog.h"
-#include "message.h"
+
+// #include "message.h"
+#include "protocol_interface.h"
 
 /**
  * ki_getlog(int ktd, kgetlog_t *glog)

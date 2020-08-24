@@ -31,6 +31,7 @@
 #include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
+#include "protocol_interface.h"
 
 struct kresult_message create_rangekey_message(kmsghdr_t *, kcmdhdr_t *, krange_t *);
 kstatus_t extract_keyrange(struct kresult_message *response_msg, krange_t *keyrange_data);
@@ -130,9 +131,9 @@ ki_range(int ktd, krange_t *kr)
 	/* 
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
 	 * is for the protobuf message. There is no value.
-	 * See message.h for more details.
+	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = 2;
+	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {

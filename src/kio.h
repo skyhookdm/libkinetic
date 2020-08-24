@@ -46,7 +46,7 @@ struct kio {
 					   for debugging only */
 	int64_t kio_seq;		/* kinetic sequence */
 
-	uint32_t kio_flags;		/* Flags modifying KIO behavior */		
+	uint32_t kio_flags;		/* Flags modifying KIO behavior */
 	enum kio_state kio_state;	/* Internal status of the KIO */
 
 	struct kio_msg kio_sendmsg;	/* fully allocated and populated
@@ -60,6 +60,31 @@ struct kio {
 	/* Unused so far */
 	void *kio_ccontext;		/* caller context */
 };
+
+
+/*
+ * This library uses KIO vectors using the following convention.
+ * Out bound messages:
+ * 	Vector	Contents
+ * 	  0	The Kinetic PDU
+ *	  1	The packed Kinetic request message
+ *	  2	(optional)The value,
+ * 		It may occupy multiple elements starting at 2, which permits
+ *		API callers to build up a value without copying it into a
+ *		single contiguous buffer.
+ * In bound messages:
+ *	  0	The Kinetic PDU
+ *	  1	The packed Kinetic response message and an optional value
+ */
+enum kio_index {
+	KIOV_PDU	= 0,
+	KIOV_MSG	= 1,
+	KIOV_MSGVAL	= 1,
+	KIOV_VAL	= 2,
+};
+
+#define KIO_LEN_NOVAL   2
+#define KIO_LEN_WITHVAL 3
 
 
 

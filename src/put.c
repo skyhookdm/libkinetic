@@ -29,6 +29,7 @@
 #include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
+#include "protocol_interface.h"
 
 /**
  * Internal prototypes
@@ -123,9 +124,9 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	 * is for the protobuf message, and then elements 2 and beyond are
 	 * for the value. The size is variable as the value can come in
 	 * many parts from the caller. 
-	 * See message.h for more details.
+	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = 2 + kv->kv_valcnt;
+	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL + kv->kv_valcnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);

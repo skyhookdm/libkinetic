@@ -29,6 +29,7 @@
 #include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
+#include "protocol_interface.h"
 
 /**
  * Internal prototypes
@@ -40,11 +41,11 @@ kstatus_t extract_status(struct kresult_message *response_msg);
 
 static int b_batch_seqmatch(char *data, char *ldata);
 
-/* 
+/*
  * KTLIBatch uses GCC builtin CAS for lockless atomic updates
  * bool __sync_bool_compare_and_swap (type *ptr, type oldval type newval, ...)
  *
- * atomic: if the curr value of *ptr == oldval, then write newval into *ptr. 
+ * atomic: if the curr value of *ptr == oldval, then write newval into *ptr.
  * But does it have to be so long of a function name? Make it smaller
  */
 #define SBCAS __sync_bool_compare_and_swap
@@ -69,7 +70,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	kcmdhdr_t cmd_hdr;
 	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
-	
+
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
@@ -77,15 +78,15 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 			.ks_code    = K_EREJECTED,
 			.ks_message = "Bad session",
 			.ks_detail  = "",
-		};		
+		};
 	}
 	ses = (ksession_t *)cf->kcfg_pconf;
-	
+
 	switch (msg_type) {
 	case KMT_STARTBAT:
 		/* Get a batch ID */
 		/* arbitray large number to prevent an infinite loop */
-		retries = 1000; 
+		retries = 1000;
 		bid = ses->ks_bid;
 		while (!SBCAS(&ses->ks_bid, bid, bid + 1) && retries--)
 		       bid = ses->ks_bid;
@@ -105,7 +106,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		while (!SBCAS(&ses->ks_bats, batcnt, batcnt + 1) && retries--)
 		       batcnt = ses->ks_bats;
 		batcnt++;
-		
+
 		if (!retries) {
 			return (kstatus_t) {
 				.ks_code = K_EINTERNAL,
@@ -113,14 +114,14 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 				.ks_detail  = "",
 			};
 		}
-		
+
 		if ((ses->ks_l.kl_devbatcnt > 0) &&
 		    (batcnt > ses->ks_l.kl_devbatcnt)) {
 			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH,
 					  "batch: Too many active");
 			goto bex_kb;
 		}
-		
+
 		*kb = (kb_t *) KI_MALLOC(sizeof(kb_t));
 		if (!(*kb)) {
 			krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC,
@@ -136,7 +137,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		(*kb)->kb_bytes = 0;
 		pthread_mutex_init(&((*kb)->kb_m), NULL);
 		break;
-		
+
 	case KMT_ENDBAT:
 		break;
 
@@ -147,18 +148,18 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 			.ks_detail  = "",
 		};
 	}
-	
+
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
 		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "batch: kio");
 		goto bex_kb;
-		
+
 	}
 	memset(kio, 0, sizeof(struct kio));
 
-	/* 
-	 * Setup msg_hdr 
+	/*
+	 * Setup msg_hdr
 	 * One thing to note here is that although the msg hdr is being setup
 	 * it is too early to complete. The msg hdr will ultimately have a
 	 * HMAC cryptographic checksum of the requests command bytes, so that
@@ -166,8 +167,8 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	 * bytes don't actually get finalized until a ktli_send is initiated.
 	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
 	 * used later on to calculate the actual HMAC which will then be hung
-	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr 
-	 * in the kmreq. This reference needs to be removed before freeing 
+	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr
+	 * in the kmreq. This reference needs to be removed before freeing
 	 * kmreq. See below at pex2:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
@@ -191,12 +192,12 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	kio->kio_flags = KIOF_INIT;
 	KIOF_SET(kio, KIOF_REQRESP); // Normal RPC
 
-	/* 
+	/*
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
 	 * is for the protobuf message. There is no value.
-	 * See message.h for more details.
+	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = 2; 
+	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
@@ -247,7 +248,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		if (rc < 0) {
 			// Not our response, so try again
 			if (errno == ENOENT) { continue; }
-			
+
 			// PAK: need to exit, receive failed
 			else {
 				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG, "batch: recvmsg");
@@ -274,7 +275,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		goto bex_recvmsg;
 	}
 
-	/* Now unpack the message */ 
+	/* Now unpack the message */
 	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
 		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "batch: unpack msg");
@@ -286,13 +287,13 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	case KMT_STARTBAT:
 		krc = extract_status(&kmresp);
 		break;
-		
+
 	case KMT_ENDBAT:
 #ifdef KBATCH_SEQTRACKING
 		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
 		if (krc.ks_code != K_OK)
 			goto bex_endbat;
-		     
+
 		pthread_mutex_lock(&(*kb)->kb_m);
 		printf("Seq CNT: %lu\n", seqlistcnt);
 		printf("Seq List Size: %d\n", list_size((*kb)->kb_seqs));
@@ -355,13 +356,13 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
  bex_req:
 	/*
-	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
+	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that
 	 * was made in kmreq before freeingcalling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len = 0;
-	
+
 	destroy_message(kmreq.result_message);
 
  bex_kio:
@@ -369,16 +370,16 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
  bex_kb:
 	if ((krc.ks_code != K_OK) || (msg_type == KMT_ENDBAT)) {
-		/* 
+		/*
 		 * an error occurred or this is the exit of BATCHEND
-		 * either way get rid of the batch and decrement the active 
+		 * either way get rid of the batch and decrement the active
 		 * batches.
 		 */
 		if (*kb) {
 			KI_FREE(*kb);
 			*kb = NULL;
 		}
-		
+
 		/* Decrement the number of active batches */
 		/* arbitray large number to prevent an infinite loop */
 		retries = 1000;
@@ -397,7 +398,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		}
 		/* fall though using the krc from the op */
 	}
-	
+
 	return (krc);
 	}
 
@@ -466,7 +467,7 @@ create_batch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, uint32_t ops) {
 	com__seagate__kinetic__proto__command__batch__init(&proto_cmd_body);
 
 	set_primitive_optional(&proto_cmd_body, count, ops);
-	
+
 	// construct command bytes to place into message
 	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, (void *) &proto_cmd_body);
 
@@ -506,7 +507,7 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 	}
 
 	return kb_status;
-	
+
  extract_emptybatch:
 
 	destroy_command(response_cmd);

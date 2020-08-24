@@ -29,6 +29,7 @@
 #include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
+#include "protocol_interface.h"
 
 /**
  * Internal prototypes
@@ -151,9 +152,9 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	/* 
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
 	 * is for the protobuf message. There is no value.
-	 * See message.h for more details.
+	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = 2;
+	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
