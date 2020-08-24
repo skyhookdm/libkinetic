@@ -2,10 +2,8 @@
 #define _KINETIC_INT_H
 
 #include <pthread.h>
-#include "kinetic.h"
-#include "message.h"
+#include "kinetic_types.h"
 #include "session.h"
-#include "getlog.h"
 #include "list.h"
 
 /* ------------------------------
@@ -17,7 +15,7 @@
 
 #define KI_MALLOC(_l) malloc((_l))
 #define KI_REALLOC(_p,_l) realloc((_p),(_l))
-#define KI_FREE(_p) {	    \
+#define KI_FREE(_p) {       \
 	free((_p));         \
 	(_p) = UNALLOC_VAL; \
 }
@@ -136,7 +134,5 @@ int ki_validate_glog(kgetlog_t *glrq);
 int ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp);
 
 int b_batch_addop(kb_t *kb, kcmdhdr_t *kc);
-
-char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes);
 
 #endif /* _KINET_INT_H */
