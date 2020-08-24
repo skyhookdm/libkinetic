@@ -9,7 +9,7 @@ OBJS =		ktli.o ktli_socket.o ktli_session.o protocol_interface.o\
 		util.o validate.o labels.o kerrors.o			\
 		$(PROTOBUF)
 
-INC_KPUB =	kinetic.h getlog.h protocol_types.h
+INC_KPUB =	kinetic.h kinetic_types.h protocol_types.h
 
 INC_PPUB =	protocol/kinetic.pb-c.h
 
@@ -18,7 +18,7 @@ INC_PRIV =	kio.h ktli.h ktli_session.h kinetic.h	\
 
 CFLAGS =	-g -I$(BUILDDIR)/include -I.
 LDFLAGS =	-L$(BUILDDIR)/lib
-LDLIBS =	-llist -lprotobuf-c 
+LDLIBS =	-llist -lprotobuf-c
 
 MKDIR =		/bin/mkdir
 INSTALL = 	/usr/bin/install
