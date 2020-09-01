@@ -186,6 +186,7 @@ kctl_dump(kgetlog_t *glog)
 		printf("  %-18s: %d\n", "Port", cf->kcf_port);
 		printf("  %-18s: %d\n", "TLS Port", cf->kcf_tlsport);
 		
+		printf("  %-18s: %s\n", "Firmware Version", cf->kcf_version);
 		printf("  %-18s: %s\n", "Compile Date", cf->kcf_compdate);
 		printf("  %-18s: %s\n", "FW SRC Hash", cf->kcf_srchash);
 		printf("  %-18s: %s\n", "Proto Ver", cf->kcf_proto);

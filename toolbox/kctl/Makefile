@@ -12,7 +12,7 @@ LDLIBS = 	$(LIBRL) -lkinetic -lpthread -lssl -lcrypto
 
 all:		$(KCTL)
 
-$(KCTL):	$(OBJS) 
+$(KCTL):	$(OBJS)
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
 
 install: all
