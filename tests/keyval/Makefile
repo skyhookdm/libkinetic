@@ -1,8 +1,7 @@
 BUILDDIR     =	../../build
 GTESTDIR     =	../../vendor/googletest
 BINDIR       =	../bin
-GOOGLETEST   =	$(GTESTDIR)/bazel-bin/libgtest.so
-TEST_MAIN    =	$(BINDIR)/test_getlog
+TEST_MAIN    =	$(BINDIR)/test_keyval
 OBJS         =	requests.o helper.o ../kfixtures.o
 CFLAGS       =	-g -I$(BUILDDIR)/include -I$(GTESTDIR)/googletest/include
 CPPFLAGS     =	$(CFLAGS)
