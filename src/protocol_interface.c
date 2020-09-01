@@ -481,35 +481,26 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 	// return error if params don't meet assumptions
 	if (keynames == NULL) { return 0; }
 
-	size_t *cumulative_offsets = (size_t *) malloc(sizeof(size_t) * keycnt);
-	if (cumulative_offsets == NULL) { return 0; }
-
 	size_t total_keylen = 0;
 	for (size_t key_ndx = 0; key_ndx < keycnt; key_ndx++) {
-		cumulative_offsets[key_ndx] = total_keylen;
 		total_keylen += keynames[key_ndx].kiov_len;
 	}
 
 	// create a buffer containing the key name
 	char *key_buffer = (char *) malloc(sizeof(char) * total_keylen);
-
-	// cleanup on a malloc failure
-	if (key_buffer == NULL) {
-		free(cumulative_offsets);
-		return 0;
-	}
+	if (key_buffer == NULL) { return 0; }
 
 	// gather key name fragments into key buffer
+    char *key_buffer_alias = key_buffer;
 	for (size_t key_ndx = 0; key_ndx < keycnt; key_ndx++) {
 		memcpy(
-			key_buffer + cumulative_offsets[key_ndx],
+			key_buffer_alias,
 			keynames[key_ndx].kiov_base,
 			keynames[key_ndx].kiov_len
 		);
-	}
 
-	// this array was only needed for the gather
-	free(cumulative_offsets);
+        key_buffer_alias += keynames[key_ndx].kiov_len;
+	}
 
 	// key_buffer eventually needs to be `free`d
 	*proto_keyname = (ProtobufCBinaryData) {

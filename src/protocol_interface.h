@@ -108,7 +108,4 @@ void     ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq);
 int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len);
 
 
-
-
-
 #endif // __PROTOCOL_INTERFACE_H
