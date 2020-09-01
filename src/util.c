@@ -25,6 +25,9 @@
 #include <endian.h>
 #include <errno.h>
 
+#include <openssl/hmac.h>
+#include <openssl/sha.h>
+
 #include "kio.h"
 #include "ktli.h"
 #include "kinetic.h"
@@ -407,4 +410,40 @@ ki_limits(int ktd)
 	ses = (ksession_t *)cf->kcfg_pconf;
 	
 	return(ses->ks_l);
+}
+
+/**
+ * compute_digest defaults to sha1 for the data integrity algorithm. If provided, then
+ * `digest_name` will be used. For supported digestnames, reference:
+ * https://github.com/openssl/openssl/blob/master/crypto/objects/objects.txt
+ */
+struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name) {
+    const EVP_MD *digestfn_info;
+    if (!digest_name) { digestfn_info = EVP_get_digestbyname("sha1");      }
+    else              { digestfn_info = EVP_get_digestbyname(digest_name); }
+
+    unsigned int   final_digestlen;
+    unsigned char *digest_result = (unsigned char *) malloc(sizeof(char) * EVP_MAX_MD_SIZE);
+    if (!digest_result) { return (struct kbuffer) { .base = NULL, .len = 0 }; }
+
+    // initialize context for calculating the digest message
+    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+
+    EVP_DigestInit_ex(mdctx, digestfn_info, NULL);
+
+    // accumulate the digest message into mdctx
+    for (size_t io_ndx = 0; io_ndx < io_cnt; io_ndx++) {
+        EVP_DigestUpdate(mdctx, io_vec[io_ndx].kiov_base, io_vec[io_ndx].kiov_len);
+    }
+
+    // finalize the digest message into digest_result
+    EVP_DigestFinal_ex(mdctx, digest_result, &final_digestlen);
+
+    // cleanup the context
+    EVP_MD_CTX_free(mdctx);
+
+    return (struct kbuffer) {
+        .len  = final_digestlen,
+        .base = digest_result,
+    };
 }

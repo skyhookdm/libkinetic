@@ -31,7 +31,7 @@
 #define LOGLEVEL_DEBUG 2
 
 // this is the log level set for the program
-#define LOGLEVEL LOGLEVEL_
+#define LOGLEVEL LOGLEVEL_NONE
 
 // macros that use the log level
 #if LOGLEVEL >= LOGLEVEL_DEBUG
@@ -92,6 +92,8 @@ int ki_keyfree(struct kiovec *key, size_t keycnt);
 
 krange_t *ki_rangedup(krange_t *kr);
 int       ki_rangefree(krange_t *kr);
+
+struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name);
 
 
 #endif // __KINETIC_INTERFACE_H
