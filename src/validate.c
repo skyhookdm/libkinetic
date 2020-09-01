@@ -34,13 +34,13 @@
  * ki_validate_kv(kv_t *kv, int force, limit_t *lim)
  *
  *  kv		Always contains a key, but optionally may have a value
- *		However there must always value kiovec array of at least 
+ *		However there must always value kiovec array of at least
  * 		element and should always be initialized. if unused,
  *		as in a get, kv_val[0].kiov_base=NULL and kv_val[0].kiov_len=0
  *  force	force is a flag used put's and del's, when set version
- * 		fields are ignored and therefore validating those fields 
- * 		can be weaker. When cleared the version field must be set. 
- *  lim 	Contains server limits	
+ * 		fields are ignored and therefore validating those fields
+ * 		can be weaker. When cleared the version field must be set.
+ *  lim 	Contains server limits
  *
  * Validate that the user is passing a valid kv structure
  *
@@ -48,51 +48,53 @@
 int
 ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
 {
-	int i;
-	size_t len;
-	//int util, temp, cap, conf, stat, mesg, lim, log;
+	// assume we will find a problem
+	errno = K_EINVAL;
 
-	errno = K_EINVAL;  /* assume we will find a problem */
-	
-	/* Check the required key */
-	if (!kv || !kv->kv_key || kv->kv_keycnt < 1) 
-		return(-1);
+	// Check the required key
+	if (!kv || !kv->kv_key || kv->kv_keycnt < 1) { return (-1); }
+
+	// Total up the length across all vectors
+	size_t total_keylen = 0;
+	for (size_t key_fragndx = 0; key_fragndx < kv->kv_keycnt; key_fragndx++) {
+		total_keylen += kv->kv_key[key_fragndx].kiov_len;
+	}
+
+	if (total_keylen > lim->kl_keylen) { return (-1); }
+
+	/* Check the value vectors */
+	if (!kv->kv_val || kv->kv_valcnt < 1) {
+		debug_fprintf(stderr, "Key *Value* is none or has 0 fragments\n");
+		return (-1);
+	}
 
 	/* Total up the length across all vectors */
-	for (len=0, i=0; i<kv->kv_keycnt; i++)
-		len += kv->kv_key[i].kiov_len;
+	size_t total_vallen = 0;
+	for (size_t val_fragndx = 0; val_fragndx < kv->kv_valcnt; val_fragndx++) {
+		total_vallen += kv->kv_val[val_fragndx].kiov_len;
+	}
 
-	if (len > lim->kl_keylen)
-		return(-1);
+	if (total_vallen > lim->kl_vallen) { return (-1); }
 
-	/* Check the value vectors */	
-	if (!kv->kv_val || kv->kv_valcnt < 1) 
-		return(-1);
-
-	/* Total up the length across all vectors */
-	for (len=0, i=0; i<kv->kv_valcnt; i++)
-		len += kv->kv_val[i].kiov_len;
-
-	if (len > lim->kl_vallen)
-		return(-1);
-	
 	/* Check the versions -- minimum */
 	if (kv->kv_ver &&
-	    ((kv->kv_verlen < 1) || (kv->kv_verlen > lim->kl_verlen)))
-		return(-1);
+		((kv->kv_verlen < 1 || kv->kv_verlen > lim->kl_verlen))) {
+		return (-1);
+	}
 
 	if (kv->kv_newver &&
-	    ((kv->kv_newverlen < 1) || (kv->kv_newverlen > lim->kl_verlen)))
-		return(-1);
+		((kv->kv_newverlen < 1 || kv->kv_newverlen > lim->kl_verlen))) {
+		return (-1);
+	}
 
 	/* Require the version if force is cleared, new version is optional */
-	if (!force && !kv->kv_ver) 
-			return(-1);
+	if (!force && !kv->kv_ver) { return(-1); }
 
 	/* Check the data integrity chksum */
 	if (kv->kv_disum &&
-	    ((kv->kv_disumlen < 1) || (kv->kv_disumlen > lim->kl_disumlen)))
+	    ((kv->kv_disumlen < 1) || (kv->kv_disumlen > lim->kl_disumlen))) {
 		return(-1);
+	}
 
 	/* Check the data integrity type */
 	switch (kv->kv_ditype) {
@@ -105,9 +107,9 @@ ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
 	case KDI_CRC32:
 		break;
 	default:
-		return(-1);
+		return (-1);
 	}
-	
+
 	/* check the cache policy */
 	switch (kv->kv_cpolicy) {
 	case 0: /* zero is unused by the protocol but is valid for gets */
@@ -116,11 +118,11 @@ ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
 	case KC_FLUSH:
 		break;
 	default:
-		return(-1);
+		return (-1);
 	}
-	
+
 	errno = 0;
-	return(0);
+	return (0);
 }
 
 /**
@@ -128,8 +130,8 @@ ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
  *
  *  kr		Must be non-null. May contain a kr_start, kr_end and/or
  * 		kr_count. kr_flags should be zero'ed or with only KFR_ISTART
- *		and/or KFR_IEND set. 
- *		If provided start and end keys total length must be 
+ *		and/or KFR_IEND set.
+ *		If provided start and end keys total length must be
  *		greater than 0 and less than or equal to the max keylen
  *		Count must greater than 0 and less than or equal to max range
  * 		key count
@@ -142,7 +144,7 @@ int
 ki_validate_range(krange_t *kr, klimits_t *lim)
 {
 	int i, len;
-	
+
 	/* assume we will find a problem */
 	errno = K_EINVAL;
 
@@ -152,17 +154,17 @@ ki_validate_range(krange_t *kr, klimits_t *lim)
 
 	/* check the start & end key */
 	if (kr->kr_start) {
-		for (len=0, i=0; i<kr->kr_startcnt; i++) 
+		for (len=0, i=0; i<kr->kr_startcnt; i++)
 			len += kr->kr_start[i].kiov_len;
-		
+
 		if (!len || len > lim->kl_keylen)
 			return (-1);
-	} 
-	
+	}
+
 	if (kr->kr_end) {
-		for (len=0, i=0; i<kr->kr_endcnt; i++) 
+		for (len=0, i=0; i<kr->kr_endcnt; i++)
 			len += kr->kr_end[i].kiov_len;
-		
+
 		if (!len || len > lim->kl_keylen)
 			return (-1);
 	}
