@@ -452,8 +452,9 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// begin extraction of command body into kv_t structure
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
-	// we set the number of key elements to 1, since the key name is contiguous
-	kv_data->kv_keycnt = response->has_key ? 1 : 0;
+    // NOTE: this is tricky. Only modify the value if the response returns a key
+    // (otherwise kv_key and kv_keycnt fall out of sync)
+	if (response->has_key) { kv_data->kv_keycnt = 1; }
 
 	// extract key name, db version, tag, and data integrity algorithm
 	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);

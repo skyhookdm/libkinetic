@@ -455,7 +455,9 @@ kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
 	// get the command data from the response
-	kv_data->kv_keycnt = response->has_key ? 1 : 0;
+    // NOTE: this is tricky. Only modify the value if the response returns a key
+    // (otherwise kv_key and kv_keycnt fall out of sync)
+    if (response->has_key) { kv_data->kv_keycnt = 1; }
 	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len, response, key);
 	extract_bytes_optional(kv_data->kv_ver  , kv_data->kv_verlen  , response, dbversion);
 	extract_bytes_optional(kv_data->kv_disum, kv_data->kv_disumlen, response, tag      );

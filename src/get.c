@@ -468,7 +468,9 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
 	// we set the number of keys to 1, since this is not a range request
-	kv_data->kv_keycnt = 1;
+    // NOTE: this is tricky. Only modify the value if the response returns a key
+    // (otherwise kv_key and kv_keycnt fall out of sync)
+	if (response->has_key) { kv_data->kv_keycnt = 1; }
 
 	// extract key name, db version, tag, and data integrity algorithm
 	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len, response, key);
