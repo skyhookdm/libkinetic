@@ -13,8 +13,9 @@ INC_KPUB =	kinetic.h kinetic_types.h protocol_types.h
 
 INC_PPUB =	protocol/kinetic.pb-c.h
 
-INC_PRIV =	kio.h ktli.h ktli_session.h kinetic.h	\
-		kinetic_internal.h message.h session.h
+INC_PRIV =	kio.h ktli.h ktli_session.h  \
+		kinetic.h kinetic_internal.h \
+		session.h
 
 CFLAGS =	-g -I$(BUILDDIR)/include -I.
 LDFLAGS =	-L$(BUILDDIR)/lib

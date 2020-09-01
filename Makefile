@@ -19,7 +19,7 @@ CC      =	gcc
 CFLAGS  =	-g -I$(BUILDDIR)/include
 LDFLAGS =	-L$(BUILDDIR)/lib
 
-all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(TBDIR) $(TESTDIR) $(LGTEST)
+all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(LGTEST) $(TBDIR) $(TESTDIR)
 
 test: $(TESTDIR)
 
@@ -48,7 +48,7 @@ $(LGTEST): FORCE
 	(cd $(GTESTDIR); BUILDDIR=$(BUILDDIR) bazel build gtest)
 	/usr/bin/install -c -m 755 $(GTESTDIR)/bazel-bin/libgtest.a $(BUILDLIB)
 
-clean:	protobufclean listclean kineticclean toolboxclean
+clean:	protobufclean listclean kineticclean gtestclean toolboxclean testclean
 	rm -rf $(BUILDDIR)
 
 protobufclean:
@@ -73,6 +73,7 @@ distclean:
 	(cd $(PROTOBUFDIR);  [ -f ./Makefile ] && make distclean; true)
 	(cd $(LISTDIR); make clean)
 	(cd $(SRCDIR); make clean)
+	(cd $(GTESTDIR); bazel clean)
 	(cd $(TBDIR); make clean)
 	(cd $(TESTDIR); make clean)
 	rm -rf $(BUILDDIR)
