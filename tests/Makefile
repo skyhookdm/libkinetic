@@ -1,5 +1,5 @@
 BUILDDIR =	../../build
-DIRS     =	getlog
+DIRS     =	getlog keyval
 BINDIR   =	$(BUILDDIR)/bin
 CFLAGS   =	-g -I$(BUILDDIR)/include
 LDFLAGS  =	-L$(BUILDDIR)/lib
@@ -14,6 +14,7 @@ clean:
 	@for i in $(DIRS); do        \
 		(cd $$i; make clean) \
 	done
+	rm -rf *.o
 
 .PHONY: install
 install:
