@@ -1,0 +1,56 @@
+#!/bin/bash
+
+# first, make sure that kctl is pathed
+if [[ -z $(which kctl) ]]; then
+    echo "Please add kctl to PATH"
+    exit 1
+fi
+
+
+# ------------------------------
+# Setup
+
+# import bash functions, etc.
+function_dir="functions"
+usecase_dir="tests/usecases"
+testdata_dir="tests/data"
+
+# util functions to import
+source "${function_dir}/util.bash"
+source "${function_dir}/keys.bash"
+
+# test functions to import
+source "${usecase_dir}/get.serial.bash"
+source "${usecase_dir}/put-get.serial.bash"
+
+# set appropriate variables
+testrun_count=${1:-1000}
+
+
+run_timed_test() {
+    testfn_name=$1
+    num_iterations=$2
+
+    test_times=($(${testfn_name} ${testrun_count}))
+
+    avg_test_time=$(nanoseconds_to_seconds ${test_times[0]})
+    min_test_time=$(nanoseconds_to_seconds ${test_times[1]})
+    max_test_time=$(nanoseconds_to_seconds ${test_times[2]})
+
+    echo "${testfn_name} [${testrun_count} runs]:"
+    echo -e "\tAvg: ${avg_test_time}"
+    echo -e "\tMin: ${min_test_time}"
+    echo -e "\tMax: ${max_test_time}"
+}
+
+# ------------------------------
+# Then run the tests
+
+# run simple get tests first
+run_timed_test "getkey_sequential" $testrun_count
+run_timed_test "getkey_random"     $testrun_count
+
+# then run put and get
+unique_key_basename="AnExc33d1nglyYooniqueKeyBass-"
+run_timed_test "putgetkey_sequential" $testrun_count ${unique_key_basename}
+run_timed_test "putgetkey_random"     $testrun_count ${unique_key_basename}
