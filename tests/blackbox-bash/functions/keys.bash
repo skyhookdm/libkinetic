@@ -15,3 +15,17 @@ sequential_ids() {
 
     echo $(seq $start_id 1 $num_ids)
 }
+
+normalize_keyname() {
+    key_id=${1:-""}
+    key_id_format=${2:-"%05d"}
+    key_base=${3:-KEY-}
+
+    printf "${key_base}${key_id_format}" ${key_id}
+}
+
+random_keyval() {
+    val_len=${1:-32}
+
+    head -c ${val_len} /dev/urandom | tr -d '\0'
+}
