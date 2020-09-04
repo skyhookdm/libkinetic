@@ -1,0 +1,13 @@
+batch -S
+put -b Test|BatchedPuts-00000 ValFor-Test|BatchedPuts-00000
+put -b Test|BatchedPuts-00001 ValFor-Test|BatchedPuts-00001
+put -b Test|BatchedPuts-00002 ValFor-Test|BatchedPuts-00002
+put -b Test|BatchedPuts-00003 ValFor-Test|BatchedPuts-00003
+put -b Test|BatchedPuts-00004 ValFor-Test|BatchedPuts-00004
+put -b Test|BatchedPuts-00005 ValFor-Test|BatchedPuts-00005
+put -b Test|BatchedPuts-00006 ValFor-Test|BatchedPuts-00006
+put -b Test|BatchedPuts-00007 ValFor-Test|BatchedPuts-00007
+put -b Test|BatchedPuts-00008 ValFor-Test|BatchedPuts-00008
+put -b Test|BatchedPuts-00009 ValFor-Test|BatchedPuts-00009
+put -b Test|BatchedPuts-00010 ValFor-Test|BatchedPuts-00010
+batch -C
