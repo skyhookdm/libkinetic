@@ -22,6 +22,7 @@ source "${function_dir}/keys.bash"
 # test functions to import
 source "${usecase_dir}/get.serial.bash"
 source "${usecase_dir}/put-get.serial.bash"
+source "${usecase_dir}/batch-put.serial.bash"
 
 # set appropriate variables
 testrun_count=${1:-1000}
@@ -30,8 +31,9 @@ testrun_count=${1:-1000}
 run_timed_test() {
     testfn_name=$1
     num_iterations=$2
+    path_to_testfile=$3
 
-    test_times=($(${testfn_name} ${testrun_count}))
+    test_times=($(${testfn_name} ${testrun_count} ${path_to_testfile}))
 
     avg_test_time=$(nanoseconds_to_seconds ${test_times[0]})
     min_test_time=$(nanoseconds_to_seconds ${test_times[1]})
@@ -51,6 +53,11 @@ run_timed_test "getkey_sequential" $testrun_count
 run_timed_test "getkey_random"     $testrun_count
 
 # then run put and get
-unique_key_basename="AnExc33d1nglyYooniqueKeyBass-"
-run_timed_test "putgetkey_sequential" $testrun_count ${unique_key_basename}
-run_timed_test "putgetkey_random"     $testrun_count ${unique_key_basename}
+putkey_test_prefix="AnExc33d1nglyYooniqueKeyBass-"
+run_timed_test "putgetkey_sequential" $testrun_count ${putkey_test_prefix}
+run_timed_test "putgetkey_random"     $testrun_count ${putkey_test_prefix}
+
+# then run batched puts
+batchput_test_prefix="Test|BatchedPuts"
+batchput_testfile="${testdata_dir}/batchput.serial.kinetic"
+run_timed_test "batchput_sequential_from_file" $testrun_count ${batchput_testfile}
