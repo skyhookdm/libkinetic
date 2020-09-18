@@ -22,7 +22,7 @@ batchput_sequential_from_file() {
 
     # set -x
 
-    for iter_count in {1..}; do
+    for iter_count in $(seq 1 1 ${test_count}); do
         start_time=$(date +%s%N)
         ${kctl_base_cmd} -y < ${file_path} > ${kctl_output} 2>&1
         end_time=$(date +%s%N)
