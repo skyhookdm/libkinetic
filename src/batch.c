@@ -486,7 +486,7 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 	kb_status = extract_cmdstatus(response_cmd);
 	if (!response_cmd->body || !response_cmd->body->batch) {
 		kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
-		 goto extract_emptybatch;
+		goto extract_emptybatch;
 	}
 
 	// begin extraction of command body into kv_t structure
