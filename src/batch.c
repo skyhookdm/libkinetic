@@ -229,12 +229,14 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, ppdu);
-	printf("b_batch_generic: PDU(x%2x, %d, %d)\n",
-	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+	debug_printf(
+		"b_batch_generic: PDU(x%2x, %d, %d)\n",
+		pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen
+	);
 
 	/* Send the request */
 	ktli_send(ktd, kio);
-	printf ("Sent Kio: %p\n", kio);
+	debug_printf("Sent Kio: %p\n", kio);
 
 	// Wait for the response
 	do {
@@ -293,28 +295,25 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 		pthread_mutex_lock(&(*kb)->kb_m);
 
-		printf("Seq CNT: %lu\n", seqlistcnt);
-		printf("Seq List Size: %d\n", list_size((*kb)->kb_seqs));
+		debug_printf("Seq CNT: %lu\n", seqlistcnt);
+		debug_printf("Seq List Size: %d\n", list_size((*kb)->kb_seqs));
 
 		for (i = 0; i < seqlistcnt; i++) {
-			printf("Searching for Seq: %lu", seqlist[i]);
+			debug_printf("Searching for Seq: %lu", seqlist[i]);
 
 			rc = list_traverse(
 				(*kb)->kb_seqs, (char *)&seqlist[i],
 				b_batch_seqmatch, LIST_ALTR
 			);
 
+			// Got an acknowledged op seq that is not in our op seq list
 			if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
-				/*
-				 * Got an acknowledged op seq that is
-				 * not in our op seq list
-				 */
-				printf("NOT FOUND\n");
+				debug_printf("NOT FOUND\n");
 				krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: unsent seq");
 				goto bex_endbat;
 			}
 
-			printf("FOUND\n");
+			debug_printf("FOUND\n");
 			seq = (kseq_t *)list_remove_curr((*kb)->kb_seqs);
 			KI_FREE(seq);
 		}
