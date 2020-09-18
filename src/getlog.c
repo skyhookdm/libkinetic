@@ -354,16 +354,16 @@ int extract_interfaces(kinterface_t **getlog_if_data, size_t n_ifs, kproto_inter
 	if (*getlog_if_data == NULL) { return -1; }
 
 	for (int if_ndx = 0; if_ndx < n_ifs; if_ndx++) {
-		getlog_if_data[if_ndx]->ki_name = if_data[if_ndx]->name;
+		(*getlog_if_data)[if_ndx].ki_name = if_data[if_ndx]->name;
 
 		if (if_data[if_ndx]->has_mac) {
-			getlog_if_data[if_ndx]->ki_mac = helper_bytes_to_str(if_data[if_ndx]->mac);
+			(*getlog_if_data)[if_ndx].ki_mac = helper_bytes_to_str(if_data[if_ndx]->mac);
 		}
 		if (if_data[if_ndx]->has_ipv4address) {
-			getlog_if_data[if_ndx]->ki_ipv4 = helper_bytes_to_str(if_data[if_ndx]->ipv4address);
+			(*getlog_if_data)[if_ndx].ki_ipv4 = helper_bytes_to_str(if_data[if_ndx]->ipv4address);
 		}
 		if (if_data[if_ndx]->has_ipv6address) {
-			getlog_if_data[if_ndx]->ki_ipv6 = helper_bytes_to_str(if_data[if_ndx]->ipv6address);
+			(*getlog_if_data)[if_ndx].ki_ipv6 = helper_bytes_to_str(if_data[if_ndx]->ipv6address);
 		}
 	}
 
