@@ -88,8 +88,9 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		/* arbitray large number to prevent an infinite loop */
 		retries = 1000;
 		bid = ses->ks_bid;
-		while (!SBCAS(&ses->ks_bid, bid, bid + 1) && retries--)
-		       bid = ses->ks_bid;
+		while (!SBCAS(&ses->ks_bid, bid, bid + 1) && retries--) {
+				bid = ses->ks_bid;
+        }
 
 		if (!retries) {
 			return (kstatus_t) {
@@ -104,7 +105,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		retries = 1000;
 		batcnt = ses->ks_bats;
 		while (!SBCAS(&ses->ks_bats, batcnt, batcnt + 1) && retries--)
-		       batcnt = ses->ks_bats;
+				batcnt = ses->ks_bats;
 		batcnt++;
 
 		if (!retries) {
@@ -115,17 +116,14 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 			};
 		}
 
-		if ((ses->ks_l.kl_devbatcnt > 0) &&
-		    (batcnt > ses->ks_l.kl_devbatcnt)) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH,
-					  "batch: Too many active");
+		if ((ses->ks_l.kl_devbatcnt > 0) && (batcnt > ses->ks_l.kl_devbatcnt)) {
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: Too many active");
 			goto bex_kb;
 		}
 
 		*kb = (kb_t *) KI_MALLOC(sizeof(kb_t));
 		if (!(*kb)) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC,
-					  "batch: kb");
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "batch: kb");
 			goto bex_kb;
 		}
 
@@ -291,43 +289,43 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	case KMT_ENDBAT:
 #ifdef KBATCH_SEQTRACKING
 		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
-		if (krc.ks_code != K_OK)
-			goto bex_endbat;
+		if (krc.ks_code != K_OK) { goto bex_endbat; }
 
 		pthread_mutex_lock(&(*kb)->kb_m);
+
 		printf("Seq CNT: %lu\n", seqlistcnt);
 		printf("Seq List Size: %d\n", list_size((*kb)->kb_seqs));
-		for (i=0;i<seqlistcnt; i++) {
+
+		for (i = 0; i < seqlistcnt; i++) {
 			printf("Searching for Seq: %lu", seqlist[i]);
 
-			rc = list_traverse((*kb)->kb_seqs, (char *)&seqlist[i],
-					   b_batch_seqmatch, LIST_ALTR);
+			rc = list_traverse(
+				(*kb)->kb_seqs, (char *)&seqlist[i],
+				b_batch_seqmatch, LIST_ALTR
+			);
+
 			if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 				/*
 				 * Got an acknowledged op seq that is
 				 * not in our op seq list
 				 */
 				printf("NOT FOUND\n");
-				krc = kstatus_err(K_EINTERNAL,
-						  KI_ERR_BATCH,
-						  "batch: unsent seq");
+				krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: unsent seq");
 				goto bex_endbat;
 			}
+
 			printf("FOUND\n");
 			seq = (kseq_t *)list_remove_curr((*kb)->kb_seqs);
 			KI_FREE(seq);
 		}
+
+		// Did not get an acknowledged op seq for an op seq in our list
 		if (list_size((*kb)->kb_seqs)) {
-			/*
-			 * Did not get an acknowledged op seq for an
-			 * op seq in our list
-			 */
-			krc = kstatus_err(K_EINTERNAL,
-					  KI_ERR_BATCH,
-					  "batch: unacknowledged seq");
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: unacknowledged seq");
 			goto bex_endbat;
 		}
 #endif
+	// label for cleaning up batch data
 	bex_endbat:
 		list_free((*kb)->kb_seqs, NULL);
 		pthread_mutex_unlock(&(*kb)->kb_m);
