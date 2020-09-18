@@ -290,7 +290,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 	case KMT_ENDBAT:
 #ifndef KBATCH_SEQTRACKING
-		krc = extract_cmdstatus(response_cmd);
+		krc = extract_status(&kmresp);
 #else
 		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
 		if (krc.ks_code != K_OK) { goto bex_endbat; }
