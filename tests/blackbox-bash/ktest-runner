@@ -20,6 +20,7 @@ source "${function_dir}/util.bash"
 source "${function_dir}/keys.bash"
 
 # test functions to import
+source "tests/workloads.bash"
 source "${usecase_dir}/get.serial.bash"
 source "${usecase_dir}/put-get.serial.bash"
 source "${usecase_dir}/batch-put.serial.bash"
@@ -40,24 +41,105 @@ run_timed_test() {
     max_test_time=$(nanoseconds_to_seconds ${test_times[2]})
 
     echo "${testfn_name} [${testrun_count} runs]:"
-    echo -e "\tAvg: ${avg_test_time}"
-    echo -e "\tMin: ${min_test_time}"
-    echo -e "\tMax: ${max_test_time}"
+    echo -e "\tAvg (s): ${avg_test_time}"
+    echo -e "\tMin (s): ${min_test_time}"
+    echo -e "\tMax (s): ${max_test_time}"
+}
+
+run_concurrent_timed_tests() {
+    declare -n tasklist_ref=$1
+    pool_size=${2:-30}
+    task_pids=()
+
+    # create a directory for this run using time of day (HHMMSS)
+    test_timeofday=$(date "+%H-%M%S")
+    output_dir="outputs/test-run-${test_timeofday}"
+
+    # make the directory if it does not exist
+    [[ ! -d ${output_dir} ]] && mkdir -p ${output_dir}
+
+    let task_ndx=0
+    let queue_slot_ndx=0
+
+    for test_task in "${tasklist_ref[@]}"; do
+        local output_file="${output_dir}/output.concurrent-${task_ndx}.test"
+
+        output_capture="> ${output_file}"
+        if [[ ${task_ndx} -lt ${pool_size} ]]; then
+            output_capture=">> ${output_file}"
+        fi
+
+        # execute and track the task
+        run_timed_test ${test_task} ${output_capture} &
+        task_pids[${queue_slot_ndx}]=$!
+
+        # log the task for debugging
+        local task_title="task #${task_ndx} (${task_pids[${queue_slot_ndx}]}): '${test_task}'"
+
+        echo ${task_title}
+        echo ${task_title} >> ${output_file}
+
+        let task_ndx=${task_ndx}+1
+        echo "Tasks queued: ${task_ndx} (total: ${#tasklist_ref[@]})"
+
+        let queue_slot_ndx=${queue_slot_ndx}+1
+        let available_queue_slots=${pool_size}-${queue_slot_ndx}
+        echo "Available queue slots: ${available_queue_slots}"
+
+        if [[ ${task_ndx} -ge ${#tasklist_ref[@]} || $available_queue_slots -eq 0 ]]; then
+            echo "Waiting for ${queue_slot_ndx} active tasks"
+
+            let wait_task_ndx=0
+            for task_pid in "${task_pids[@]}"; do
+                echo "Waiting for task #${wait_task_ndx} (${task_pid})..."
+                wait ${task_pid}
+                echo "Reaped task #${wait_task_ndx} (${task_pid})"
+
+                let wait_task_ndx=${wait_task_ndx}+1
+            done
+
+            let queue_slot_ndx=0
+        fi
+    done
+
 }
 
 # ------------------------------
 # Then run the tests
 
 # run simple get tests first
-run_timed_test "getkey_sequential" $testrun_count
-run_timed_test "getkey_random"     $testrun_count
+## run_timed_test "getkey_sequential" $testrun_count
+## run_timed_test "getkey_random"     $testrun_count
 
 # then run put and get
-putkey_test_prefix="AnExc33d1nglyYooniqueKeyBass-"
-run_timed_test "putgetkey_sequential" $testrun_count ${putkey_test_prefix}
-run_timed_test "putgetkey_random"     $testrun_count ${putkey_test_prefix}
+## putkey_test_prefix="AnExc33d1nglyYooniqueKeyBass-"
+## run_timed_test "putgetkey_sequential" $testrun_count ${putkey_test_prefix}
+## run_timed_test "putgetkey_random"     $testrun_count ${putkey_test_prefix}
 
 # then run batched puts
-batchput_test_prefix="Test|BatchedPuts"
-batchput_testfile="${testdata_dir}/batchput.serial.kinetic"
-run_timed_test "batchput_sequential_from_file" $testrun_count ${batchput_testfile}
+## batchput_test_prefix="Test|BatchedPuts"
+## batchput_testfile="${testdata_dir}/batchput.serial.kinetic"
+## run_timed_test "batchput_sequential_from_file" $testrun_count ${batchput_testfile}
+
+## test_array=("getkey_sequential    $testrun_count"
+##             "getkey_random        $testrun_count"
+##             "getkey_random        $testrun_count"
+##             "getkey_random        $testrun_count"
+##             "getkey_random        $testrun_count"
+##            )
+
+test_array=("run_workload_from_file $testrun_count tests/data/get.simple-5.kinetic"
+            "run_workload_from_file $testrun_count tests/data/get.simple-1.kinetic"
+            "run_workload_from_file $testrun_count tests/data/get.simple-2.kinetic"
+            "run_workload_from_file $testrun_count tests/data/get.simple-3.kinetic"
+            "run_workload_from_file $testrun_count tests/data/get.simple-4.kinetic"
+           )
+## test_array=("getkey_sequential    $testrun_count"
+##             "getkey_random        $testrun_count"
+##             "putgetkey_sequential $testrun_count 'ConcurrentPutGetSeq'"
+##             "putgetkey_random     $testrun_count 'ConcurrentPutGetRand'"
+##            )
+
+set -x
+run_concurrent_timed_tests "test_array" 5
+set +x
