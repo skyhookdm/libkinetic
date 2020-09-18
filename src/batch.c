@@ -337,8 +337,6 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		break;
 	}
 
-
-
  bex_resp:
 	destroy_message(kmresp.result_message);
 
