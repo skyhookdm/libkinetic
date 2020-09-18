@@ -255,8 +255,7 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 		kmbat = unpack_kinetic_message(kiov->kiov_base,
 						kiov->kiov_len);
 		if (kmbat.result_code == FAILURE) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK,
-					  "del: unpack batch send msg");
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "del: unpack batch send msg");
 			goto dex_sendmsg;
 		}
 
