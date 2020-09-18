@@ -510,42 +510,22 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 	return kb_status;
 }
 
-kstatus_t extract_status(struct kresult_message *response_msg)
-{
+
+kstatus_t extract_status(struct kresult_message *response_msg) {
 	// assume failure status
-	kstatus_t kv_status = (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = NULL,
-		.ks_detail  = NULL,
-	};
-	// commandbytes should exist, but we should probably be thorough
-	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
-	if (!kv_response_msg->has_commandbytes) { return kv_status; }
+	kstatus_t kb_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 
-	// unpack the command bytes
-	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
+	// check that commandbytes exist, then unpack it
+	kproto_msg_t *kb_response_msg = (kproto_msg_t *) response_msg->result_message;
+	if (!kb_response_msg->has_commandbytes) { return kb_status; }
 
-	kproto_status_t *response_status = response_cmd->status;
-	if (response_status->has_code) {
-		size_t statusmsg_len     = strlen(response_status->statusmessage);
-		char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-		strcpy(response_statusmsg, response_status->statusmessage);
+	kproto_cmd_t *response_cmd = unpack_kinetic_command(kb_response_msg->commandbytes);
+	if (!response_cmd) { return kb_status; }
 
-		char *response_detailmsg = NULL;
-		if (response_status->has_detailedmessage) {
-			response_detailmsg = (char *) KI_MALLOC(sizeof(char) * response_status->detailedmessage.len);
-			memcpy(
-				response_detailmsg,
-				response_status->detailedmessage.data,
-				response_status->detailedmessage.len
-			);
-		}
+	// extract the status from the command data
+	kb_status = extract_cmdstatus(response_cmd);
 
-		kv_status = (kstatus_t) {
-			.ks_code    = response_status->code,
-			.ks_message = response_statusmsg,
-			.ks_detail  = response_detailmsg,
-		};
-	}
-	return(kv_status);
+	destroy_command(response_cmd);
+
+	return kb_status;
 }
