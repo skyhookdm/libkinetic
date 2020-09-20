@@ -63,6 +63,7 @@ run_concurrent_timed_tests() {
 
     for test_task in "${tasklist_ref[@]}"; do
         local output_file="${output_dir}/output.concurrent-${task_ndx}.test"
+        output_file="/dev/stdout"
 
         output_capture="> ${output_file}"
         if [[ ${task_ndx} -lt ${pool_size} ]]; then
@@ -108,25 +109,18 @@ run_concurrent_timed_tests() {
 # Then run the tests
 
 # run simple get tests first
-## run_timed_test "getkey_sequential" $testrun_count
-## run_timed_test "getkey_random"     $testrun_count
+run_timed_test "getkey_sequential" $testrun_count
+run_timed_test "getkey_random"     $testrun_count
 
 # then run put and get
-## putkey_test_prefix="AnExc33d1nglyYooniqueKeyBass-"
-## run_timed_test "putgetkey_sequential" $testrun_count ${putkey_test_prefix}
-## run_timed_test "putgetkey_random"     $testrun_count ${putkey_test_prefix}
+putkey_test_prefix="AnExc33d1nglyYooniqueKeyBass-"
+run_timed_test "putgetkey_sequential" $testrun_count ${putkey_test_prefix}
+run_timed_test "putgetkey_random"     $testrun_count ${putkey_test_prefix}
 
 # then run batched puts
-## batchput_test_prefix="Test|BatchedPuts"
-## batchput_testfile="${testdata_dir}/batchput.serial.kinetic"
-## run_timed_test "batchput_sequential_from_file" $testrun_count ${batchput_testfile}
-
-## test_array=("getkey_sequential    $testrun_count"
-##             "getkey_random        $testrun_count"
-##             "getkey_random        $testrun_count"
-##             "getkey_random        $testrun_count"
-##             "getkey_random        $testrun_count"
-##            )
+batchput_test_prefix="Test|BatchedPuts"
+batchput_testfile="${testdata_dir}/batchput.serial.kinetic"
+run_timed_test "batchput_sequential_from_file" $testrun_count ${batchput_testfile}
 
 test_array=("run_workload_from_file $testrun_count tests/data/get.simple-5.kinetic"
             "run_workload_from_file $testrun_count tests/data/get.simple-1.kinetic"
@@ -140,6 +134,4 @@ test_array=("run_workload_from_file $testrun_count tests/data/get.simple-5.kinet
 ##             "putgetkey_random     $testrun_count 'ConcurrentPutGetRand'"
 ##            )
 
-set -x
 run_concurrent_timed_tests "test_array" 5
-set +x
