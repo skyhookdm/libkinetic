@@ -5,6 +5,17 @@ Prototype of kinetic re-design
 
 ## API Overview
 
+### Library Overview
+
+
+<figure align="center">
+  <img src="assets/Kinetic_Library_Organization.png" height="600" />
+  <figcaption text-align:"middle">
+    <strong>Figure 1</strong>
+    Overview of library modules and how they fit in to a high-level overview of the lifecycle of a kinetic command.
+  </figcaption>
+</figure>
+
 ### Blocking Operations
 
 Each blocking kinetic interface operation (e.g. `ki_del`) encompasses the end to end logic of:
