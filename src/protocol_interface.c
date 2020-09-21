@@ -106,7 +106,7 @@ int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
 	result_status = HMAC_Final(
 		hmac_context,
 		(unsigned char *) hmac_digest,
-		(unsigned int *) &msg_data->hmacauth->hmac.len
+		(unsigned int *) &(msg_data->hmacauth->hmac.len)
 	);
 	if (!result_status) { return -1; }
 
