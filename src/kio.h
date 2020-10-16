@@ -74,17 +74,17 @@ struct kio {
  *		single contiguous buffer.
  * In bound messages:
  *	  0	The Kinetic PDU
- *	  1	The packed Kinetic response message and an optional value
+ *	  1	The packed Kinetic response message 
+ * 	  2	An optional value
  */
 enum kio_index {
 	KIOV_PDU	= 0,
 	KIOV_MSG	= 1,
-	KIOV_MSGVAL	= 1,
 	KIOV_VAL	= 2,
 };
 
-#define KIO_LEN_NOVAL   2
-#define KIO_LEN_WITHVAL 3
+#define KM_CNT_NOVAL   2
+#define KM_CNT_WITHVAL 3
 
 
 

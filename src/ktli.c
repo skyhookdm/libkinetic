@@ -1044,6 +1044,22 @@ ktli_sender(void *p)
 					     kio->kio_seq);
 
 			/*
+			 * If a response is needed, pre-emptively place
+			 * this KIO on the rq to avoid a race with the
+			 * receiver. Of course if there is an error I will
+			 * have to dequeue it before moving the failed kio
+			 * to the cq.
+			 */
+			if (!KIOF_ISSET(kio, KIOF_REQONLY)) {
+				pthread_mutex_lock(&rq->ktq_m);
+				(void)list_mvrear(rq->ktq_list);
+				list_insert_before(rq->ktq_list,
+						   (char *)&kio,
+						   sizeof(struct kio *));
+				pthread_mutex_unlock(&rq->ktq_m);
+			}
+
+			/*
 			 * call the corresponding driver send fn
 			 * lower driver is concerned with ensuring all
 			 * bytes are sent
@@ -1055,12 +1071,36 @@ ktli_sender(void *p)
 			kio->kio_sendmsg.km_status = rc;
 			kio->kio_sendmsg.km_errno = errno;
 			kio->kio_state = KIO_SENT;
+			debug_printf("ktli: Sent Kio: %p: Seq %ld\n",
+				     kio, kio->kio_seq);
 
 			/* Handle the REQONLY case with the error case */
 			if (rc < 0 || KIOF_ISSET(kio, KIOF_REQONLY)) {
-				if ( rc < 0) {
+				if (rc < 0) {
 					debug_printf("KTLI Send Error\n");
 					kio->kio_state = KIO_FAILED;
+				}
+
+				if (!KIOF_ISSET(kio, KIOF_REQONLY)) {
+					/* If on the rq, dequeue it.
+					 * Should only search when err and
+					 * not REQONLY.
+					 * list_traverse defaults to starting
+					 * the traverse at the front */
+					pthread_mutex_lock(&rq->ktq_m);
+					rc = list_traverse(rq->ktq_list,
+							   (char *)kio,
+							   ktli_kiomatch,
+							   LIST_ALTR);
+					if (rc != LIST_EXTENT &&
+					    rc != LIST_EMPTY) {
+						/* Found the requested kio */
+						lkio = (struct kio **)list_remove_curr(cq->ktq_list);
+						KTLI_FREE(lkio);
+					}
+					/* leave the list ready for an insert */
+					(void)list_mvrear(rq->ktq_list);
+					pthread_mutex_unlock(&rq->ktq_m);
 				}
 
 				/*
@@ -1077,14 +1117,8 @@ ktli_sender(void *p)
 			}
 
 
-			/* Success */
-			/* Hang it on the receive queue */
+			/* Success  signal the receiver */
 			pthread_mutex_lock(&rq->ktq_m);
-			(void)list_mvrear(rq->ktq_list);
-			list_insert_before(rq->ktq_list,
-					   (char *)&kio, sizeof(struct kio *));
-
-			/* wakeup the receiver */
 			pthread_cond_signal(&rq->ktq_cv);
 			pthread_mutex_unlock(&rq->ktq_m);
 		}
@@ -1157,66 +1191,79 @@ ktli_recvmsg(int kts)
 
 	/*
 	 * We have a message, time to receive it.
-	 * Need to allocate a 2 element kiovec array,
-	 * one kiovec for the header[0] and
-	 * another kiovec for the message[1]
+	 * Need to allocate a kiovec array,
+	 * one kiovec for the PDU[0], one kiovec for the MSG[1]
+	 * and another for the potential VAL[2], so 3 elements. 
 	 */
-	msg.km_msg = KTLI_MALLOC(sizeof(struct kiovec) * 2);
+	msg.km_msg = KTLI_MALLOC(sizeof(struct kiovec) * KM_CNT_WITHVAL);
 	if (!msg.km_msg) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
+			      __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 
 	/* Allocate the header buffer */
-	msg.km_msg[0].kiov_base = KTLI_MALLOC(kh->kh_recvhdr_len);
-	if (!msg.km_msg[0].kiov_base) {
+	msg.km_msg[KIOV_PDU].kiov_base = KTLI_MALLOC(kh->kh_recvhdr_len);
+	if (!msg.km_msg[KIOV_PDU].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
+			      __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
-	msg.km_msg[0].kiov_len = kh->kh_recvhdr_len;
+	msg.km_msg[KIOV_PDU].kiov_len = kh->kh_recvhdr_len;
 
-	/* call the corresponding driver receive to get the header */
-	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[0], 1);
+	/* call the corresponding driver receive to receive the PDU */
+	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[KIOV_PDU], 1);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: receive failed %d\n", __FILE__, __LINE__, rc);
+		debug_fprintf(stderr, "%s:%d: receive failed %d\n",
+			      __FILE__, __LINE__, rc);
 		goto recvmsgerr;
 	}
 
-	/* call helper fn to get the total message length */
-	msg.km_msg[1].kiov_len = (kh->kh_msglen_fn)(&msg.km_msg[0]);
-	if (msg.km_msg[1].kiov_len < 0) {
+	/* With the PDU, call helper fn to get the msg and val lengths */
+	msg.km_msg[KIOV_MSG].kiov_len =	(kh->kh_msglen_fn)(&msg.km_msg[KIOV_PDU]);
+	msg.km_msg[KIOV_VAL].kiov_len =	(kh->kh_vallen_fn)(&msg.km_msg[KIOV_PDU]);
+
+	if ((msg.km_msg[KIOV_MSG].kiov_len < 0) ||
+	    (msg.km_msg[KIOV_VAL].kiov_len < 0)) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
 		debug_printf("%s:%d: Helper msglen failed failed\n",
 		       __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 
-	/* Now reduce by the header we already received */
-	/* msg.km_msg[1].kiov_len -= kh->kh_recvhdr_len; */
-
-	/* Allocate the message buffer */
-	msg.km_msg[1].kiov_base = KTLI_MALLOC(msg.km_msg[1].kiov_len);
-	if (!msg.km_msg[1].kiov_base) {
+	/* Allocate the message and value buffers buffer */
+	msg.km_msg[KIOV_MSG].kiov_base = KTLI_MALLOC(msg.km_msg[KIOV_MSG].kiov_len);
+	if (!msg.km_msg[KIOV_MSG].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
+			      __FILE__, __LINE__);
+		goto recvmsgerr;
+	}
+
+	msg.km_msg[KIOV_VAL].kiov_base = KTLI_MALLOC(msg.km_msg[KIOV_VAL].kiov_len);
+	if (!msg.km_msg[KIOV_VAL].kiov_base) {
+		/* PAK: HANDLE - Yikes, errors down here suck */
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
+			      __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 
 	/* call the corresponding driver receive to get the message */
-	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[1], 1);
+	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[KIOV_MSG], 2);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_printf("%s:%d: receive failed %d\n", __FILE__, __LINE__, errno);
+		debug_printf("%s:%d: receive failed %d\n",
+			     __FILE__, __LINE__, errno);
 		perror("");
 		goto recvmsgerr;
 		assert(0);
 	}
 
 	/* We have the message. Find its matching request */
-	aseq = (kh->kh_getaseq_fn)(msg.km_msg, 2);
+	aseq = (kh->kh_getaseq_fn)(msg.km_msg, KM_CNT_WITHVAL);
 	debug_printf("KTLI Received ASeq: %ld\n", aseq);
 
 	/* search through the recvq, need the mutex */
@@ -1233,6 +1280,8 @@ ktli_recvmsg(int kts)
 		if (!kio) {
 			debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
 			       __FILE__, __LINE__);
+
+			pthread_mutex_unlock(&rq->ktq_m);
 			goto recvmsgerr;
 		}
 		memset((void *)kio, 0, sizeof(struct kio));
@@ -1258,7 +1307,7 @@ ktli_recvmsg(int kts)
 	kio->kio_state = KIO_RECEIVED;
 	kio->kio_recvmsg.km_status = 0;
 	kio->kio_recvmsg.km_errno = 0;
-	kio->kio_recvmsg.km_cnt = 2;
+	kio->kio_recvmsg.km_cnt = KM_CNT_WITHVAL;
 	kio->kio_recvmsg.km_msg = msg.km_msg;
 
 	/* Add to completion queue */
@@ -1324,9 +1373,14 @@ ktli_recvmsg(int kts)
 	pthread_mutex_unlock(&sq->ktq_m);
 
 	/* free any buffers allocated */
-	(msg.km_msg?KTLI_FREE(msg.km_msg):0);
-	(msg.km_msg[0].kiov_base?KTLI_FREE(msg.km_msg[0].kiov_base):0);
-	(msg.km_msg[1].kiov_base?KTLI_FREE(msg.km_msg[1].kiov_base):0);
+	if (msg.km_msg[KIOV_PDU].kiov_base)
+		KTLI_FREE(msg.km_msg[KIOV_PDU].kiov_base);
+	if (msg.km_msg[KIOV_MSG].kiov_base)
+		KTLI_FREE(msg.km_msg[KIOV_MSG].kiov_base);
+	if (msg.km_msg[KIOV_VAL].kiov_base)
+		KTLI_FREE(msg.km_msg[KIOV_VAL].kiov_base);
+	if (msg.km_msg)
+		KTLI_FREE(msg.km_msg);
 
 	return(-1);
 }

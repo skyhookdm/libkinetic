@@ -133,7 +133,7 @@ ki_range(int ktd, krange_t *kr)
 	 * is for the protobuf message. There is no value.
 	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
+	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {

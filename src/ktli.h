@@ -198,8 +198,11 @@ struct ktli_helpers {
 	/* Sets the sequence in a full message in a single kiovec */
 	void	(*kh_setseq_fn)(struct kiovec *msg, int msgcnt, uint64_t seq);
 
-	/* Returns total length of a message given a header in one kiovec */
+	/* Returns length of a message given a header in one kiovec */
 	int32_t (*kh_msglen_fn)(struct kiovec *msg_hdr);
+
+	/* Returns length of a value given a header in one kiovec */
+	int32_t (*kh_vallen_fn)(struct kiovec *msg_hdr);
 };
 
 /* Exposed API */

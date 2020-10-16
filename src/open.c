@@ -15,6 +15,7 @@
 #include "kinetic_internal.h"
 
 static int32_t ki_msglen(struct kiovec *msg_hdr);
+static int32_t ki_vallen(struct kiovec *msg_hdr);
 
 /* Kinetic API helpers */
 static struct ktli_helpers ki_kh = {
@@ -22,6 +23,7 @@ static struct ktli_helpers ki_kh = {
 	.kh_getaseq_fn	= ki_getaseq,
 	.kh_setseq_fn	= ki_setseq,
 	.kh_msglen_fn	= ki_msglen,
+	.kh_vallen_fn	= ki_vallen,
 };
 
 static int32_t
@@ -36,7 +38,22 @@ ki_msglen (struct kiovec *msg_hdr)
 	/* pull these off in network byte order then convert to host order */
 	UNPACK_PDU(&pdu, (unsigned char *)msg_hdr->kiov_base);
 		
-	return (pdu.kp_msglen + pdu.kp_vallen);
+	return (pdu.kp_msglen);
+}
+
+static int32_t
+ki_vallen (struct kiovec *msg_hdr)
+{
+	kpdu_t pdu;
+
+	if (!msg_hdr || (msg_hdr->kiov_len !=  KP_PLENGTH)) {
+		return(-1);
+	}
+
+	/* pull these off in network byte order then convert to host order */
+	UNPACK_PDU(&pdu, (unsigned char *)msg_hdr->kiov_base);
+
+	return (pdu.kp_vallen);
 }
 
 /**

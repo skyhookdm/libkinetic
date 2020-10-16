@@ -225,10 +225,13 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	else
 		kstatus = ki_put(ktd, (bat?ka->ka_batch:NULL), &kv);
 	
-	fprintf(stderr, "%s: %s: %s: %s\n",
-		ka->ka_cmdstr, ka->ka_key,
-		ki_status_label[kstatus.ks_code],
-		kstatus.ks_message);
+	if (kstatus.ks_code != K_OK) {
+		fprintf(stderr, "%s: %s: %s: %s\n",
+			ka->ka_cmdstr, ka->ka_key,
+			ki_status_label[kstatus.ks_code],
+			kstatus.ks_message);
+		return(-1);
+	}
 
 	return(0);
 }

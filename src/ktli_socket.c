@@ -146,6 +146,32 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 		   fprintf(stderr, "Error setting socket recv buffer size\n"); 
 	   }
 
+#define KTLI_CORK 0
+	  
+#if KTLI_CORK && !defined(__APPLE__)
+	   /* 
+	    * TCP_CORK is NOT available on OSX and is TCP_NOPUSH in BSD
+	    * so not really portable.
+	    *
+	    * If set, don't send out partial frames. All queued partial
+	    * frames are sent when the option is cleared again. This is 
+	    * useful for prepending headers before calling sendfile(2),
+	    * or for throughput optimization. As currently implemented,
+	    * there is a ** 200-millisecond ceiling** on the time for which
+	    * output is corked by TCP_CORK. If this ceiling is reached,
+	    * then queued data is automatically transmitted."
+	    *
+	    * Requires a flush but diabling CORK and re-enabling it after
+	    * every writev.
+	    *
+	    * Not sure this is needed  But we will see...
+	    
+	    printf("Putting in the cork\n");
+	   */
+
+	   setsockopt(dd, IPPROTO_TCP, TCP_CORK, &on, sizeof(on));
+#endif
+
 	   /* 
 	    * NODELAY means that segments are always sent as soon as possible,
 	    * even if there is only a small amount of data. When not set, 
@@ -194,15 +220,20 @@ int
 ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 {
 	struct iovec *iov;
-	int i, len, dd, bw, on = 1, off = 0;
+	int i, len, dd, iovs, curv, bw, tbw, cnt, on = 1, off = 0;
 
-	if (!dh) {
+	if (!dh || !msgcnt) {
 		errno -EINVAL;
 		return(-1);
 	}
 	dd = *(int *)dh;
 	
-	/* Convert the kiov to a std iov for writev */
+	/*
+	 * Copy the kiov to a std iov for use with writev
+	 * This temp iov structure also allows the base ptrs to be modified
+	 * for partial readswrites, not impacting the user passed in kiov
+	 * Take this opportunity to also get a total length
+	 */
 	iov = (struct iovec *)malloc(sizeof(struct iovec) * msgcnt);
 	if (!iov) {
 		errno = ENOMEM;
@@ -214,45 +245,73 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		iov[i].iov_len = msg[i].kiov_len;
 		len += msg[i].kiov_len;
 	}
+	iovs = msgcnt;
 
-/* Cork code seems redundant with a single writev so disable */
-#define KTLI_CORK 0
-	  
-#if KTLI_CORK && !defined(__APPLE__)
 	/* 
-	 * TCP_CORK is NOT available on OSX
-	 * Not sure this is needed as we should be writing a complete
-	 * message with a single writev call.  But we will see...
-	 * might want to enable disable around the writev
+	 * NONBLOCKING sockets can do partial writes, handle em
+	 * init the current vector and total bytes read, 
+	 * cnt is used for loop stats
+	 * then loop until complete
 	 */
-	printf("Putting in the cork\n");
-	
-	setsockopt(dd, IPPROTO_TCP, TCP_CORK, &on, sizeof(on));
+	for (curv=0,tbw=0,cnt=1;;cnt++) {
+		bw = writev(dd, &iov[curv], iovs-curv);
+		if (bw < 0) {
+			/* Although these are equivalent, POSIX.1-2001 allows
+			 * either error to be returned for this case, and does
+			 * not require these constants to have the same value,
+			 * so check for both possibilities.
+			 */
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
+				usleep(500);
+				bw = 0;
+				continue;
+			} else {
+				/* we check the error outside of the loop */
+				break;
+			}
+		}
+
+		tbw += bw;
+
+#if KTLI_CORK && !defined(__APPLE__)
+		/*
+		 * If cork is used, need to flush by resetting NODELAY.
+		 */
+		setsockopt(dd, IPPROTO_TCP, TCP_NODELAY, &on,  sizeof(on));
 #endif
 
-	bw = writev(dd, iov, msgcnt);
+		/* run through the io vectors that can be fully consumed */
+		while ((curv < iovs) && (bw >= iov[curv].iov_len))
+			/* consume bw and inc curv */
+			bw -= iov[curv++].iov_len;
+
+		/* are we done? */
+		if (curv == iovs)
+			break;
+
+		/* partial vactor update the current io vectors base and len */
+		iov[curv].iov_base = (char *)iov[curv].iov_base + bw;
+		iov[curv].iov_len -= bw;
+	}
+
 	if (bw < 0) {
-		/* Return the error */
+		/*
+		 * if bw < 0 then writev failed above, return the error
+		 */
+		printf("socket_send: error %d", errno);
 		return(bw);
 	}
 	
-#if KTLI_CORK && !defined(__APPLE__)
-	   /* 
-	    * If cork is used, need to flush by resetting NODELAY.
-	    */
-	setsockopt(dd, IPPROTO_TCP, TCP_NODELAY, &on,  sizeof(on));
-
-#endif
-
-	//printf("socket_send: %d == %d \n", bw, len);
-	if (bw != len) {
+	if (tbw != len) {
+		printf("socket_send: %d != %d \n", tbw, len);
 		errno = ECOMM;
 		return(-1);
 	}
-
-	free(iov);
 	
-	return(bw);
+	free(iov);
+
+	//if (cnt > 1) printf("ss-wvs %d\n", cnt);
+	return(tbw);
 }
 
 /*
@@ -261,51 +320,87 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 int
 ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 {
-	struct iovec iov[2];
-	int i, len, dd, br;
-	char *p;
+	struct iovec *iov;
+	int i, len, dd, iovs, curv, br, tbr, cnt, on = 1, off = 0;
 
-	if (!dh || !msgcnt ) {
+	if (!dh || !msgcnt) {
 		errno -EINVAL;
 		return(-1);
-	}	
+	}
 	dd = *(int *)dh;
 
-	/* 
-	 * PAK: Need to handle msgcnt > 1, by using readv instead 
-	 * would need to create normal iovec, until we do, assert
+	/*
+	 * Copy the kiov to a std iov for use with readv
+	 * This temp iov structure also allows the base ptrs to be modified
+	 * for partial reads, not impacting the user passed in kiov
+	 * Take this opportunity to also get a total length
 	 */
-	assert(msgcnt==1);
-	
-	/* do the read */
-	len = msg[0].kiov_len;
-	p = (char *)msg[0].kiov_base;
-	while (len) {
-		br = read(dd, p, len);
-		//printf("ktli_socket_recv: read = %d, %d, %d\n",br, len, errno);
-		if (br < 0 && errno == EWOULDBLOCK) {\
-			//printf("ktli_socket_recv: sleeping\n");
-			usleep(500);
-		} else if (br < 0 || !br) {
-			printf("ktli_socket_recv: ERROR\n");
-			/* an error (-1) or EOF (0) ie conn lost */
-			break;
-		} else {
-			len -= br;
-			p += br;
-		}
-	}
-
-	if (len) {
-		/* Return the error */
-		printf("FAILED Read (%d): bytes read(%lu) != msg[0].kiov_len(%lu)\n", br,
-		       (msg[0].kiov_len - len), msg[0].kiov_len);
+	iov = (struct iovec *)malloc(sizeof(struct iovec) * msgcnt);
+	if (!iov) {
+		errno = ENOMEM;
 		return(-1);
 	}
-	//printf("ktli_socket_recv: bytes read(%lu) != msg[0].kiov_len(%lu)\n",
-	//	       (msg[0].kiov_len - len), msg[0].kiov_len);
 
-	return(msg[0].kiov_len);
+	for (len=0,i=0; i<msgcnt; i++) {
+		iov[i].iov_base = msg[i].kiov_base;
+		iov[i].iov_len = msg[i].kiov_len;
+		len += msg[i].kiov_len;
+	}
+	iovs = msgcnt;
+
+	/* 
+	 * NONBLOCKING sockets can do partial reads, handle em
+	 * init the current vector and total bytes read,
+	 * then loop until complete
+	 */
+	for (curv=0,tbr=0,cnt=1;;cnt++) {
+		br = readv(dd, &iov[curv], iovs-curv);
+		if (br < 0) {
+			if (errno == EAGAIN || errno == EWOULDBLOCK) {
+				usleep(500);
+				br = 0;
+				continue;
+			} else {
+				/* we check the error outside of the loop */
+				break;
+			}
+		}
+
+		tbr += br;
+
+		/* run through the io vectors that can be fully consumed */
+		while ((curv < iovs) && (br >= iov[curv].iov_len))
+			/* consume br and inc curv */
+			br -= iov[curv++].iov_len;
+
+		/* are we done? */
+		if (curv == iovs)
+			break;
+
+		/* partial vactor update the current io vectors base and len */
+		iov[curv].iov_base = (char *)iov[curv].iov_base + br;
+		iov[curv].iov_len -= br;
+	}
+
+	if (br < 0) {
+		/*
+		 * if br < 0 then readv failed above, return the error
+		 */
+		printf("socket_receive: error %d", errno);
+		return(br);
+	}
+
+	if (tbr != len) {
+		printf("socket_receive: %d != %d \n", tbr, len);
+		errno = ECOMM;
+		return(-1);
+	}
+
+	free(iov);
+
+	//if (cnt > 1) printf("socket_receive: ss-rvs %d\n", cnt);
+
+	return(tbr);
 }
 
 int

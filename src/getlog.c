@@ -112,7 +112,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	 * is for the protobuf message. There is no value.
 	 * See message.h for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = 2;
+	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
