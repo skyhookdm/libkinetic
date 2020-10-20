@@ -206,8 +206,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 			/* Not our response, so try again */
 			if (errno == ENOENT) {
 				continue;
-			}
-			else {
+			} else {
 				/* PAK: need to exit, receive failed */
 				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG,
 						  "get: recvmsg");

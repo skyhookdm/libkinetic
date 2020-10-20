@@ -209,8 +209,8 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	 * If verbose dump the range we are getting.
 	 * Keys can be large so just print first 5 chars 
 	 * of each key defining the range
-	 * Use range notation for start, end: 
-	 * 	[ or ] = inclusive of the element, 
+	 * Use range notation for start, end:
+	 * 	[ or ] = inclusive of the element,
 	 * 	( or ) = exclusive of the element
 	 */
 	if (ka->ka_verbose)  {
@@ -229,7 +229,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 					printf("%s", start);
 		}
 
-		printf(","); 
+		printf(",");
 		
 		if (!end ) {
 			printf("{LASTKEY}");
@@ -281,7 +281,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 			if (ka->ka_verbose) {
 				printf("%u: ", i);
 			}
-			
+
 			if (hdump) {
 				hexdump((char *)kr.kr_keys[i].kiov_base,
 					kr.kr_keys[i].kiov_len);
