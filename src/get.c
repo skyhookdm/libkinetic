@@ -154,7 +154,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	 * is for the protobuf message. There is no value.
 	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
+	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
@@ -206,8 +206,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 			/* Not our response, so try again */
 			if (errno == ENOENT) {
 				continue;
-			}
-			else {
+			} else {
 				/* PAK: need to exit, receive failed */
 				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG,
 						  "get: recvmsg");
@@ -228,14 +227,16 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
 
 	/* Does the PDU match what was given in the recvmsg */
-	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
-	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len ) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN, "get: parse pdu");
+	kiov = kio->kio_recvmsg.km_msg;
+	if ((rpdu.kp_msglen != kiov[KIOV_MSG].kiov_len) ||
+	    (rpdu.kp_vallen != kiov[KIOV_VAL].kiov_len))    {
+		    krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN,
+				      "get: parse pdu");
 		goto gex_recvmsg;
 	}
 
 	// unpack the message; KIOV_MSG may contain both msg and value
-	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
+	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
 		errno = K_EINTERNAL;
 		krc   = kstatus_err(errno, KI_ERR_MSGUNPACK, "get: unpack msg");
@@ -250,8 +251,8 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	 */
 	switch (msg_type) {
 	case KMT_GET:
-		kv->kv_val[0].kiov_base = kiov->kiov_base + rpdu.kp_msglen;
-		kv->kv_val[0].kiov_len  = rpdu.kp_vallen;
+		kv->kv_val[0].kiov_base = kiov[KIOV_VAL].kiov_base;
+		kv->kv_val[0].kiov_len  = kiov[KIOV_VAL].kiov_len;
 
 		/* falls through to KMT_GETVERS to extract command data */
 
@@ -263,8 +264,8 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 
 	case KMT_GETNEXT:
 	case KMT_GETPREV:
-		altkv->kv_val[0].kiov_base = kiov->kiov_base + rpdu.kp_msglen;
-		altkv->kv_val[0].kiov_len  = rpdu.kp_vallen;
+		altkv->kv_val[0].kiov_base = kiov[KIOV_VAL].kiov_base;
+		altkv->kv_val[0].kiov_len  = kiov[KIOV_VAL].kiov_len;
 
 		krc = extract_getkey(&kmresp, altkv);
 		//if (krc.ks_code != K_OK) { altkv->destroy_protobuf(altkv); }
@@ -285,6 +286,10 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
+	/*
+	 * This is for the caller to free as it is hung on the kv->kv_val
+	 * 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base);
+	 */
 	KI_FREE(kio->kio_recvmsg.km_msg);
 
  gex_sendmsg:

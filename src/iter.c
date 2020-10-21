@@ -32,7 +32,7 @@
 
 /*
  * The kinetic iterator. 
- * An iterator must created (ki_itercreate) before it can be used. Once 
+ * An iterator must be created (ki_itercreate) before it can be used. Once 
  * created it can be used many times before it is destroyed (ki_iterdestroy). 
  * Although a given iterator can be used many times, it can not be shared
  * and used simultaneously.
@@ -43,7 +43,7 @@
  * honors the abscence of these keys.  If these keys not provided, the first 
  * legal key and last legal key are substituted. The Kinetic iterator also 
  * honors the inclusive flags for both the start and end keys. Key counts
- * from 1 to infinity are also supprted.  NOTE: Currently reverse is NOT
+ * from 1 to infinity are also supported.  NOTE: Currently reverse is NOT
  * supported. Successive calls to ki_iterstart reset the iterator to the 
  * new range provided. ki_iterstart always returns the first key. 
  *
@@ -184,6 +184,9 @@ ki_iterdone(kiter_t *kit)
 		/* error = done */
 		return(1);
 
+	/* shorthand var */
+	kr = kit->ki_range;
+
 	if (!kr->kr_keyscnt) {
 		/* 
 		 * Last range call to fill the cache came up empty, 
@@ -192,9 +195,6 @@ ki_iterdone(kiter_t *kit)
 		return(1);
 	}
 	
-	/* shorthand var */
-	kr = kit->ki_range;
-
 	kit->ki_curr++;
 	if (kit->ki_curr < kr->kr_keyscnt) {
 		/* More keys available = not done */

@@ -568,6 +568,7 @@ ktli_send(int kts, struct kio *kio)
 
 	/* initialize unused kio elements */
 	kio->kio_state = KIO_NEW;
+	kio->kio_errno = 0;
 	kio->kio_sendmsg.km_status = 0;
 	kio->kio_sendmsg.km_errno = 0;
 	memset(&kio->kio_recvmsg, 0, sizeof(struct kio_msg));
@@ -688,10 +689,17 @@ ktli_receive(int kts, struct kio *kio)
 	} else {
 		/* Found the requested kio */
 		lkio = (struct kio **)list_remove_curr(cq->ktq_list);
-		assert(kio = *lkio);
+		assert(kio == *lkio);
 		KTLI_FREE(lkio);
 		rc = 0;
 	}
+
+	if (kio->kio_state == KIO_FAILED ||
+	    kio->kio_state == KIO_TIMEOUT) {
+		errno = kio->kio_errno;
+		rc = -1;
+	}
+
 	/* leave the list ready for an insert */
 	(void)list_mvrear(cq->ktq_list);
 
@@ -1044,6 +1052,28 @@ ktli_sender(void *p)
 					     kio->kio_seq);
 
 			/*
+			 * If a response is needed, pre-emptively place
+			 * this KIO on the rq to avoid a race with the
+			 * receiver. Of course if there is an error I will
+			 * have to dequeue it before moving the failed kio
+			 * to the cq.
+			 */
+			if (!KIOF_ISSET(kio, KIOF_REQONLY)) {
+				pthread_mutex_lock(&rq->ktq_m);
+				(void)list_mvrear(rq->ktq_list);
+				list_insert_before(rq->ktq_list,
+						   (char *)&kio,
+						   sizeof(struct kio *));
+				pthread_mutex_unlock(&rq->ktq_m);
+			}
+
+			/* Set timeout time */
+			clock_gettime(KIO_CLOCK, &kio->kio_timeout);
+
+			/* Incrment the current time to be the timeout time */
+			kio->kio_timeout.tv_sec += KIO_TIMEOUT_S;
+
+			/*
 			 * call the corresponding driver send fn
 			 * lower driver is concerned with ensuring all
 			 * bytes are sent
@@ -1055,12 +1085,37 @@ ktli_sender(void *p)
 			kio->kio_sendmsg.km_status = rc;
 			kio->kio_sendmsg.km_errno = errno;
 			kio->kio_state = KIO_SENT;
+			debug_printf("ktli: Sent Kio: %p: Seq %ld\n",
+				     kio, kio->kio_seq);
 
 			/* Handle the REQONLY case with the error case */
 			if (rc < 0 || KIOF_ISSET(kio, KIOF_REQONLY)) {
-				if ( rc < 0) {
+				if (rc < 0) {
 					debug_printf("KTLI Send Error\n");
 					kio->kio_state = KIO_FAILED;
+				}
+
+				if (!KIOF_ISSET(kio, KIOF_REQONLY)) {
+					/* If on the rq, dequeue it.
+					 * Why is it on the rq? See com above.
+					 * Should only search when err and
+					 * not REQONLY.
+					 * list_traverse defaults to starting
+					 * the traverse at the front */
+					pthread_mutex_lock(&rq->ktq_m);
+					rc = list_traverse(rq->ktq_list,
+							   (char *)kio,
+							   ktli_kiomatch,
+							   LIST_ALTR);
+					if (rc != LIST_EXTENT &&
+					    rc != LIST_EMPTY) {
+						/* Found the requested kio */
+						lkio = (struct kio **)list_remove_curr(cq->ktq_list);
+						KTLI_FREE(lkio);
+					}
+					/* leave the list ready for an insert */
+					(void)list_mvrear(rq->ktq_list);
+					pthread_mutex_unlock(&rq->ktq_m);
 				}
 
 				/*
@@ -1077,14 +1132,8 @@ ktli_sender(void *p)
 			}
 
 
-			/* Success */
-			/* Hang it on the receive queue */
+			/* Success  signal the receiver */
 			pthread_mutex_lock(&rq->ktq_m);
-			(void)list_mvrear(rq->ktq_list);
-			list_insert_before(rq->ktq_list,
-					   (char *)&kio, sizeof(struct kio *));
-
-			/* wakeup the receiver */
 			pthread_cond_signal(&rq->ktq_cv);
 			pthread_mutex_unlock(&rq->ktq_m);
 		}
@@ -1094,6 +1143,28 @@ ktli_sender(void *p)
 	debug_printf("Sender: exiting\n");
 
 	pthread_exit(p);
+}
+
+/*
+ * List helper function to find a kio that should be timed out
+ * Return 0 for true or a KIO that should be exited.
+ */
+static int
+ktli_timechk(char *data, char *ldata)
+{
+	int match = -1;
+	struct timespec *currtime = (struct timespec *)data;
+	struct kio *lkio = *(struct kio **)ldata;
+
+	/*
+	 * If current time secs is greater than
+	 * KIO timeout secs we have a KIO with exhausted
+	 * wait time
+	 */
+	if (currtime->tv_sec > lkio->kio_timeout.tv_sec) {
+		match = 0;
+	}
+	return (match);
 }
 
 /*
@@ -1128,8 +1199,7 @@ ktli_seqmatch(char *data, char *ldata)
  * for a failing, like KTLI_MALLOC, are most likely unrecoverable.
  * So error recovery here is to set the session state to ABORTED
  * disconnect and let the client cleanup.
- * Need to handle EAGAIN, EWOULDBLOCK, EINTR t
-
+ * Need to handle EAGAIN, EWOULDBLOCK, EINTR
  *
  * @param kts An opened and connected kinetic session descriptor.
  */
@@ -1157,66 +1227,79 @@ ktli_recvmsg(int kts)
 
 	/*
 	 * We have a message, time to receive it.
-	 * Need to allocate a 2 element kiovec array,
-	 * one kiovec for the header[0] and
-	 * another kiovec for the message[1]
+	 * Need to allocate a kiovec array,
+	 * one kiovec for the PDU[0], one kiovec for the MSG[1]
+	 * and another for the potential VAL[2], so 3 elements. 
 	 */
-	msg.km_msg = KTLI_MALLOC(sizeof(struct kiovec) * 2);
+	msg.km_msg = KTLI_MALLOC(sizeof(struct kiovec) * KM_CNT_WITHVAL);
 	if (!msg.km_msg) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
+			      __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 
 	/* Allocate the header buffer */
-	msg.km_msg[0].kiov_base = KTLI_MALLOC(kh->kh_recvhdr_len);
-	if (!msg.km_msg[0].kiov_base) {
+	msg.km_msg[KIOV_PDU].kiov_base = KTLI_MALLOC(kh->kh_recvhdr_len);
+	if (!msg.km_msg[KIOV_PDU].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
+			      __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
-	msg.km_msg[0].kiov_len = kh->kh_recvhdr_len;
+	msg.km_msg[KIOV_PDU].kiov_len = kh->kh_recvhdr_len;
 
-	/* call the corresponding driver receive to get the header */
-	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[0], 1);
+	/* call the corresponding driver receive to receive the PDU */
+	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[KIOV_PDU], 1);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: receive failed %d\n", __FILE__, __LINE__, rc);
+		debug_fprintf(stderr, "%s:%d: receive failed %d\n",
+			      __FILE__, __LINE__, rc);
 		goto recvmsgerr;
 	}
 
-	/* call helper fn to get the total message length */
-	msg.km_msg[1].kiov_len = (kh->kh_msglen_fn)(&msg.km_msg[0]);
-	if (msg.km_msg[1].kiov_len < 0) {
+	/* With the PDU, call helper fn to get the msg and val lengths */
+	msg.km_msg[KIOV_MSG].kiov_len =	(kh->kh_msglen_fn)(&msg.km_msg[KIOV_PDU]);
+	msg.km_msg[KIOV_VAL].kiov_len =	(kh->kh_vallen_fn)(&msg.km_msg[KIOV_PDU]);
+
+	if ((msg.km_msg[KIOV_MSG].kiov_len < 0) ||
+	    (msg.km_msg[KIOV_VAL].kiov_len < 0)) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
 		debug_printf("%s:%d: Helper msglen failed failed\n",
 		       __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 
-	/* Now reduce by the header we already received */
-	/* msg.km_msg[1].kiov_len -= kh->kh_recvhdr_len; */
-
-	/* Allocate the message buffer */
-	msg.km_msg[1].kiov_base = KTLI_MALLOC(msg.km_msg[1].kiov_len);
-	if (!msg.km_msg[1].kiov_base) {
+	/* Allocate the message and value buffers buffer */
+	msg.km_msg[KIOV_MSG].kiov_base = KTLI_MALLOC(msg.km_msg[KIOV_MSG].kiov_len);
+	if (!msg.km_msg[KIOV_MSG].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n", __FILE__, __LINE__);
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
+			      __FILE__, __LINE__);
+		goto recvmsgerr;
+	}
+
+	msg.km_msg[KIOV_VAL].kiov_base = KTLI_MALLOC(msg.km_msg[KIOV_VAL].kiov_len);
+	if (!msg.km_msg[KIOV_VAL].kiov_base) {
+		/* PAK: HANDLE - Yikes, errors down here suck */
+		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
+			      __FILE__, __LINE__);
 		goto recvmsgerr;
 	}
 
 	/* call the corresponding driver receive to get the message */
-	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[1], 1);
+	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[KIOV_MSG], 2);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_printf("%s:%d: receive failed %d\n", __FILE__, __LINE__, errno);
+		debug_printf("%s:%d: receive failed %d\n",
+			     __FILE__, __LINE__, errno);
 		perror("");
 		goto recvmsgerr;
 		assert(0);
 	}
 
 	/* We have the message. Find its matching request */
-	aseq = (kh->kh_getaseq_fn)(msg.km_msg, 2);
+	aseq = (kh->kh_getaseq_fn)(msg.km_msg, KM_CNT_WITHVAL);
 	debug_printf("KTLI Received ASeq: %ld\n", aseq);
 
 	/* search through the recvq, need the mutex */
@@ -1233,10 +1316,13 @@ ktli_recvmsg(int kts)
 		if (!kio) {
 			debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
 			       __FILE__, __LINE__);
+
+			pthread_mutex_unlock(&rq->ktq_m);
 			goto recvmsgerr;
 		}
 		memset((void *)kio, 0, sizeof(struct kio));
 		kio->kio_seq = aseq;
+		KIOF_SET(kio, KIOF_RESPONLY);
 	} else {
 		debug_printf("KTLI Received Matched KIO\n");
 		lkio = (struct kio **)list_remove_curr(rq->ktq_list);
@@ -1258,7 +1344,7 @@ ktli_recvmsg(int kts)
 	kio->kio_state = KIO_RECEIVED;
 	kio->kio_recvmsg.km_status = 0;
 	kio->kio_recvmsg.km_errno = 0;
-	kio->kio_recvmsg.km_cnt = 2;
+	kio->kio_recvmsg.km_cnt = KM_CNT_WITHVAL;
 	kio->kio_recvmsg.km_msg = msg.km_msg;
 
 	/* Add to completion queue */
@@ -1303,6 +1389,7 @@ ktli_recvmsg(int kts)
 		KTLI_FREE(lkio); /* created by the list */
 
 		kio->kio_state = KIO_FAILED;
+		kio->kio_errno = ECONNABORTED;
 		list_insert_before(cq->ktq_list, (char *)&kio,
 				   sizeof(struct kio *));
 	}
@@ -1313,6 +1400,7 @@ ktli_recvmsg(int kts)
 		KTLI_FREE(lkio); /* created by the list */
 
 		kio->kio_state = KIO_FAILED;
+		kio->kio_errno = ECONNABORTED;
 		list_insert_before(cq->ktq_list, (char *)&kio,
 				   sizeof(struct kio *));
 	}
@@ -1324,9 +1412,14 @@ ktli_recvmsg(int kts)
 	pthread_mutex_unlock(&sq->ktq_m);
 
 	/* free any buffers allocated */
-	(msg.km_msg?KTLI_FREE(msg.km_msg):0);
-	(msg.km_msg[0].kiov_base?KTLI_FREE(msg.km_msg[0].kiov_base):0);
-	(msg.km_msg[1].kiov_base?KTLI_FREE(msg.km_msg[1].kiov_base):0);
+	if (msg.km_msg[KIOV_PDU].kiov_base)
+		KTLI_FREE(msg.km_msg[KIOV_PDU].kiov_base);
+	if (msg.km_msg[KIOV_MSG].kiov_base)
+		KTLI_FREE(msg.km_msg[KIOV_MSG].kiov_base);
+	if (msg.km_msg[KIOV_VAL].kiov_base)
+		KTLI_FREE(msg.km_msg[KIOV_VAL].kiov_base);
+	if (msg.km_msg)
+		KTLI_FREE(msg.km_msg);
 
 	return(-1);
 }
@@ -1342,7 +1435,9 @@ ktli_receiver(void *p)
 	struct ktli_queue *rq;
 	struct ktli_queue *cq;
 	enum ktli_sstate st;
-	struct kio *kio;
+	struct kio *kio, **lkio;
+	struct timespec currtime;
+	struct timespec lastcheck = {0,0};
 
 	assert(p);
 
@@ -1384,35 +1479,93 @@ ktli_receiver(void *p)
 
 		/* -1 error, 0 timeout, 1 need to receive data */
 		if (rc < 0) {
-			debug_printf("%s:%d: poll failed %d\n", __FILE__, __LINE__, errno);
+			/* PAK: FIX, infinite loop when errno = ECONNABORTED */
+			debug_printf("%s:%d: poll failed %d\n",
+				     __FILE__, __LINE__, errno);
 			perror("Poll:");
 			continue;
 		}
 
-		if (!rc )
-			continue;
-#if 0
-		/* wait for work */
+		if (rc == 1) {
+			/* Must be something waiting */
+			debug_printf("calling ktli_recvmsg\n");
+			ktli_recvmsg(kts);
+		}
+
+		/*
+		 * Poll timeouts (rc == 0) fall through,
+		 * completing the time out check
+		 */
+
+		/*
+		 * KIO timeout check code:
+		 * Check the rq for KIOs that need to be timed out.
+		 */
 		pthread_mutex_lock(&rq->ktq_m);
-		if (!rq->ktq_exit) {
-			pthread_cond_wait(&rq->ktq_cv, &rq->ktq_m);
+
+		/* Get the current clock, vdso(7) makes this fast */
+		clock_gettime(KIO_CLOCK, &currtime);
+
+		/*
+		 * Timeouts are done on a second granularity,
+		 * If the last checks seconds equal current seconds
+		 * no need to check
+		 */
+		if (lastcheck.tv_sec == currtime.tv_sec) {
+			goto skip_timeout_check;
 		}
+
+		/*
+		 * Traverse the Q to see if anything should be timed out
+		 * Traverse defaults to starting at the front. Use LIST_ALTR
+		 * so that curr points to matched KIO if any.
+		 */
+		rc = list_traverse(rq->ktq_list, (char *)&currtime,
+				   ktli_timechk, LIST_ALTR);
+		while (rc == LIST_OK) {
+			if (rc != LIST_EXTENT && rc != LIST_EMPTY) {
+				/* \
+				 * Found one KIO to timeout. Pull it off the
+				 * receive Q and mark it timedout
+				 */
+				lkio = (struct kio **)list_remove_curr(rq->ktq_list);
+				kio = *lkio;
+				KTLI_FREE(lkio);  /* created by the list */
+				kio->kio_state = KIO_TIMEOUT;
+				kio->kio_errno = ETIMEDOUT;
+
+				debug_printf("KIO Timeout seq: %d\n",
+					     kio->kio_seq);
+
+				/*
+				 * Add the found KIO to the completed Q.
+				 * Remember we have the recev Q locks,
+				 * This is the correct lock order sq, rq, cq
+				 */
+				pthread_mutex_lock(&cq->ktq_m);
+				(void)list_mvrear(cq->ktq_list);
+
+				list_insert_before(cq->ktq_list, (char *)&kio,
+						   sizeof(struct kio *));
+				pthread_cond_broadcast(&cq->ktq_cv);
+				pthread_mutex_unlock(&cq->ktq_m);
+
+				/* Continue the search at the curr list ptr */
+				rc = list_traverse(rq->ktq_list,
+						   (char *)&currtime,
+						   ktli_timechk,
+						   (LIST_CURR|LIST_ALTR));
+			}
+		}
+
+		/* Finished a check, set the last check var */
+		lastcheck = currtime;
+
+	skip_timeout_check:
+		/* KIO timeout check finished, reset and release the rq */
+		(void)list_mvrear(rq->ktq_list);
 		pthread_mutex_unlock(&rq->ktq_m);
- 		debug_printf("Receiver: caught signal\n");
-#endif
 
-		/* PAK: need a kio timeout mechanism
-		 * Maybe after 30 or 60 500ms polls */
-
-		debug_printf("calling ktli_recvmsg\n");
-		ktli_recvmsg(kts);
-#if 0
-		/* if the receive q is not empty, get active */
-		while (list_size(rq->ktq_list)) {
-			if (rq->ktq_exit) break;
-			debug_printf("Received Message\n");
-		}
-#endif
 		if (rq->ktq_exit) break;
 
 	} while (1);

@@ -179,9 +179,9 @@ kctl_dump(kgetlog_t *glog)
 		printf("  %-18s:\n", "Interface(s)");
 		for(n=0;n<cf->kcf_interfacescnt; n++)  {
 			printf("    %-16s: %s\n", "Name", i[n].ki_name);
-			printf("    %-16s: %s\n", "MAC",  i[n].ki_mac);
-			printf("    %-16s: %s\n", "IPv4", i[n].ki_ipv4);
-			printf("    %-16s: %s\n", "IPv6", i[n].ki_ipv6);
+			printf("      %-14s: %s\n", "MAC",  i[n].ki_mac);
+			printf("      %-14s: %s\n", "IPv4", i[n].ki_ipv4);
+			printf("      %-14s: %s\n", "IPv6", i[n].ki_ipv6);
 		}
 		printf("  %-18s: %d\n", "Port", cf->kcf_port);
 		printf("  %-18s: %d\n", "TLS Port", cf->kcf_tlsport);
@@ -199,7 +199,9 @@ kctl_dump(kgetlog_t *glog)
 	if (capacity) {
 		kcapacity_t *c = &glog->kgl_cap;
 		printf("Capacity:\n");
-		printf("  %-18s:  %8" PRIu64 "GiB\n", "Total", c->kc_total);
+
+		/* Note GB and division by multiples of 1000, not GiB(1024) */
+		printf("  %-18s: %-7" PRIu64 "GB\n", "Total", c->kc_total/1000000000);
 		printf("  %-18s: %f%% full\n", "Used", c->kc_used);
 		printf("\n");
 	}
@@ -243,9 +245,9 @@ kctl_dump(kgetlog_t *glog)
 		int i;
 		printf("Temperatures:\n");
 		for (i=0; i<glog->kgl_tempcnt; i++) {
-			printf("  %-18s:%.0f\u00B0C\n",
+			printf("  %-18s: %.0f\u00B0C\n",
 			       t[i].kt_name, t[i].kt_cur);
-			printf("  %-18s:%.0f/%.0f/%.0f\u00B0C\n",
+			printf("  %-18s: %.0f/%.0f/%.0f\u00B0C\n",
 			       "  Min/Max/Target", t[i].kt_min,
 			       t[i].kt_max,t[i].kt_target);
 		}

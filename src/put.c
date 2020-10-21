@@ -126,7 +126,7 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	 * many parts from the caller. 
 	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL + kv->kv_valcnt;
+	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL + kv->kv_valcnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
@@ -142,7 +142,7 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
 	/*
-	 * copy the passed in value vector onto the sendmsg,
+	 * copy the passed in value vector(s) onto the sendmsg,
 	 * no value data is copied
 	 */
 	memcpy(&(kio->kio_sendmsg.km_msg[KIOV_VAL]), kv->kv_val,

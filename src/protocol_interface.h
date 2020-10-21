@@ -29,19 +29,19 @@
 #define KP_PLENGTH 9
 
 // this macro unpacks a Kinetic PDU from a sequential set of KP_LENGTH bytes
-#define UNPACK_PDU(_pdu, _p)	                                                \
-	do {                                                                    \
-		(_pdu)->kp_magic  = (uint8_t)(_p)[0];                           \
-		                                                                \
-		(_pdu)->kp_msglen = (uint32_t)(                                 \
-			(_p)[4] << 24 | (_p)[3] << 16 | (_p)[2] << 8 | (_p)[1]  \
-		);                                                              \
-		(_pdu)->kp_msglen = ntohl((_pdu)->kp_msglen);                   \
-		                                                                \
-		(_pdu)->kp_vallen = (uint32_t)(                                 \
-			(_p)[8] << 24 | (_p)[7] << 16 | (_p)[6] << 8 | (_p)[5]  \
-		);                                                              \
-		(_pdu)->kp_vallen = ntohl((_pdu)->kp_vallen);                   \
+#define UNPACK_PDU(_pdu, _p)	                                               \
+	do {                                                                   \
+		(_pdu)->kp_magic  = (uint8_t)(_p)[0];                          \
+		                                                               \
+		(_pdu)->kp_msglen = (uint32_t)(                                \
+			(_p)[4] << 24 | (_p)[3] << 16 | (_p)[2] << 8 | (_p)[1] \
+		);                                                             \
+		(_pdu)->kp_msglen = ntohl((_pdu)->kp_msglen);                  \
+		                                                               \
+		(_pdu)->kp_vallen = (uint32_t)(                                \
+			(_p)[8] << 24 | (_p)[7] << 16 | (_p)[6] << 8 | (_p)[5] \
+		);                                                             \
+		(_pdu)->kp_vallen = ntohl((_pdu)->kp_vallen);                  \
 	} while(0);
 
 // this macro packs a Kinetic PDU into a sequential set of KP_LENGTH bytes

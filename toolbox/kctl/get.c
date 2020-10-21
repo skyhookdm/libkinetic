@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <inttypes.h>
@@ -45,7 +46,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 {
 	extern char	*optarg;
         extern int	optind, opterr, optopt;
-        char		c;
+        char		c, *rkey;
 	int		hdump = 0, adump = 0;
 	kv_t		kv;
 	struct kiovec	kv_key[1]  = {0, 0};
@@ -178,7 +179,11 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		printf("\n");
 		hexdump(pkv->kv_key[0].kiov_base, pkv->kv_key[0].kiov_len);
 	} else {
-		printf("%s", (char *)pkv->kv_key[0].kiov_base);
+		/* add null byte to print ads a string */
+		rkey = strndup((char *)pkv->kv_key[0].kiov_base,
+			       pkv->kv_key[0].kiov_len);
+		printf("%s", rkey);
+		free(rkey);
 	}
 	printf("): ");
 	

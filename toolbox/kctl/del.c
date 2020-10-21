@@ -61,18 +61,21 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
         extern int	optind, opterr, optopt;
         char		c, *cp;
 	kcachepolicy_t	cpolicy = KC_WB;
-	char 		start = 0, starti = 0;
-	char		end = 0, endi = 0;
-	char		all = 0;
-	char  		*startk = "";  		// Empty start in case none 
-	char 		*endk = "";
-        int 		count = -1;
+	char  		*start = NULL, *end = NULL;
+	int 		starti = 0, endi = 0;
+	int		all = 0;
+        int 		count = KVR_COUNT_INF;;
 	int 		cmpdel = 0, bat=0;
 	char		newver[VERLEN]; 	// holds hex representation of
 						// one int: "0x00000000"
 	kv_t		kv;
-	struct kiovec	kv_key[1]  = {0, 0};
-	struct kiovec	kv_val[1]  = {0, 0};
+	krange_t	kr;
+	kiter_t		*kit;
+	struct kiovec	kv_key[1]   = {0, 0};
+	struct kiovec	kv_val[1]   = {0, 0};
+	struct kiovec	startkey[1] = {0, 0};
+	struct kiovec	endkey[1]   = {0, 0};
+	struct kiovec	*k;
 	kstatus_t 	kstatus;
 
         while ((c = getopt(argc, argv, "abcp:s:S:e:E:n:h?")) != EOF) {
@@ -123,7 +126,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			}
 			break;
 		case 'a':
-			if ((count > -1)||starti||start||endi||end) {
+			if (HAVE_RANGE)  {
 				fprintf(stderr,
 					"**** -a can't be used with -[nsSeE]\n");
 				CMD_USAGE(ka);
@@ -139,8 +142,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
-			start = 1;
-			startk = optarg;
+			start = optarg;
 			break;
 		case 'S':
 			if (start||all) {
@@ -149,7 +151,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				return(-1);
 			}
 			starti = 1;
-			startk = optarg;
+			start = optarg;
 			break;
 		case 'e':
 			if (end||all) {
@@ -157,8 +159,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
-			endk = optarg;
-		        end = 1;
+			end = optarg;
 			break;
 		case 'E':
 			if (endi||all) {
@@ -166,7 +167,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
-			endk = optarg;
+			end = optarg;
 			endi = 1;
 			break;
 		case 'h':
@@ -177,15 +178,22 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		}
         }
 
+	if (HAVE_RANGE && bat) {
+		fprintf(stderr,	"**** No batch support with range delete\n");
+		CMD_USAGE(ka);
+		return(-1);
+	}
+
 	/* Init kv */
 	memset(&kv, 0, sizeof(kv_t));
-	kv.kv_key    = kv_key;
-	kv.kv_keycnt = 1;
-	kv.kv_val    = kv_val;
-	kv.kv_valcnt = 1;
+	kv.kv_key	= kv_key;
+	kv.kv_keycnt	= 1;
+	kv.kv_val	= kv_val;
+	kv.kv_valcnt	= 1;
+	kv.kv_cpolicy	= cpolicy;
 
 	/*
-	 *  Check for the key parm, 
+	 * Check for the key parm,
 	 * should only be present if no range params given
 	 */
 	if ((argc - optind == 1) && !HAVE_RANGE) {
@@ -231,8 +239,6 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			return(-1);
 		}
 
-		kv.kv_cpolicy  = cpolicy;
-
 		if (ka->ka_verbose) {
 			printf("Compare & Delete: %s\n",
 			       cmpdel?"Enabled":"Disabled");
@@ -267,72 +273,108 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		return(0);
 
 	} else if ((argc - optind == 0) && (HAVE_RANGE)) {
-#if 0
-		/* PAK; Add ki_iter support here, look at range.c */
 		/* 
-		 * No key but a range define, bueno.
+		 * No key but a range defined, this is bueno.
 		 *
 		 * This is the range key delete, could be all, a key range, or
 		 * a count limited key range.
 		 * 
-		 * Setup the range
-		 * if all is set then start and end are unset, which is good as
-		 * all = (start="" and end="all FFs"), inclusive
-		 * 
-		 * If no start key provided, nothing to do as the empty string
-		 * would act as the first possible key
-		 * 
-		 * if no end key provided use the last possible key which is a
-		 * string of all FFs. The size of that string should be equal
-		 * to the max key length.
-		 * 
-		 * Get max key size from GetLog(LIMITS).
+		 * Setup the key range:
+		 * Zero out the kr structure
+		 * If all is set leave kr.kr_start and kr.kr_end unset
+		 * If no start key provided, leave kr.kr_start unset
+		 * If no end key provided, leave kr.kr_end unset
 		 */
-		if (!endk.size()) {
-			types.push_back(Command_GetLog_Type_LIMITS);
-			kstatus = kcon->GetLog(types, log);
-			if(!kstatus.ok()) {
-				printf("Get limits failed: %s\n",
-				       kstatus.message().c_str());
+		memset(&kr, 0, sizeof(kr));
+
+		if (start) {
+			kr.kr_start		= startkey;
+			kr.kr_startcnt		= 1;
+
+			/*
+			 * Aways decode any ascii arbitrary hexadecimal value
+			 * escape sequences in the passed-in key, if no escape
+			 * sequences are present this amounts to a str copy.
+			 */
+			if (!asciidecode(start, strlen(start),
+					 &kr.kr_start[0].kiov_base,
+					 &kr.kr_start[0].kiov_len)) {
+				fprintf(stderr,
+					"*** Failed start key conversion\n");
+				CMD_USAGE(ka);
 				return(-1);
 			}
+		}
 
-			/* 
-			 * No end given, use all FFs - is the last possible key
+		/* set the inclusive flag */
+		if (starti) {
+			KR_FLAG_SET(&kr, KRF_ISTART);
+		}
+
+		if (end) {
+			kr.kr_end	= endkey;
+			kr.kr_endcnt	= 1;
+
+			/*
+			 * Aways decode any ascii arbitrary hexadecimal value
+			 * escape sequences in the passed-in key, if no escape
+			 * sequences are present this amounts to a str copy.
 			 */
-			for (int i = 0; i < log->limits.max_key_size; i++) {
-				endk += "\xFF";
+			if (!asciidecode(end, strlen(end),
+					 &kr.kr_end[0].kiov_base,
+					 &kr.kr_end[0].kiov_len)) {
+				fprintf(stderr,
+					"*** Failed end key conversion\n");
+				CMD_USAGE(ka);
+				return(-1);
 			}
 		}
+
+		/* set the inclusive flag */
+		if (endi) {
+			KR_FLAG_SET(&kr, KRF_IEND);
+		}
+
+		kr.kr_count = ((count < 0)?KVR_COUNT_INF:count);
 
 		/* go ahead and ask the question or if ka_yes tell */
 		printf("%s ", (ka->ka_yes)?"***DELETING":"***DELETE");
 		
+		/* Print what is to be deleted in range form.
+		 * Keys can be large so just print first 5 chars of 
+		 * each key defining the range. Print the count as well.
+		 * Use range notation for start, end:
+		 * 	[ or ] = inclusive of the element,
+		 * 	( or ) = exclusive of the element
+		 */
 		if (all) {
-			printf("ALL Keys");
+			printf("All Keys: [{FIRSTKEY}, {LASTKEY}]:unlimited");
 		} else {
-			printf("Key Range [");
-			if (!start && !starti)
-				printf("{START}");
-			else
-				asciidump(startk.data(),
-					  (startk.length()<5)?startk.length():5);
-			/* mark as inclusive if required */
-			printf(" %s:",starti?"<i>":""); 
-			
-			if (!end && !endi)
-				printf("{END}");
-			else
-				asciidump(endk.data(),
-					  (endk.length()<5)?endk.length():5);
+			printf("Key Range %s", starti?"[":"(");
+			if (!start)
+				printf("{FIRSTKEY}");
+			else {
+				int l;
+				l = strlen(start);
+				asciidump(start, (l>5)?5:l);
+			}
 
-			/* mark as inclusive if required */
-			printf(" %s:",endi?"<i>":"");
+			printf(",");
+			
+			if (!end) {
+				printf("{LASTKEY}");
+			} else {
+				int l;
+				l = strlen(end);
+				asciidump(end, (l>5)?5:l);
+			}
+
+			printf("%s:", endi?"]":")");
 
 			if (count > 0)
-				printf("%u]", count);
+				printf("%u", count);
 			else
-				printf("unlimited]");
+				printf("unlimited");
 
 		}
 			
@@ -340,71 +382,53 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		if (!ka->ka_yes &&
 		    !(yorn("?\nPlease answer y or n [yN]: ", 0, 5))) {
 			return(0);
-		} else printf("\n");
+		} else {
+			printf("\n");
+		}
 
-		// Green Light - deleting from here
-		// printf("DELETED\n");
-		kinetic::KeyRangeIterator krit = KeyRangeIterator();
-		try {
-			// Init the kinetic range iterator
-			size_t maxrange = ka->ka_limits.kl_rangekeycnt;
-			int i=1;
+		/******* Green Light - bulk deleting from here *****/
 
-			krit = kcon->IterateKeyRange(startk, starti,
-						     endk, endi,framesz);
-			while (krit != kinetic::KeyRangeEnd() && count) {
-				if (ka->ka_verbose)
-					printf("%u: ", i++);
+		/* Create the kinetic range iterator */
+		kit = ki_itercreate(ktd);
 
-				// If cmpdel get the current version,
-				// we already know the key exists
-				// If we fail to get the version keep
-				// going, modeling
-				// after rm(1) behaviour.
-				KineticStatus kstatus = kcon->GetVersion(*krit,
-									 version);
-				if(!kstatus.ok()) {
-					fprintf(stderr,
-						"%s: Unable to find key: %s: ",
+		/* Iterate */
+		for (k = ki_iterstart(kit, &kr);
+		     !ki_iterdone(kit) && k;
+		     k = ki_iternext(kit)) {
+
+			/* Set the key */
+			kv.kv_key[0].kiov_base = k->kiov_base;
+			kv.kv_key[0].kiov_len  = k->kiov_len;
+
+			if (cmpdel) {
+				/* 
+				 * Get the key's the current version
+				 */
+				kstatus = ki_getversion(ktd, &kv);
+				if (kstatus.ks_code != K_OK) {
+					fprintf(stderr, "%s: %s\n", 
 						ka->ka_cmdstr,
-						kstatus.message().c_str());
-					asciidump(krit->data(), krit->length());
-					printf("\n");
-					goto next;
+						kstatus.ks_message);
+					return(-1);
 				}
-				
-				// wmode sets whether this is a std del or
-				// a cmp then del
-				// If we fail to delete a key keep going, modeling
-				// after rm(1) behaviour.
-				kstatus = kcon->Delete(*krit, version->c_str(),
-						       wmode, pmode);
-				if(!kstatus.ok()) {
-					fprintf(stderr,
-						"%s: Unable to delete key: %s: ",
-						ka->ka_cmdstr,
-						kstatus.message().c_str());
-					asciidump(krit->data(), krit->length());
-					printf("\n");
-				}
-
-			next:
-				++krit; // Advance the iter
-
-				// count == -1; means unlimited count
-				if (count < 0 )
-					continue;
-				count--;
+				kstatus = ki_cad(ktd, NULL, &kv);
+			} else {
+				kstatus = ki_del(ktd, NULL, &kv);
 			}
 
-		} catch (std::runtime_error &e) {
-			printf("Iterator Failed: %s\n", e.what());
-			return(-1);
+			if (kstatus.ks_code != K_OK) {
+				fprintf(stderr,
+					"%s: Unable to delete key: %s: %s\n", 
+					ka->ka_cmdstr,  kstatus.ks_message,
+					kstatus.ks_detail?kstatus.ks_detail:"");
+				return(-1);
+			}
 		}
+
+		ki_iterfree(kit);
+
 		return(0);
-#endif /* 0 */
-		printf("Ranges unsupported for now\n");
-		return(-1);
+
 	} else if ((argc - optind == 1) && (HAVE_RANGE)) {
 		/* A Key and a Range, no bueno. */
 		fprintf(stderr,

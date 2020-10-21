@@ -195,7 +195,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	 * is for the protobuf message. There is no value.
 	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
+	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);

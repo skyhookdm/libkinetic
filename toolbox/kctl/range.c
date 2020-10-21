@@ -27,13 +27,23 @@ kctl_range_usage(struct kargs *ka)
 	fprintf(stderr, "\t-X           Show keys as hex and ascii\n");
 	fprintf(stderr, "\t-?           Help\n");
 
-	// R"foo(....)foo" is a non escape char evaluated string literal 
-	fprintf(stderr, "\nWhere, KEY is a quoted string that can contain arbitrary\n");
-	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
-	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
+	fprintf(stderr,
+		"\nWhere, KEY is a quoted string that can contain arbitrary\n");
+	fprintf(stderr,
+		"hexidecimal escape sequences to encode binary characters.\n");
 
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	// R"foo(....)foo" is a non escape char evaluated string literal 
+	fprintf(stderr,
+		R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
+	fprintf(stderr,
+		"\nIf a conversion fails the command terminates.\n");
+
+	fprintf(stderr,
+		"\nIf no start (-sS] or stop (-sS) key is given, it is\n");
+	fprintf(stderr,
+		"equivalent to: -S <First Key> and -E <Last Key>\n");
+	fprintf(stderr,
+		"\nTo see available COMMON OPTIONS: ./kctl -?\n");
 }
 
 int
@@ -41,7 +51,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 {
  	extern char     *optarg;
         extern int	optind, opterr, optopt;
-        char		c, *cp;
+        char		c, *cp, *rkey;
 	char 		*start = NULL, *end = NULL;
 	int		i;
 	int 		starti = 0, endi = 0;
@@ -134,6 +144,10 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 		return(-1);
 	}
 
+	/* If no start or end key given, its always inclusive */
+	if (!start) starti = 1;
+	if (!end)   endi   = 1;
+
 	/*
 	 * Setup the range
 	 * If no start key provided, set kr_start to NULL
@@ -145,9 +159,11 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 		kr.kr_start		= startkey;
 		kr.kr_startcnt		= 1;
 
-		// Aways decode any ascii arbitrary hexadecimal value escape
-		// sequences in the passed-in key, if no escape sequences are
-		// present this amounts to a str copy.
+		/*
+		 * Aways decode any ascii arbitrary hexadecimal value escape
+		 * sequences in the passed-in key, if no escape sequences are
+		 * present this amounts to a str copy.
+		 */
 		if (!asciidecode(start, strlen(start),
 				 &kr.kr_start[0].kiov_base,
 				 &kr.kr_start[0].kiov_len)) {
@@ -162,12 +178,14 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 	
 	if (end) {
-		kr.kr_end		= endkey;
-		kr.kr_endcnt		= 1;
+		kr.kr_end	= endkey;
+		kr.kr_endcnt	= 1;
 
-		// Aways decode any ascii arbitrary hexadecimal value escape
-		// sequences in the passed-in key, if no escape sequences are
-		// present this amounts to a str copy.
+		/*
+		 * Aways decode any ascii arbitrary hexadecimal value escape
+		 * sequences in the passed-in key, if no escape sequences are
+		 * present this amounts to a str copy.
+		 */
 		if (!asciidecode(end, strlen(end),
 				 &kr.kr_end[0].kiov_base,
 				 &kr.kr_end[0].kiov_len)) {
@@ -187,34 +205,52 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	kr.kr_count = ((count < 0)?KVR_COUNT_INF:count);
 
-	// If verbose dump the range we are acting on
-	// Print first 5 chars of each key defining the range
+	/*
+	 * If verbose dump the range we are getting.
+	 * Keys can be large so just print first 5 chars 
+	 * of each key defining the range
+	 * Use range notation for start, end:
+	 * 	[ or ] = inclusive of the element,
+	 * 	( or ) = exclusive of the element
+	 */
 	if (ka->ka_verbose)  {
-		printf("Keys [");
-		if (!start && !starti )
-			printf("{START}");
-		else
+		int l;
+		printf("Key Range %s", starti?"[":"(");
+		if (!start) {
+			printf("{FIRSTKEY}");
+		} else {
+			l = strlen(start);
 			if (adump)
-				asciidump(start, 5);
+				asciidump(start, (l>5?5:l));
 			else
-				printf("%.5s", start);
-		
-		printf(":");
-		
-		if (!end && !endi )
-			printf("{END}");
-		else
-			if (adump)
-				asciidump(end,5);
-			else
-				printf("%.5s", end);
-		printf(":");
+				if (l > 5)
+					printf("%.5s", start);
+				else
+					printf("%s", start);
+		}
 
+		printf(",");
+		
+		if (!end ) {
+			printf("{LASTKEY}");
+		} else {
+			l = strlen(end);
+			if (adump)
+				asciidump(end, (l>5?5:l));
+			else
+				if (l > 5)
+					printf("%.5s", end);
+				else
+					printf("%s", end);
+		}
+
+
+		printf("%s:",endi?"]":")");
 		
 		if (count > 0)
-			printf("%u]\n", count);
+			printf("%u\n", count);
 		else
-			printf("unlimited]\n");
+			printf("unlimited\n");
 	}
 
 	/*
@@ -242,16 +278,23 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 		}
 		
 		for(int i=0; i<kr.kr_keyscnt; i++) {
-			if (ka->ka_verbose)
+			if (ka->ka_verbose) {
 				printf("%u: ", i);
-			if (hdump)
+			}
+
+			if (hdump) {
 				hexdump((char *)kr.kr_keys[i].kiov_base,
 					kr.kr_keys[i].kiov_len);
-			else if (adump)
+			}else if (adump) {
 			        asciidump((char *)kr.kr_keys[i].kiov_base,
 					  kr.kr_keys[i].kiov_len), printf("\n");
-			else
-				printf("%s\n", (char *)kr.kr_keys[i].kiov_base);
+			} else {
+				/* add null byte to print ads a string */
+				rkey = strndup((char *)kr.kr_keys[i].kiov_base,
+					       kr.kr_keys[i].kiov_len);
+				printf("%s\n", rkey);
+				free(rkey);
+			}
 		}
 
 		/* Success so return */
@@ -269,20 +312,26 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	/* Iterate */
 	i=0;
-	for ( k = ki_iterstart(kit, &kr);
+	for (k = ki_iterstart(kit, &kr);
 	     !ki_iterdone(kit) && k;
-	      k = ki_iternext(kit)) {
+	     k = ki_iternext(kit)) {
 
-		if (ka->ka_verbose)
+		if (ka->ka_verbose) {
 			printf("%u: ", i++);
-
+		}
+		
 		/* Dump the key */
-		if (hdump)
+		if (hdump) {
 			hexdump(k->kiov_base, k->kiov_len);
-		else if (adump)
-			asciidump(k->kiov_base, k->kiov_len), printf("\n");
-		else 
-			printf("%s\n", (char *)k->kiov_base);		
+		} else if (adump) {
+			asciidump(k->kiov_base, k->kiov_len);
+			printf("\n");
+		} else {
+			/* add null byte to print ads a string */
+			rkey = strndup((char *)k->kiov_base, k->kiov_len);
+			printf("%s\n", rkey);
+			free(rkey);
+		}
 	}
 
 	ki_iterfree(kit);

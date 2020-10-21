@@ -132,7 +132,7 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	 * is for the protobuf message. There is no value.
 	 * See kio.h (previously in message.h) for more details.
 	 */
-	kio->kio_sendmsg.km_cnt = KIO_LEN_NOVAL;
+	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
 		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
 	);
