@@ -465,7 +465,7 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
 	// extract the response status to be returned. prepare this early to make cleanup easy
 	kv_status = extract_cmdstatus(response_cmd);
-	if (kv_status.ks_code != K_OK) { goto extract_gex; }
+	if (kv_status.ks_code != (kstatus_code_t) K_OK) { goto extract_gex; }
 
 	// ------------------------------
 	// begin extraction of command body into kv_t structure
@@ -495,7 +495,7 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	destroy_protobuf_getkey(kv_data);
 
 	// Just make sure we don't return an ok message
-	if (kv_status.ks_code == K_OK) { kv_status.ks_code = K_EINTERNAL; }
+	if (kv_status.ks_code == (kstatus_code_t) K_OK) { kv_status.ks_code = K_EINTERNAL; }
 
 	return kv_status;
 }

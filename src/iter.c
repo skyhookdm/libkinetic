@@ -156,7 +156,7 @@ ki_iterstart(kiter_t *kit, krange_t *kr)
 
 	/* Load the first batch of keys */
 	krc = ki_range(kit->ki_ktd, kit->ki_range);
-	if (krc.ks_code != K_OK)
+	if (krc.ks_code != (kstatus_code_t) K_OK)
 		return(NULL);
 
 	/* for an iter of size 1 */
@@ -235,7 +235,7 @@ ki_iterdone(kiter_t *kit)
 
 	/* Load the next batch of keys */
 	krc = ki_range(kit->ki_ktd, kr);
-	if ((krc.ks_code != K_OK))
+	if ((krc.ks_code != (kstatus_code_t) K_OK))
 		/* no more keys to get = done */
 		return(1);
 

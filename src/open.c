@@ -167,7 +167,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 
 	memset(&glog, 0, sizeof(kgetlog_t));
 	kstatus_t command_status = extract_getlog(&kmresp, &glog);
-	if (command_status.ks_code != K_OK) {
+	if (command_status.ks_code != (kstatus_code_t) K_OK) {
 		rc = -1;
 		goto oex1;
 	}
@@ -176,7 +176,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 
 	memset(&cmd_hdr, 0, sizeof(kcmdhdr_t));
 	command_status = extract_cmdhdr(&kmresp, &cmd_hdr);
-	if (command_status.ks_code != K_OK) {
+	if (command_status.ks_code != (kstatus_code_t) K_OK) {
 		rc = -1;
 		goto oex1;
 	}

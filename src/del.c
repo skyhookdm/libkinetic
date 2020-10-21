@@ -260,7 +260,7 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 		}
 
 		krc = extract_cmdhdr(&kmbat, &cmd_hdr);
-		if (krc.ks_code == K_OK) {
+		if (krc.ks_code == (kstatus_code_t) K_OK) {
 			/* Preserve the req on the batch */
 			b_batch_addop(kb, &cmd_hdr);
 		}
@@ -472,7 +472,7 @@ kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	destroy_protobuf_delkey(kv_data);
 
 	// Just make sure we don't return an ok message
-	if (kv_status.ks_code == K_OK) { kv_status.ks_code = K_EINTERNAL; }
+	if (kv_status.ks_code == (kstatus_code_t) K_OK) { kv_status.ks_code = K_EINTERNAL; }
 
 	return kv_status;
 }

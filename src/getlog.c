@@ -192,7 +192,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	krc = extract_getlog(&kmresp, &glog2);
 
 	// if successful, memcpy into glog (no separate validation at the moment)
-	if (krc.ks_code == K_OK) {
+	if (krc.ks_code == (kstatus_code_t) K_OK) {
 		memcpy(glog, &glog2, sizeof(kgetlog_t));
 	}
 	else {
@@ -483,7 +483,7 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 
 	// extract the kinetic response status; copy the data for data independence
 	getlog_status = extract_cmdstatus(response_cmd);
-	if (getlog_status.ks_code != K_OK) { goto extract_glex; }
+	if (getlog_status.ks_code != (kstatus_code_t) K_OK) { goto extract_glex; }
 
 	// check that there's a command body and getlog data
 	if (!response_cmd->body || !response_cmd->body->getlog) { return getlog_status; }
@@ -549,7 +549,7 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	destroy_protobuf_getlog(getlog_data);
 
 	// Just make sure we don't return an ok message
-	if (getlog_status.ks_code == K_OK) { getlog_status.ks_code = K_EINTERNAL; }
+	if (getlog_status.ks_code == (kstatus_code_t) K_OK) { getlog_status.ks_code = K_EINTERNAL; }
 
 	return getlog_status;
 }

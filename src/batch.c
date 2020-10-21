@@ -366,7 +366,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	KI_FREE(kio);
 
  bex_kb:
-	if ((krc.ks_code != K_OK) || (msg_type == KMT_ENDBAT)) {
+	if ((krc.ks_code != (kstatus_code_t) K_OK) || (msg_type == (kmtype_t) KMT_ENDBAT)) {
 		/*
 		 * an error occurred or this is the exit of BATCHEND
 		 * either way get rid of the batch and decrement the active
