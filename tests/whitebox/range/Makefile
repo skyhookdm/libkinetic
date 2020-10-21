@@ -1,8 +1,10 @@
-BUILDDIR     =	../../build
-GTESTDIR     =	../../vendor/googletest
-BINDIR       =	../bin
-GOOGLETEST   =	$(GTESTDIR)/bazel-bin/libgtest.so
-TEST_MAIN    =	$(BINDIR)/test_getlog
+PROJROOTDIR  =	../../..
+TESTROOTDIR  =	../..
+
+BUILDDIR     =	$(PROJROOTDIR)/build
+GTESTDIR     =	$(PROJROOTDIR)/vendor/googletest
+BINDIR       =	$(TESTROOTDIR)/bin
+TEST_MAIN    =	$(BINDIR)/test_keyval
 OBJS         =	requests.o helper.o ../kfixtures.o
 CFLAGS       =	-g -I$(BUILDDIR)/include -I$(GTESTDIR)/googletest/include
 CPPFLAGS     =	$(CFLAGS)
@@ -12,6 +14,7 @@ LDLIBS       =	-lkinetic -lpthread -lssl -lcrypto -lgtest -lstdc++
 all: $(TEST_MAIN)
 
 $(TEST_MAIN): $(OBJS)
+	/bin/mkdir -p $(BINDIR)
 	$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
 
 install:
