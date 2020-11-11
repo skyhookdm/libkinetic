@@ -300,6 +300,106 @@ namespace KFixtures {
     TEST_F(KeyValTest, test_getnext_doesnotexist) {
         // ------------------------------
         // Execute the Test
+        char key_str[]     = "UniqueTestKeyThatDoesNotHaveANextKey";
+        size_t key_len     = strlen(key_str);
+        size_t key_cnt     = 1;
+        size_t val_cnt     = 1;
+
+        // TODO
+        char *input_key     = (char *) malloc(sizeof(char) * key_len);
+        char *input_nextkey = (char *) malloc(sizeof(char) * key_len);
+
+        // Copy from key_str and nextkey_str for inputs, and then use this data for expected
+        // outputs
+        memcpy(input_key    , key_str, key_len);
+        memcpy(input_nextkey, key_str, key_len);
+
+        // Test inputs to be passed to library
+        struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
+        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        kv_t input_data   = (kv_t) {
+            .kv_key       = input_keyvec          ,
+            .kv_keycnt    = key_cnt               ,
+            .kv_val       = &input_valvec         ,
+            .kv_valcnt    = val_cnt               ,
+            .kv_ver       = nullptr               ,
+            .kv_verlen    = 0                     ,
+            .kv_newver    = nullptr               ,
+            .kv_newverlen = 0                     ,
+            .kv_disum     = nullptr               ,
+            .kv_disumlen  = 0                     ,
+            .kv_ditype    = (kditype_t) 0         ,
+            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
+        };
+
+        struct kiovec input_nextkeyvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec input_nextvalvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        kv_t input_nextdata = (kv_t) {
+            .kv_key       = &input_nextkeyvec     ,
+            .kv_keycnt    = key_cnt               ,
+            .kv_val       = &input_nextvalvec     ,
+            .kv_valcnt    = val_cnt               ,
+            .kv_ver       = nullptr               ,
+            .kv_verlen    = 0                     ,
+            .kv_newver    = nullptr               ,
+            .kv_newverlen = 0                     ,
+            .kv_disum     = nullptr               ,
+            .kv_disumlen  = 0                     ,
+            .kv_ditype    = (kditype_t) 0         ,
+            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
+        };
+
+        // Expected outputs from the library
+        struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
+        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        kv_t output_data  = (kv_t) {
+            .kv_key       = output_keyvec         ,
+            .kv_keycnt    = key_cnt               ,
+            .kv_val       = &output_valvec        ,
+            .kv_valcnt    = val_cnt               ,
+            .kv_ver       = nullptr               ,
+            .kv_verlen    = 0                     ,
+            .kv_newver    = nullptr               ,
+            .kv_newverlen = 0                     ,
+            .kv_disum     = nullptr               ,
+            .kv_disumlen  = 0                     ,
+            .kv_ditype    = (kditype_t) 0         ,
+            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
+        };
+
+        struct kiovec *output_nextkeyvec = ki_keycreate(nextkey_str, nextkey_len);
+        struct kiovec  output_nextvalvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        kv_t output_nextdata = (kv_t) {
+            .kv_key       = output_nextkeyvec     ,
+            .kv_keycnt    = key_cnt               ,
+            .kv_val       = &output_nextvalvec    ,
+            .kv_valcnt    = val_cnt               ,
+            .kv_ver       = nullptr               ,
+            .kv_verlen    = 0                     ,
+            .kv_newver    = nullptr               ,
+            .kv_newverlen = 0                     ,
+            .kv_disum     = nullptr               ,
+            .kv_disumlen  = 0                     ,
+            .kv_ditype    = (kditype_t) 0         ,
+            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
+        };
+
+        kstatus_t notfound_status = {
+            .ks_code    = (kstatus_code_t) K_ENOTFOUND,
+            .ks_message = (char *) "Key not found",
+            .ks_detail  = nullptr,
+        };
+
+        keyval_helper->test_getnext(
+            conn_descriptor, &notfound_status,
+            &input_data,  &input_nextdata,
+            &output_data, &output_nextdata
+        );
+    }
+
+    TEST_F(KeyValTest, test_getnext_exists) {
+        // ------------------------------
+        // Execute the Test
         char key_str[]     = "KEY-00088";
         char nextkey_str[] = "KEY-00089";
         size_t key_len     = strlen(key_str);
@@ -396,65 +496,6 @@ namespace KFixtures {
             &input_data,  &input_nextdata,
             &output_data, &output_nextdata
         );
-    }
-
-    TEST_F(KeyValTest, test_getnext_exists) {
-        // ------------------------------
-        // Execute the Test
-        char key_str[] = "getversion_doesnotexist_38928383";
-        size_t key_len = strlen(key_str);
-        size_t key_cnt = 1;
-        size_t val_cnt = 1;
-
-        char *input_key = (char *) malloc(sizeof(char) * key_len);
-        memcpy(input_key, key_str, key_len);
-
-        struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
-        kv_t input_data   = (kv_t) {
-            .kv_key       = input_keyvec          ,
-            .kv_keycnt    = key_cnt               ,
-            .kv_val       = &input_valvec         ,
-            .kv_valcnt    = 1                     ,
-            .kv_ver       = nullptr               ,
-            .kv_verlen    = 0                     ,
-            .kv_newver    = nullptr               ,
-            .kv_newverlen = 0                     ,
-            .kv_disum     = nullptr               ,
-            .kv_disumlen  = 0                     ,
-            .kv_ditype    = (kditype_t) 0         ,
-            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
-        };
-
-        size_t  existing_dbverlen = 10;
-        uint8_t existing_dbver[]  = {
-            0x30, 0x78, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30
-        };
-
-        struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
-        kv_t output_data  = (kv_t) {
-            .kv_key       = output_keyvec         ,
-            .kv_keycnt    = key_cnt               ,
-            .kv_val       = &output_valvec        ,
-            .kv_valcnt    = 1                     ,
-            .kv_ver       = existing_dbver        ,
-            .kv_verlen    = existing_dbverlen     ,
-            .kv_newver    = nullptr               ,
-            .kv_newverlen = 0                     ,
-            .kv_disum     = nullptr               ,
-            .kv_disumlen  = 0                     ,
-            .kv_ditype    = (kditype_t) 0         ,
-            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
-        };
-
-        kstatus_t ok_status = {
-            .ks_code    = (kstatus_code_t) K_OK,
-            .ks_message = (char *) "",
-            .ks_detail  = nullptr,
-        };
-
-        keyval_helper->test_getkey(conn_descriptor, &ok_status, &input_data, &output_data);
     }
 
     TEST_F(KeyValTest, test_getprev_doesnotexist) {
