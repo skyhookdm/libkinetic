@@ -12,13 +12,9 @@ extern "C" {
 }
 
 #include "../kfixtures.hpp"
+#include "../hashtable.hpp"
 
 namespace TestHelpers {
-    struct buffer {
-        size_t   len;
-        uint8_t *data;
-    };
-
     struct KeyValVersion {
         size_t    vector_len;
         uint32_t  process_id;
@@ -27,7 +23,7 @@ namespace TestHelpers {
         KeyValVersion(uint32_t, size_t);
         KeyValVersion(uint8_t *ver_buffer);
 
-        struct buffer serialize();
+        Buffer serialize();
     };
 
     struct KeyValHelper {

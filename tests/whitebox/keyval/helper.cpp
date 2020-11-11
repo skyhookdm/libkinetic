@@ -12,18 +12,23 @@ namespace TestHelpers {
     }
 
     KeyValVersion::KeyValVersion(uint8_t *ver_buffer) {
-        uint32_t process_id;
-        size_t   vector_len;
+        uint32_t  process_id;
+        size_t    vector_len;
+        uint8_t  *buffer_alias = ver_buffer;
 
-        memcpy(&process_id, ver_buffer, sizeof(uint32_t));
-        memcpy(&vector_len, ver_buffer, sizeof(size_t));
+        memcpy(&process_id, buffer_alias, sizeof(uint32_t));
+        buffer_alias += sizeof(uint32_t);
+
+        memcpy(&vector_len, buffer_alias, sizeof(size_t)  );
+        buffer_alias += sizeof(size_t);
 
         this->vector_clock = new uint32_t[vector_len];
         memcpy(this->vector_clock, ver_buffer, sizeof(uint32_t) * vector_len);
     }
 
-    struct buffer KeyValVersion::serialize() {
-        size_t ver_bytelen    = ((sizeof(uint32_t) * (vector_len + 1)) + sizeof(size_t));
+    Buffer KeyValVersion::serialize() {
+        // (1 + vector_len) represents: process_id + num of processes in vector clock
+        size_t   ver_bytelen  = ((sizeof(uint32_t) * (1 + vector_len)) + sizeof(size_t));
         uint8_t *ver_buffer   = (uint8_t *) malloc(ver_bytelen);
         uint8_t *buffer_alias = ver_buffer;
 
@@ -35,7 +40,7 @@ namespace TestHelpers {
 
         memcpy(buffer_alias, vector_clock, sizeof(uint32_t) * vector_len);
 
-        return (struct buffer) { .len = ver_bytelen, .data = ver_buffer };
+        return Buffer { .len = ver_bytelen, .data = ver_buffer };
     }
 
 
