@@ -17,7 +17,7 @@ INC_PRIV =	kio.h ktli.h ktli_session.h  \
 		kinetic.h kinetic_internal.h \
 		session.h
 
-CFLAGS =	-g -I$(BUILDDIR)/include -I.
+CFLAGS =	-g -I$(BUILDDIR)/include -I. -Wall
 LDFLAGS =	-L$(BUILDDIR)/lib
 LDLIBS =	-llist -lprotobuf-c
 
