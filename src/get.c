@@ -55,7 +55,7 @@ struct kresult_message create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
 kstatus_t
 g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 {
-	int rc, n, force;
+	int rc, force;
 	kstatus_t krc;
 	struct kio *kio;
 	struct kiovec *kiov;
@@ -240,7 +240,7 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	if (kmresp.result_code == FAILURE) {
 		errno = K_EINTERNAL;
 		krc   = kstatus_err(errno, KI_ERR_MSGUNPACK, "get: unpack msg");
-		goto gex_recvmsg;
+		goto gex_resp;
 	}
 
 	/*
