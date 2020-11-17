@@ -1,5 +1,5 @@
-/* 
- * KTLI Socket Driver 
+/*
+ * KTLI Socket Driver
  */
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -48,9 +48,9 @@ ktli_socket_open()
 		errno = ENOMEM;
 		return(NULL);
 	}
-	
-	/* 
-	 * This is just a place holder file descriptor, real work is done 
+
+	/*
+	 * This is just a place holder file descriptor, real work is done
 	 * in ktli_socket_connect() and dup-ed to this descriptor.
 	 * ipv4 and ipv6 are both supported.
 	 */
@@ -62,7 +62,7 @@ static int
 ktli_socket_close(void *dh)
 {
 	int dd;
-	
+
 	if (!dh) {
 		errno -EINVAL;
 		return(-1);
@@ -72,7 +72,7 @@ ktli_socket_close(void *dh)
 	/* Ignoring close errs, could end up with a descriptor leak */
 	close(dd);
 	free(dh);
-	
+
 	return (0);
 }
 
@@ -107,11 +107,11 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 		return(-1);
 	}
 
-	/* 
+	/*
 	 * getaddrinfo() returns a list of address structures.
 	 * Try each address until we successfully connect(2).
 	 * If socket(2) (or connect(2)) fails, we (close the socket
-	 * and) try the next address. 
+	 * and) try the next address.
 	 */
 	for (rp = result; rp != NULL; rp = rp->ai_next) {
                sfd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -132,29 +132,29 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
            }
 
 	   /*
-	    * Increase send/recv buffers to at least 1MiB. Most servers 
+	    * Increase send/recv buffers to at least 1MiB. Most servers
 	    * support this but the real number comes from a GETLOG Limits call
 	    * and can be refined later
 	    */
 	   MiB = 1024 * 1024;
 	   rc = setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &MiB, sizeof(MiB));
 	   if (rc == -1) {
-		   fprintf(stderr, "Error setting socket send buffer size\n"); 
+		   fprintf(stderr, "Error setting socket send buffer size\n");
 	   }
 	   rc = setsockopt(sfd, SOL_SOCKET, SO_RCVBUF, &MiB, sizeof(MiB));
 	   if (rc == -1) {
-		   fprintf(stderr, "Error setting socket recv buffer size\n"); 
+		   fprintf(stderr, "Error setting socket recv buffer size\n");
 	   }
 
 #define KTLI_CORK 0
-	  
+
 #if KTLI_CORK && !defined(__APPLE__)
-	   /* 
+	   /*
 	    * TCP_CORK is NOT available on OSX and is TCP_NOPUSH in BSD
 	    * so not really portable.
 	    *
 	    * If set, don't send out partial frames. All queued partial
-	    * frames are sent when the option is cleared again. This is 
+	    * frames are sent when the option is cleared again. This is
 	    * useful for prepending headers before calling sendfile(2),
 	    * or for throughput optimization. As currently implemented,
 	    * there is a ** 200-millisecond ceiling** on the time for which
@@ -165,21 +165,21 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 	    * every writev.
 	    *
 	    * Not sure this is needed  But we will see...
-	    
+
 	    printf("Putting in the cork\n");
 	   */
 
 	   setsockopt(dd, IPPROTO_TCP, TCP_CORK, &on, sizeof(on));
 #endif
 
-	   /* 
+	   /*
 	    * NODELAY means that segments are always sent as soon as possible,
-	    * even if there is only a small amount of data. When not set, 
+	    * even if there is only a small amount of data. When not set,
 	    * data is buffered until there is a sufficient amount to send out,
-	    * thereby avoiding the frequent sending of small packets, which 
-	    * results in poor utilization of the network. This option is 
-	    * overridden by TCP_CORK; however, setting this option forces 
-	    * an explicit flush of pending output, even if TCP_CORK is 
+	    * thereby avoiding the frequent sending of small packets, which
+	    * results in poor utilization of the network. This option is
+	    * overridden by TCP_CORK; however, setting this option forces
+	    * an explicit flush of pending output, even if TCP_CORK is
 	    * currently set.
 	    */
 	   on = 1;
@@ -192,7 +192,7 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 	   if (fcntl(sfd, F_SETFL, flags | O_NONBLOCK) < 0) {
 		   return(-1);
 	   }
-	   
+
 	   /* Dup over sfd to placeholder descriptor dd */
 	   if (dup2(sfd, dd) < 0) {
 		   return(-1);
@@ -210,9 +210,10 @@ ktli_socket_disconnect(void *dh)
 		errno -EINVAL;
 		return(-1);
 	}
+
 	dd = *(int *)dh;
-	
 	rc = shutdown(dd, SHUT_RDWR);
+
 	return(rc);
 }
 
@@ -227,7 +228,7 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		return(-1);
 	}
 	dd = *(int *)dh;
-	
+
 	/*
 	 * Copy the kiov to a std iov for use with writev
 	 * This temp iov structure also allows the base ptrs to be modified
@@ -247,9 +248,9 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 	}
 	iovs = msgcnt;
 
-	/* 
+	/*
 	 * NONBLOCKING sockets can do partial writes, handle em
-	 * init the current vector and total bytes read, 
+	 * init the current vector and total bytes read,
 	 * cnt is used for loop stats
 	 * then loop until complete
 	 */
@@ -301,13 +302,13 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		printf("socket_send: error %d", errno);
 		return(bw);
 	}
-	
+
 	if (tbw != len) {
 		printf("socket_send: %d != %d \n", tbw, len);
 		errno = ECOMM;
 		return(-1);
 	}
-	
+
 	free(iov);
 
 	//if (cnt > 1) printf("ss-wvs %d\n", cnt);
@@ -327,7 +328,7 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 		errno -EINVAL;
 		return(-1);
 	}
-	dd = *(int *)dh;
+	dd = *(int *) dh;
 
 	/*
 	 * Copy the kiov to a std iov for use with readv
@@ -348,7 +349,7 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 	}
 	iovs = msgcnt;
 
-	/* 
+	/*
 	 * NONBLOCKING sockets can do partial reads, handle em
 	 * init the current vector and total bytes read,
 	 * then loop until complete
@@ -408,12 +409,12 @@ ktli_socket_poll(void *dh, int timeout)
 {
 	int rc;
 	struct pollfd pfd;
-	
+
 	if (!dh) {
 		errno -EINVAL;
 		return(-1);
 	}
-	
+
 	pfd.fd = *(int *)dh;
 	pfd.events = POLLIN;
 
@@ -430,7 +431,7 @@ ktli_socket_poll(void *dh, int timeout)
 		errno = ECONNABORTED;
 		return(-1);
 	}
-	
+
 	/* Data Waiting */
 	if (rc && pfd.revents & POLLIN)
 		return(1);
@@ -440,9 +441,9 @@ ktli_socket_poll(void *dh, int timeout)
 		errno = ENOMSG;
 		return(-1);
 	}
-	
+
 	/* Timed out */
 	return(0);
-	
+
 }
 
