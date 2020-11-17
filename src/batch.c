@@ -292,7 +292,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
 		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "batch: unpack msg");
-		goto bex_recvmsg;
+		goto bex_resp;
 	}
 
 	/* Handle the response based on msg_type */
@@ -483,6 +483,8 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 	kproto_msg_t *kb_response_msg = (kproto_msg_t *) response_msg->result_message;
 	if (!kb_response_msg->has_commandbytes) { return kb_status; }
 
+	// TODO: memory leak that needs to be addressed:
+	// (https://gitlab.com/kinetic-storage/kinetic-prototype/-/issues/16)
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kb_response_msg->commandbytes);
 	if (!response_cmd) { return kb_status; }
 
