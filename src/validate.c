@@ -97,28 +97,32 @@ ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
 	}
 
 	/* Check the data integrity type */
-	switch (kv->kv_ditype) {
-	case 0: /* zero is unused by the protocol but is valid for gets */
-	case KDI_SHA1:
-	case KDI_SHA2:
-	case KDI_SHA3:
-	case KDI_CRC32C:
-	case KDI_CRC64:
-	case KDI_CRC32:
-		break;
-	default:
-		return (-1);
+	// To avoid a warning about 0 not being defined in kditype_t enum
+	if (kv->kv_ditype != (kditype_t) 0) {
+		switch (kv->kv_ditype) {
+			case KDI_SHA1:
+			case KDI_SHA2:
+			case KDI_SHA3:
+			case KDI_CRC32C:
+			case KDI_CRC64:
+			case KDI_CRC32:
+				break;
+			default:
+				return (-1);
+		}
 	}
 
 	/* check the cache policy */
-	switch (kv->kv_cpolicy) {
-	case 0: /* zero is unused by the protocol but is valid for gets */
-	case KC_WT:
-	case KC_WB:
-	case KC_FLUSH:
-		break;
-	default:
-		return (-1);
+	// To avoid a warning about 0 not being defined in kditype_t enum
+	if (kv->kv_cpolicy != (kcachepolicy_t) 0) {
+		switch (kv->kv_cpolicy) {
+			case KC_WT:
+			case KC_WB:
+			case KC_FLUSH:
+				break;
+			default:
+				return (-1);
+		}
 	}
 
 	errno = 0;
