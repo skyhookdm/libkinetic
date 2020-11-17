@@ -39,7 +39,22 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 
 kstatus_t extract_status(struct kresult_message *response_msg);
 
-static int b_batch_seqmatch(char *data, char *ldata);
+#ifdef KBATCH_SEQTRACKING
+/**
+ * List helper function to find a matching kio given a seq number
+ * Return 0 for true or a match
+ * Note: This function is only used when KBATCH_SEQTRACKING is defined
+ */
+static int
+b_batch_seqmatch(char *data, char *ldata)
+{
+	kseq_t seq  = *(kseq_t *)data;
+	kseq_t lseq = *(kseq_t *)ldata;
+
+	// match
+	return (seq == lseq) ? 0 : -1;
+}
+#endif
 
 /*
  * KTLIBatch uses GCC builtin CAS for lockless atomic updates
@@ -62,8 +77,6 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	struct kiovec *kiov;
 	struct ktli_config *cf;
 	uint8_t ppdu[KP_PLENGTH];
-	size_t seqlistcnt;
-	kseq_t *seqlist, *seq;
 	kpdu_t pdu;
 	kpdu_t rpdu;
 	kmsghdr_t msg_hdr;
@@ -292,6 +305,10 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 #ifndef KBATCH_SEQTRACKING
 		krc = extract_status(&kmresp);
 #else
+		// these variables are only used if KBATCH_SEQTRACKING is defined
+		size_t seqlistcnt;
+		kseq_t *seqlist, *seq;
+
 		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
 		if (krc.ks_code != K_OK) { goto bex_endbat; }
 
@@ -323,11 +340,10 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		// Did not get an acknowledged op seq for an op seq in our list
 		if (list_size((*kb)->kb_seqs)) {
 			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: unacknowledged seq");
-			goto bex_endbat;
 		}
+ // label for cleaning up batch data *in case KMT_ENDBAT*
+ bex_endbat:
 #endif
-	// label for cleaning up batch data
-	bex_endbat:
 		list_free((*kb)->kb_seqs, NULL);
 		pthread_mutex_unlock(&(*kb)->kb_m);
 		pthread_mutex_destroy(&(*kb)->kb_m);
@@ -399,20 +415,6 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	return (krc);
 	}
 
-/*
- * List helper function to find a matching kio given a seq number
- * Return 0 for true or a match
- */
-static int
-b_batch_seqmatch(char *data, char *ldata)
-{
-	kseq_t seq  = *(kseq_t *)data;
-	kseq_t lseq = *(kseq_t *)ldata;
-
-	if (seq == lseq)
-		return (0); /* match */
-	return (-1);
-}
 
 int
 b_batch_addop(kb_t *kb, kcmdhdr_t *kc)
