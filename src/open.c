@@ -82,7 +82,6 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	ksession_t *ks;
 	kgetlog_t glog;
 	kcmdhdr_t cmd_hdr;
-	kstatus_t kstatus;
 	/*
 	 * these ktli and session configs get hung on the ktli session
 	 * so need to allocate these structures.
@@ -193,9 +192,9 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	return(ktd);
 }
 
+// TODO: why is this not implemented?
 int
 ki_close(int ktd)
 {
-	
-
+	return -1;
 }
