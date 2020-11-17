@@ -51,7 +51,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	struct ktli_config *cf;
 	uint8_t ppdu[KP_PLENGTH];
 	kpdu_t pdu;
-	kpdu_t *rpdu;
+	kpdu_t rpdu;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
 	kgetlog_t glog2;
@@ -174,11 +174,28 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		else { break; }
 	} while (1);
 
-	kiov   = &kio->kio_recvmsg.km_msg[KIOV_MSG];
+    // Begin: Added PDU checking code based on src/batch.c
+	/* extract the return PDU */
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
+	if (kiov->kiov_len != KP_PLENGTH) {
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU, "getlog: extract PDU");
+		goto glex_recvmsg;
+	}
+	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
+
+    /* Does the PDU match what was given in the recvmsg */
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
+	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN, "getlog: parse pdu");
+		goto glex_recvmsg;
+	}
+
+    // End: Added PDU checking code based on src/batch.c
+
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
 		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "getlog: unpack response");
-		goto glex_recvmsg;
+		goto glex_resp;
 	}
 
 	/* NOTES:
@@ -535,7 +552,7 @@ kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog
 	extract_limits(getlog_data, response->limits);
 
 	if (response->device && response->device->has_name) {
-		getlog_data->kgl_log.kdl_name = response->device->name.data;
+		getlog_data->kgl_log.kdl_name = (char *) response->device->name.data;
 		getlog_data->kgl_log.kdl_len  = response->device->name.len;
 	}
 
