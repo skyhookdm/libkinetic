@@ -55,8 +55,11 @@ struct kts_session {
 static int kts_table_size = KTS_MAX_SESSIONS;
 static struct kts_session *kts_table[KTS_MAX_SESSIONS];
 
+/*
+ * TODO: not defined, but maybe should be?
 static int kts_set_driver_atomic(int, struct ktli_driver *,
 				 struct ktli_driver *);
+*/
 
 void
 kts_init()
@@ -108,7 +111,7 @@ kts_free_slot(int kts)
 	struct kts_session *ks;
 
 	ks = kts_table[kts];
-	if (SBCAS(&(kts_table[kts]), kts_table[kts], NULL)) {
+	if (SBCAS(&(kts_table[kts]), ks, NULL)) {
 		if (kts_table[kts]) free(kts_table[kts]);
 	}
 }
