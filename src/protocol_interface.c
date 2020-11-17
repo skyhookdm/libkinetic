@@ -285,6 +285,10 @@ ProtobufCBinaryData create_command_bytes(kcmdhdr_t *cmd_hdr, void *proto_cmd_dat
 		case KMT_ENDBAT:
 			proto_cmdbdy.batch    = (kproto_batch_t *) proto_cmd_data;
 			break;
+
+		default:
+			// TODO: not yet implemented, or an invalid message type
+			break;
 	}
 
 	proto_cmd.header = &proto_cmd_hdr;
@@ -491,7 +495,7 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 	if (key_buffer == NULL) { return 0; }
 
 	// gather key name fragments into key buffer
-    char *key_buffer_alias = key_buffer;
+	char *key_buffer_alias = key_buffer;
 	for (size_t key_ndx = 0; key_ndx < keycnt; key_ndx++) {
 		memcpy(
 			key_buffer_alias,
@@ -499,7 +503,7 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 			keynames[key_ndx].kiov_len
 		);
 
-        key_buffer_alias += keynames[key_ndx].kiov_len;
+		key_buffer_alias += keynames[key_ndx].kiov_len;
 	}
 
 	// key_buffer eventually needs to be `free`d
@@ -585,15 +589,17 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	tmp_cmd->header->has_sequence = 1;
 	tmp_cmd->header->sequence     = seq;
 
-	// pack field (TODO: currently this packs the whole thing, but eventually we would like to pack
-	// just the new field)
+	// pack field
+	// TODO: we eventually want to only have to pack the new field
 	tmp_msg->commandbytes = pack_kinetic_command(tmp_cmd);
 
-	int hmac_result = compute_hmac(tmp_msg,
-				       (char *) tmp_msg->hmacauth->hmac.data,
-				       tmp_msg->hmacauth->hmac.len);
+	compute_hmac(
+		tmp_msg,
+		(char *) tmp_msg->hmacauth->hmac.data,
+		tmp_msg->hmacauth->hmac.len
+	);
 
-	enum kresult_code repack_result = pack_kinetic_message(
+	pack_kinetic_message(
 		tmp_msg,
 		&(msg[KIOV_MSG].kiov_base),
 		&(msg[KIOV_MSG].kiov_len)
@@ -602,10 +608,11 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	/*
 	 * Adding the final seq and adding the real HMAC changes the 
 	 * message length, Unpack the pdu, update it and repack
+	 * TODO: confirm that only doing this on success fails the way we want.
 	*/
-	UNPACK_PDU(&pdu, (uint8_t *)msg[KIOV_PDU].kiov_base);
+	UNPACK_PDU(&pdu, (uint8_t *) msg[KIOV_PDU].kiov_base);
 	pdu.kp_msglen = msg[KIOV_MSG].kiov_len;
-	PACK_PDU(&pdu, (uint8_t *)msg[KIOV_PDU].kiov_base);
+	PACK_PDU(&pdu, (uint8_t *) msg[KIOV_PDU].kiov_base);
 
 	// TODO: since we allocate currently, we need to clean up
 	destroy_command(tmp_cmd);
