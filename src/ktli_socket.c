@@ -64,7 +64,7 @@ ktli_socket_close(void *dh)
 	int dd;
 
 	if (!dh) {
-		errno -EINVAL;
+		errno = -EINVAL;
 		return(-1);
 	}
 	dd = *(int *)dh;
@@ -84,8 +84,8 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 	int dd, sfd, rc, on, MiB, flags;
 
 	if (!dh || !host || !port) {
-		errno -EINVAL;
-		return(-1);
+		errno = -EINVAL;
+		return (-1);
 	}
 	dd = *(int *)dh;
 
@@ -207,7 +207,7 @@ ktli_socket_disconnect(void *dh)
 	int rc, dd;
 
 	if (!dh) {
-		errno -EINVAL;
+		errno = -EINVAL;
 		return(-1);
 	}
 
@@ -221,10 +221,10 @@ int
 ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 {
 	struct iovec *iov;
-	int i, len, dd, iovs, curv, bw, tbw, cnt, on = 1, off = 0;
+	int i, len, dd, iovs, curv, bw, tbw, cnt;
 
 	if (!dh || !msgcnt) {
-		errno -EINVAL;
+		errno = -EINVAL;
 		return(-1);
 	}
 	dd = *(int *)dh;
@@ -275,6 +275,9 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		tbw += bw;
 
 #if KTLI_CORK && !defined(__APPLE__)
+		// putting this here, so that it's defined when needed, and not defined (and unused)
+        // otherwise.
+		int on = 1;
 		/*
 		 * If cork is used, need to flush by resetting NODELAY.
 		 */
@@ -322,10 +325,10 @@ int
 ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 {
 	struct iovec *iov;
-	int i, len, dd, iovs, curv, br, tbr, cnt, on = 1, off = 0;
+	int i, len, dd, iovs, curv, br, tbr, cnt;
 
 	if (!dh || !msgcnt) {
-		errno -EINVAL;
+		errno = -EINVAL;
 		return(-1);
 	}
 	dd = *(int *) dh;
@@ -411,7 +414,7 @@ ktli_socket_poll(void *dh, int timeout)
 	struct pollfd pfd;
 
 	if (!dh) {
-		errno -EINVAL;
+		errno = -EINVAL;
 		return(-1);
 	}
 
