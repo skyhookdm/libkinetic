@@ -544,7 +544,6 @@ ktli_disconnect(int kts)
 int
 ktli_send(int kts, struct kio *kio)
 {
-	char *rc;
 	struct ktli_queue *sq;
 	enum ktli_sstate st;
 
@@ -933,13 +932,12 @@ ktli_drain_match(int kts, struct kio *kio)
 		pthread_mutex_lock(&q->ktq_m);
 
 		/* list_traverse defaults to starting at the front */
-		rc = list_traverse(q->ktq_list, (char *)kio,
-				   ktli_kiomatch, LIST_ALTR);
+		rc = list_traverse(q->ktq_list, (char *) kio, ktli_kiomatch, LIST_ALTR);
 
 		if (rc != LIST_EXTENT && rc != LIST_EMPTY) {
 			/* Found the requested kio */
-			lkio = (struct kio **)list_remove_curr(q->ktq_list);
-			assert(kio = *lkio);
+			lkio = (struct kio **) list_remove_curr(q->ktq_list);
+			assert(kio == *lkio);
 			KTLI_FREE(lkio);
 			rc = 0;
 		}
