@@ -593,6 +593,7 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	// TODO: we eventually want to only have to pack the new field
 	tmp_msg->commandbytes = pack_kinetic_command(tmp_cmd);
 
+    // TODO: figure out if there's a better way to fail if hmac or repack fail
 	compute_hmac(
 		tmp_msg,
 		(char *) tmp_msg->hmacauth->hmac.data,
@@ -608,7 +609,6 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	/*
 	 * Adding the final seq and adding the real HMAC changes the 
 	 * message length, Unpack the pdu, update it and repack
-	 * TODO: confirm that only doing this on success fails the way we want.
 	*/
 	UNPACK_PDU(&pdu, (uint8_t *) msg[KIOV_PDU].kiov_base);
 	pdu.kp_msglen = msg[KIOV_MSG].kiov_len;
