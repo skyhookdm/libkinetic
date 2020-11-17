@@ -69,7 +69,7 @@ b_batch_seqmatch(char *data, char *ldata)
 kstatus_t
 b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 {
-	int rc, i, retries;
+	int rc, retries;
 	kbid_t bid;
 	uint32_t batcnt;
 	kstatus_t krc;
@@ -100,10 +100,10 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		/* Get a batch ID */
 		/* arbitray large number to prevent an infinite loop */
 		retries = 1000;
-		bid = ses->ks_bid;
+		bid     = ses->ks_bid;
 		while (!SBCAS(&ses->ks_bid, bid, bid + 1) && retries--) {
-				bid = ses->ks_bid;
-        }
+			bid = ses->ks_bid;
+		}
 
 		if (!retries) {
 			return (kstatus_t) {
@@ -317,7 +317,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		debug_printf("Seq CNT: %lu\n", seqlistcnt);
 		debug_printf("Seq List Size: %d\n", list_size((*kb)->kb_seqs));
 
-		for (i = 0; i < seqlistcnt; i++) {
+		for (int i = 0; i < seqlistcnt; i++) {
 			debug_printf("Searching for Seq: %lu", seqlist[i]);
 
 			rc = list_traverse(
@@ -489,7 +489,7 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 	// extract the status from the command data
 	kb_status = extract_cmdstatus(response_cmd);
 	if (!response_cmd->body || !response_cmd->body->batch) {
-		kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+		kb_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
 		goto extract_emptybatch;
 	}
 
