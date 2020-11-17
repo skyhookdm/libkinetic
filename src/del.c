@@ -293,7 +293,7 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	if (kmresp.result_code == FAILURE) {
 		errno = K_EINTERNAL;
 		krc   = kstatus_err(errno, KI_ERR_MSGUNPACK, "del: unpack msg");
-		goto dex_recvmsg;
+		goto dex_resp;
 	}
 
 	krc = extract_delkey(&kmresp, kv);
