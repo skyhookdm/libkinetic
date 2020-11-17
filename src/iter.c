@@ -68,7 +68,6 @@ ki_itercreate(int ktd)
 	int rc;
 	kiter_t *kit;
 	ksession_t *ses;
-	struct kiovec *key;
 	struct ktli_config *cf;
 
 	/* Get KTLI config */
@@ -96,8 +95,6 @@ ki_itercreate(int ktd)
 int
 ki_iterfree(kiter_t *kit)
 {
-	krange_t *kr;
-
 	if (!kit)
 		return(0);
 	
@@ -121,7 +118,6 @@ struct kiovec *
 ki_iterstart(kiter_t *kit, krange_t *kr)
 {
 	kstatus_t krc; 
-	krange_t *kr2;
 	if (!kit || !kr || !kr->kr_count)
 		return(NULL);
 
@@ -251,7 +247,6 @@ ki_iterdone(kiter_t *kit)
 struct kiovec *
 ki_iternext(kiter_t *kit)
 {
-	kstatus_t krc;
 	krange_t *kr;
 	
 	if (!kit || !kit->ki_range)
