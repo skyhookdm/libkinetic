@@ -38,8 +38,8 @@
  */
 
 /*
- * Completely arbitrary value. Should be greater than any known Kinetic 
- * keylen implementation.  Used to check reasonable key lengths prior to 
+ * Completely arbitrary value. Should be greater than any known Kinetic
+ * keylen implementation.  Used to check reasonable key lengths prior to
  * allocations without needing kinetic server limits. Prevents bad or
  * malicious code from allocating HUGE keys. Largest keylen to date is 1024.
  */
@@ -48,7 +48,7 @@
 /**
  * ki_keyfree
  *  Free the given key
- */ 
+ */
 int
 ki_keyfree(struct kiovec *key, size_t keycnt)
 {
@@ -73,15 +73,15 @@ ki_keyfree(struct kiovec *key, size_t keycnt)
 /**
  * create a key vector with a single element around an existing buffer
  * Assumes caller sets keycnt to 1
- */ 
+ */
 struct kiovec *
-ki_keycreate(void *keybuf, size_t keylen)	
+ki_keycreate(void *keybuf, size_t keylen)
 {
 	struct kiovec *key;
 
 	if (!keybuf || keylen > MAXKEYLEN)
 		return(NULL);
-	
+
 	/* Create the kiovec array */
 	key = (struct kiovec *)KI_MALLOC(sizeof(struct kiovec));
 	if (!key) {
@@ -97,17 +97,17 @@ ki_keycreate(void *keybuf, size_t keylen)
 /**
  * reallocates a key vector to include a prefix buffer
  * Assumes caller sets keycnt to keycnt + 1
- */ 
+ */
 struct kiovec *
-ki_keyprefix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)	
+ki_keyprefix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
 {
 	int i;
 	size_t newcnt, newlen;
 	struct kiovec *new;
-	
+
 	if (!key || !keybuf || keylen > MAXKEYLEN)
 		return(NULL);
-	
+
 	/* Realloc the kiovec array */
 	newcnt = keycnt + 1;
 	newlen = sizeof(struct kiovec) * newcnt;
@@ -119,28 +119,27 @@ ki_keyprefix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
 	/* Move everything down - start at the last index and work up */
 	for(i=newcnt-1; i>0; i--)
 		memcpy(&new[i], &new[i-1],  sizeof(struct kiovec));
-	
+
 	/* Hang the user provided prefix buffer as the first index */
 	new[0].kiov_base = keybuf;
 	new[0].kiov_len  = keylen;
 	return(new);
-	
+
 }
 
 /**
  * reallocates a key vector to include a postfix buffer
  * Assumes caller sets keycnt to keycnt + 1
- */ 
+ */
 struct kiovec *
-ki_keypostfix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)	
+ki_keypostfix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
 {
-	int i;
 	size_t newcnt, newlen;
 	struct kiovec *new;
-	
+
 	if (!key || !keybuf || keylen > MAXKEYLEN)
 		return(NULL);
-	
+
 	/* Realloc the kiovec array */
 	newcnt = keycnt + 1;
 	newlen = sizeof(struct kiovec) * newcnt;
@@ -155,16 +154,16 @@ ki_keypostfix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
 	new[newcnt-1].kiov_base = keybuf;
 	new[newcnt-1].kiov_len  = keylen;
 	return(new);
-	
+
 }
 
 /**
  * ki_keydup
- * 
+ *
  * Duplicate the given key
  */
 struct kiovec *
-ki_keydup(struct kiovec *key, size_t keycnt)	
+ki_keydup(struct kiovec *key, size_t keycnt)
 {
 	int i;
 	struct kiovec *new;
@@ -180,15 +179,16 @@ ki_keydup(struct kiovec *key, size_t keycnt)
 	memset(new, 0, sizeof(struct kiovec) * keycnt);
 
 	/* Copy the key */
-	for(i=0;i<keycnt;i++) {
+	for(i = 0; i < keycnt; i++) {
 		new[i].kiov_len  = key[i].kiov_len;
 		new[i].kiov_base = KI_MALLOC(key[i].kiov_len);
+
 		if (!new[i].kiov_base) {
 			ki_keyfree(new, i-1);
 			KI_FREE(new);
 			return(NULL);
 		}
-		
+
 		memcpy(new[i].kiov_base, key[i].kiov_base, key[i].kiov_len);
 	}
 
@@ -197,12 +197,12 @@ ki_keydup(struct kiovec *key, size_t keycnt)
 
 /**
  * ki_keydupf()
- * 
+ *
  * Duplicate the given key but flatten the vector to a single element
  * The resulting key should have a keycnt = 1
  */
 struct kiovec *
-ki_keydupf(struct kiovec *key, size_t cnt)	
+ki_keydupf(struct kiovec *key, size_t cnt)
 {
 	int i, klen;
 	void *kbuf;
@@ -210,14 +210,14 @@ ki_keydupf(struct kiovec *key, size_t cnt)
 
 	if (!cnt)
 		return(NULL);
-	
+
 	new = (struct kiovec *)KI_MALLOC(sizeof(struct kiovec));
 	if (!new) {
 		return(NULL);
 	}
 
 	/* Count total key length */
-	klen = 0; 
+	klen = 0;
 	for(i=0;i<cnt;i++) {
 		klen +=  key[i].kiov_len;
 	}
@@ -245,7 +245,7 @@ ki_keydupf(struct kiovec *key, size_t cnt)
 /**
  * ki_keyfirst()
  *
- * Generate a structure containing the first permissible key 
+ * Generate a structure containing the first permissible key
  * when keys are sorted lexicographically by their byte representation.
  * This will a single zero byte. This will always yield a keycnt = 1
   */
@@ -253,14 +253,14 @@ struct kiovec *
 ki_keyfirst()
 {
 	struct kiovec *key;
-	/* 
+	/*
 	 * Allocated these separately so that free can be called on
 	 * both the key array and the key buffer, like other keys.
 	 */
 	key = KI_MALLOC(sizeof(struct kiovec));
 	if (!key)
 		return(NULL);
-	
+
 	key[0].kiov_base = KI_MALLOC(1);
 	if (!key[0].kiov_base) {
 		KI_FREE(key);
@@ -275,12 +275,12 @@ ki_keyfirst()
 /**
  * ki_keylast(size_t len)
  *
- * Generate a structure containing the last permissible key for a given 
- * key len when keys are sorted lexicographically by their byte 
+ * Generate a structure containing the last permissible key for a given
+ * key len when keys are sorted lexicographically by their byte
  * representation. Usually limits->kl_keylen will be passed in.
  * This will be an array of 0xFF bytes with a length of len.
  * This will always yield a keycnt = 1
- * 
+ *
  *  len		 length of key to create
  */
 struct kiovec *
@@ -289,7 +289,7 @@ ki_keylast(size_t len)
 	int i;
 	uint8_t *buf;
 	struct kiovec *key;
-	/* 
+	/*
 	 * Allocated these separately so that free can be called on
 	 * both the key array and the key buffer, like other keys.
 	 */
@@ -308,7 +308,7 @@ ki_keylast(size_t len)
 
 	key[0].kiov_base = (void *)buf;
 	key[0].kiov_len = len;
-	
+
 	return(key);
 
 }
@@ -317,17 +317,17 @@ ki_keylast(size_t len)
 
 /**
  * ki_rangedup
- * 
+ *
  * Duplicate the given range
  */
 krange_t *
 ki_rangedup(krange_t *kr)
 {
 	krange_t *new;
-	
+
 	if (!kr)
 		return(NULL);
-	
+
 	new = (krange_t *)KI_MALLOC(sizeof(krange_t));
 	if (!new) {
 		return(NULL);
@@ -345,7 +345,7 @@ ki_rangedup(krange_t *kr)
 		}
 
 	}
-	
+
 	if (kr->kr_start) {
 		new->kr_startcnt = 1; /* dup flatten below */
 		new->kr_start = ki_keydupf(kr->kr_start, kr->kr_startcnt);
@@ -372,7 +372,7 @@ ki_rangedup(krange_t *kr)
 
 /**
  * ki_rangefree
- * 
+ *
  * Free the given range
  */
 int
@@ -380,7 +380,7 @@ ki_rangefree(krange_t *kr)
 {
 	if (!kr)
 		return(0);
-	
+
 	ki_keyfree(kr->kr_keys,  kr->kr_keyscnt);
 	ki_keyfree(kr->kr_start, kr->kr_startcnt);
 	ki_keyfree(kr->kr_end,   kr->kr_endcnt);
@@ -388,8 +388,8 @@ ki_rangefree(krange_t *kr)
 	return(0);
 }
 
-/** 
- * Return the session's klimits_t strucuture. 
+/**
+ * Return the session's klimits_t strucuture.
  * Returning by value.
  */
 klimits_t
@@ -401,14 +401,14 @@ ki_limits(int ktd)
 	ksession_t *ses;
 
 	memset((void *)&elimits, 0, sizeof(klimits_t));
-	
+
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0)
 		return elimits;
 
 	ses = (ksession_t *)cf->kcfg_pconf;
-	
+
 	return(ses->ks_l);
 }
 
