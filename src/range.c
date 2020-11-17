@@ -53,7 +53,7 @@ kstatus_t extract_keyrange(struct kresult_message *response_msg, krange_t *keyra
 kstatus_t
 ki_range(int ktd, krange_t *kr)
 {
-	int rc, i, n;             // numeric return codes
+	int rc, n;              // numeric return codes
 	int freestart=0;		/* bools to remember if ki_range */
 	int freeend=0;			/* needs to free either start or end */
 	kstatus_t krc;            // return code and messages
@@ -68,7 +68,9 @@ ki_range(int ktd, krange_t *kr)
 	ksession_t *ses;          // reference to the kinetic session
 	struct kresult_message kmreq, kmresp;
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_rangestart = clock();
+	#endif
 
 	// Get KTLI config
 	rc = ktli_config(ktd, &cf);
@@ -91,13 +93,15 @@ ki_range(int ktd, krange_t *kr)
 		};
 		goto rex1;
 	}
-	
+
 	/* If kr_count is set to infinity, fix it */
 	if (kr->kr_count == KVR_COUNT_INF)
 		kr->kr_count = ses->ks_l.kl_rangekeycnt;
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_validatestart = clock();
-	
+	#endif
+
 	/* validate the input keyrange */
 	rc = ki_validate_range(kr, &ses->ks_l);
 	if (rc < 0) {
@@ -109,7 +113,9 @@ ki_range(int ktd, krange_t *kr)
 		goto rex1;
 	}
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_validateend = clock();
+	#endif
 
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
@@ -128,7 +134,7 @@ ki_range(int ktd, krange_t *kr)
 	kio->kio_flags		= KIOF_INIT;
 	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
 
-	/* 
+	/*
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
 	 * is for the protobuf message. There is no value.
 	 * See kio.h (previously in message.h) for more details.
@@ -149,8 +155,8 @@ ki_range(int ktd, krange_t *kr)
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
-	/* 
-	 * Setup msg_hdr 
+	/*
+	 * Setup msg_hdr
 	 * One thing to note here is that although the msg hdr is being setup
 	 * it is too early to complete. The msg hdr will ultimately have a
 	 * HMAC cryptographic checksum of the requests command bytes, so that
@@ -158,8 +164,8 @@ ki_range(int ktd, krange_t *kr)
 	 * bytes don't actually get finalized until a ktli_send is initiated.
 	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
 	 * used later on to calculate the actual HMAC which will then be hung
-	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr 
-	 * in the kmreq. This reference needs to be removed before freeing 
+	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr
+	 * in the kmreq. This reference needs to be removed before freeing
 	 * kmreq. See below at rex2:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
@@ -171,7 +177,9 @@ ki_range(int ktd, krange_t *kr)
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_GETRANGE;
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_reqstart = clock();
+	#endif
 
 	kmreq = create_rangekey_message(&msg_hdr, &cmd_hdr, kr);
 	if (kmreq.result_code == FAILURE) {
@@ -184,7 +192,9 @@ ki_range(int ktd, krange_t *kr)
 		goto rex5;
 	}
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_reqend = clock();
+	#endif
 
 	// pack the message and hang it on the kio
 	// PAK: Error handling
@@ -205,7 +215,9 @@ ki_range(int ktd, krange_t *kr)
 		goto rex6;
 	}
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_packend = clock();
+	#endif
 
 	// now that the message length is known, setup the PDU
 	/* Now that the message length is known, setup the PDU */
@@ -217,7 +229,9 @@ ki_range(int ktd, krange_t *kr)
 	debug_printf("ki_range: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen);
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_send = clock();
+	#endif
 
 	/* Send the request */
 	ktli_send(ktd, kio);
@@ -242,7 +256,9 @@ ki_range(int ktd, krange_t *kr)
 		else { break; }
 	} while (1);
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_recv = clock();
+	#endif
 
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
@@ -259,7 +275,7 @@ ki_range(int ktd, krange_t *kr)
 		assert(0);
 	}
 
-	/* Now unpack the message */ 
+	/* Now unpack the message */
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
 		krc   = (kstatus_t) {
@@ -272,19 +288,24 @@ ki_range(int ktd, krange_t *kr)
 		goto rex7;
 	}
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_unpack = clock();
+	#endif
 
 	krc = extract_keyrange(&kmresp, kr);
 
+	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_extract = clock();
+	#endif
 
 	/* clean up */
- rex8:
+ // TODO: update cleanup code
+ // rex8:
 	destroy_message(kmresp.result_message);
 
  rex7:
 	/*
-	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that 
+	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that
 	 * was made in kmreq before freeingcalling destroy.
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
@@ -296,19 +317,24 @@ ki_range(int ktd, krange_t *kr)
 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 	KI_FREE(kio->kio_recvmsg.km_msg);
 	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+
  rex6:
 	destroy_message(kmreq.result_message);
+
  rex5:
 	KI_FREE(kio->kio_sendmsg.km_msg);
+
  rex4:
 	KI_FREE(kio);
+
  rex3:
 	if (freeend) {
 		ki_keyfree(kr->kr_end, kr->kr_endcnt);
 		kr->kr_end = NULL;
 		kr->kr_endcnt = 0;
 	}
- rex2:			
+
+ //rex2:
 	if (freestart) {
 		ki_keyfree(kr->kr_start, kr->kr_startcnt);
 		kr->kr_start = NULL;
@@ -364,7 +390,7 @@ create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, krange_t *cmd_da
 		};
 	}
 #endif
-	
+
 	set_primitive_optional(&proto_cmd_body, startkeyinclusive, KR_ISTART(cmd_data));
 	set_primitive_optional(&proto_cmd_body, endkeyinclusive  , KR_IEND(cmd_data));
 	set_primitive_optional(&proto_cmd_body, reverse          , KR_REVERSE(cmd_data));
