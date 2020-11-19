@@ -129,6 +129,16 @@ namespace KFixtures {
         size_t key_cnt = 1;
         size_t val_cnt = 1;
 
+		/* These should reflect kctl defaults */
+		uint32_t       val_checksum      = 0;
+        size_t         existing_dbverlen = 11;
+		size_t         checksum_len      = sizeof(uint32_t);
+		kditype_t      checksum_type     = (kditype_t) KDI_CRC32;
+		kcachepolicy_t cpolicy_type      = (kcachepolicy_t) KC_WB;
+
+        char existing_dbver[11];
+		sprintf(existing_dbver, "0x%08x", val_checksum);
+
         char *input_key = (char *) malloc(sizeof(char) * key_len);
         memcpy(input_key, key_str, key_len);
 
@@ -149,26 +159,21 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        size_t  existing_dbverlen = 10;
-        uint8_t existing_dbver[]  = {
-            0x30, 0x78, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30
-        };
-
         struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
         struct kiovec *output_valvec = ki_keycreate(val_str, val_len);
         kv_t output_data  = (kv_t) {
-            .kv_key       = output_keyvec         ,
-            .kv_keycnt    = key_cnt               ,
-            .kv_val       = output_valvec         ,
-            .kv_valcnt    = 1                     ,
-            .kv_ver       = existing_dbver        ,
-            .kv_verlen    = existing_dbverlen     ,
-            .kv_newver    = nullptr               ,
-            .kv_newverlen = 0                     ,
-            .kv_disum     = nullptr               ,
-            .kv_disumlen  = 0                     ,
-            .kv_ditype    = (kditype_t) KDI_SHA1  ,
-            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
+            .kv_key       = output_keyvec    ,
+            .kv_keycnt    = key_cnt          ,
+            .kv_val       = output_valvec    ,
+            .kv_valcnt    = 1                ,
+            .kv_ver       = existing_dbver   ,
+            .kv_verlen    = existing_dbverlen,
+            .kv_newver    = nullptr          ,
+            .kv_newverlen = 0                ,
+            .kv_disum     = &val_checksum    ,
+            .kv_disumlen  = checksum_len     ,
+            .kv_ditype    = checksum_type    ,
+            .kv_cpolicy   = cpolicy_type     ,
         };
 
         kstatus_t ok_status = {
