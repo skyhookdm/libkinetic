@@ -320,6 +320,10 @@ namespace TestHelpers {
         print_integrity_type(keyval_data->kv_ditype);
         fprintf(stdout, "\n");
 
+        fprintf(stdout, "Val Checksum:\n\t");
+		print_bytes_as_hex(keyval_data->kv_disum, keyval_data->kv_disumlen);
+        fprintf(stdout, "\n");
+
         fprintf(stdout, "Cache Policy: ");
         print_cachepolicy(keyval_data->kv_cpolicy);
         fprintf(stdout, "\n");
