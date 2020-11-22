@@ -17,11 +17,11 @@ INC_PRIV =	kio.h ktli.h ktli_session.h  \
 		kinetic.h kinetic_internal.h \
 		session.h
 
-CFLAGS =	-g -I$(BUILDDIR)/include -I. -Wall
+CFLAGS  =	-g -I$(BUILDDIR)/include -I. -Wall
 LDFLAGS =	-L$(BUILDDIR)/lib
-LDLIBS =	-llist -lprotobuf-c
+LDLIBS  =	-llist -lprotobuf-c
 
-MKDIR =		/bin/mkdir
+MKDIR   =	/bin/mkdir
 INSTALL = 	/usr/bin/install
 
 all:	$(KINETIC)
