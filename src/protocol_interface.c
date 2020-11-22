@@ -412,12 +412,12 @@ kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command) {
 
 	kproto_status_t *response_status = protobuf_command->status;
 
-	// copy protobuf string
-	size_t statusmsg_len     = strlen(response_status->statusmessage);
+	// copy protobuf string (strlen + 1 accounts for a null byte)
+	size_t statusmsg_len     = strlen(response_status->statusmessage) + 1;
 	char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
 	if (!response_statusmsg) { return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, ""); }
 
-	strcpy(response_statusmsg, response_status->statusmessage);
+	strncpy(response_statusmsg, response_status->statusmessage, sizeof(char) * statusmsg_len);
 
 	// copy protobuf bytes field to null-terminated string
 	char *response_detailmsg = NULL;
