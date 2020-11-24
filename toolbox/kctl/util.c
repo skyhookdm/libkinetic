@@ -76,10 +76,13 @@ asciidecode(const void* data, size_t size, void** rawdata, size_t *rawlen)
 	size_t i, j;
 
 	/*
-	 * Get a buffer. since this converts \xHH chars int a single char
-	 * using the source buffer length is more than needed. 
+	 * Get a buffer. Converting \xHH chars into a single char means that the source buffer length
+	 * should be more than needed. We add 1 to the length of the raw buffer (for a null byte) in
+	 * case both of the following are true:
+	 *		- the source buffer has no \xHH chars
+	 *		- the source buffer is not null-terminated
 	 */
-	*rawdata = malloc(size);
+	*rawdata = malloc(sizeof(char) * (size + 1));
 	if (!*rawdata)
 		return(NULL);
 
