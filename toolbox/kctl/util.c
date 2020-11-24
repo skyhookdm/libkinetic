@@ -83,13 +83,18 @@ asciidecode(const void* data, size_t size, void** rawdata, size_t *rawlen)
 	if (!*rawdata)
 		return(NULL);
 
+	// Use an appropriately typed alias for convenience
+	char *rawdata_alias = (char *) *rawdata;
+
 	/*
 	 * j tracks the size of the raw buffer, i is used to track through
 	 * passed in buffer.  
 	 */
-	for (j=0, i = 0; i < size; ++i) {
+	for (j = 0, i = 0; i < size; ++i) {
 		/* look for an encoded char: "\x" */
-		if (strncmp("\\x", &(((const char *)data)[i]), 2) == 0)  {
+		int is_encoded_char = strncmp("\\x", &(((const char *) data)[i]), 2);
+
+		if (is_encoded_char == 0)  {
 			/* Found one: consume the "\x" */
 			i += 2;
 			
@@ -98,28 +103,30 @@ asciidecode(const void* data, size_t size, void** rawdata, size_t *rawlen)
 			 * after 2 chars happens when s[] is declared above,
 			 * that is s[2] = '\0
 			 */
-			s[0] = ((const char *)data)[i++]; /* inc i to consume */
-			s[1] = ((const char *)data)[i];   /* 'for' inc's i */
+			s[0] = ((const char *) data)[i++]; /* inc i to consume */
+			s[1] = ((const char *) data)[i];   /* 'for' inc's i */
 
 			// Convert and increment j
-			((char *)(*rawdata))[j++] = (char)strtol(s, &cp, 16);
+			rawdata_alias[j++] = (char) strtol(s, &cp, 16);
+
 			if (!cp || *cp != '\0') {
-				fprintf(stderr,
-					"*** Invalid char in decode %s\n", s);
+				fprintf(stderr, "*** Invalid char in decode %s\n", s);
 				free(*rawdata);
-				*rawlen = 0;
+				*rawlen  = 0;
 				*rawdata = NULL;
+
 				return (NULL);
 			}
 		} else {
 			/* just a regular char, copy it, inc j */
-			((char *)(*rawdata))[j++] = ((const char *)data)[i];
+			rawdata_alias[j++] = ((const char *) data)[i];
 		}
 	}
 	
-	((char *)(*rawdata))[j] = '\0';
-	*rawlen = j;
-	return(*rawdata);
+	rawdata_alias[j] = '\0';
+	*rawlen          = j;
+
+	return *rawdata;
 }
 
 /**
