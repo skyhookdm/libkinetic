@@ -179,7 +179,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		printf("\n");
 		hexdump(pkv->kv_key[0].kiov_base, pkv->kv_key[0].kiov_len);
 	} else {
-		/* add null byte to print ads a string */
+		/* add null byte to print as a string */
 		rkey = strndup((char *)pkv->kv_key[0].kiov_base,
 			       pkv->kv_key[0].kiov_len);
 		printf("%s", rkey);
@@ -198,7 +198,12 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	} else if (hdump) {
 		hexdump(pkv->kv_val[0].kiov_base, pkv->kv_val[0].kiov_len);
 	} else {
-		printf("%s", (char *)pkv->kv_val[0].kiov_base);
+		char *val_with_null = strndup(
+			 (char *) pkv->kv_val[0].kiov_base
+			,         pkv->kv_val[0].kiov_len
+		);
+
+		printf("%s", val_with_null);
 	}
 	printf("\n");
 	return(0);
