@@ -168,20 +168,25 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		fprintf(stderr, "Bad command: %s\n", ka->ka_cmdstr);
 		return(-1);
 	}
-		
-	if(kstatus.ks_code != K_OK) {
-		switch (kstatus.ks_code) {
-		case K_OK:
-			break;
-		case K_ENOTFOUND:
-			printf("%s: No key found.\n", ka->ka_cmdstr);
-			return(-1);
-		default:	
-			printf("%s: failed: status code %d %s\n",
-			       ka->ka_cmdstr, kstatus.ks_code,
-			       kstatus.ks_message);
-			return(-1);
-		}
+
+	switch (kstatus.ks_code) {
+	case K_OK:
+		free_cmdstatus(&kstatus);
+		break;
+
+	case K_ENOTFOUND:
+		printf("%s: No key found.\n", ka->ka_cmdstr);
+		free_cmdstatus(&kstatus);
+
+		return(-1);
+
+	default:
+		printf("%s: failed: status code %d %s\n",
+			   ka->ka_cmdstr, kstatus.ks_code,
+			   kstatus.ks_message);
+		free_cmdstatus(&kstatus);
+
+		return(-1);
 	}
 
 	printf("Key(");
