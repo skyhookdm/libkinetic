@@ -47,8 +47,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	extern char   *optarg;
 	extern int     optind, opterr, optopt;
 	char           c, *rkey;
-	int            hdump      = 0
-	int            adump      = 0;
+	int            hdump = 0, adump = 0;
 
 	kv_t           kv;
 	struct kiovec  kv_key[1]  = {0, 0};
