@@ -177,8 +177,13 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 		rc = -1;
 		goto oex1;
 	}
-	memcpy(&ks->ks_l, &glog.kgl_limits, sizeof(klimits_t));
-	memcpy(&ks->ks_conf, &glog.kgl_conf, sizeof(kconfiguration_t));
+
+	// kgl_limit and kgl_conf are not pointers, so memcpy them
+	memcpy(&ks->ks_l   , &glog.kgl_limits, sizeof(klimits_t)       );
+	memcpy(&ks->ks_conf, &glog.kgl_conf  , sizeof(kconfiguration_t));
+
+	// free the previous status messages
+	free_cmdstatus(&command_status);
 
 	memset(&cmd_hdr, 0, sizeof(kcmdhdr_t));
 	command_status = extract_cmdhdr(&kmresp, &cmd_hdr);
@@ -193,9 +198,11 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	ks->ks_bats = 0;
 
  oex1:
+	// free any status messages
+	free_cmdstatus(&command_status);
 	destroy_message(kmresp.result_message);
+
  oex2:
-	
 	return(ktd);
 }
 

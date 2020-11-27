@@ -405,6 +405,16 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 	}
 }
 
+void free_cmdstatus(kstatus_t *cmd_status) {
+	if (cmd_status->ks_message != UNALLOC_VAL) {
+		KI_FREE(cmd_status->ks_message);
+	}
+
+	if (cmd_status->ks_detail != UNALLOC_VAL) {
+		KI_FREE(cmd_status->ks_detail);
+	}
+}
+
 kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command) {
 	if (!protobuf_command || !protobuf_command->status || !protobuf_command->status->has_code) {
 		return kstatus_err(K_OK, KI_ERR_NOMSG, "");
