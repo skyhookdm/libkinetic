@@ -44,21 +44,25 @@ kctl_get_usage(struct kargs *ka)
 int
 kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 {
-	extern char	*optarg;
-        extern int	optind, opterr, optopt;
-        char		c, *rkey;
-	int		hdump = 0, adump = 0;
-	kv_t		kv;
-	struct kiovec	kv_key[1]  = {0, 0};
-	struct kiovec	kv_val[1]  = {0, 0};
-	kv_t		rkv;
-	struct kiovec	rkv_key[1]  = {0, 0};
-	struct kiovec	rkv_val[1]  = {0, 0};
-	kstatus_t 	kstatus;
-	kv_t		*pkv;
+	extern char   *optarg;
+	extern int     optind, opterr, optopt;
+	char           c, *rkey;
+	int            hdump      = 0
+	int            adump      = 0;
 
-        while ((c = getopt(argc, argv, "AXh?")) != EOF) {
-                switch (c) {
+	kv_t           kv;
+	struct kiovec  kv_key[1]  = {0, 0};
+	struct kiovec  kv_val[1]  = {0, 0};
+
+	kv_t           rkv;
+	struct kiovec  rkv_key[1] = {0, 0};
+	struct kiovec  rkv_val[1] = {0, 0};
+
+	kstatus_t      kstatus;
+	kv_t          *pkv;
+
+	while ((c = getopt(argc, argv, "AXh?")) != EOF) {
+		switch (c) {
 		case 'A':
 			adump = 1;
 			if (hdump) {
@@ -68,6 +72,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 				return(-1);
 			}
 			break;
+
 		case 'X':
 			hdump = 1;
 			if (adump) {
@@ -77,13 +82,14 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 				return(-1);
 			}
 			break;
+
 		case 'h':
-                case '?':
-                default:
-                        CMD_USAGE(ka);
+		case '?':
+		default:
+			CMD_USAGE(ka);
 			return(-1);
 		}
-        }
+	}
 
 	// Check for the cmd key parm
 	if (argc - optind == 1) {
@@ -92,8 +98,14 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		 * sequences in the passed-in key, if none present this
 		 * amounts to a copy.
 		 */
-		if (!asciidecode(argv[optind], strlen(argv[optind]),
-				 (void **)&ka->ka_key, &ka->ka_keylen)) {
+		void *decoded_data = asciidecode(
+			 argv[optind]
+			,strlen(argv[optind])
+			,(void **) &ka->ka_key
+			,          &ka->ka_keylen
+		);
+
+		if (!decoded_data) {
 			fprintf(stderr, "*** Failed key conversion\n");
 			CMD_USAGE(ka);
 			return(-1);
@@ -102,7 +114,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		printf("%s\n", argv[optind]);
 		printf("%lu\n", ka->ka_keylen);
 		hexdump(ka->ka_key, ka->ka_keylen);
-#endif 
+#endif
 	} else {
 		fprintf(stderr, "*** Too few or too many args\n");
 		CMD_USAGE(ka);
@@ -115,13 +127,13 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	kv.kv_keycnt = 1;
 	kv.kv_val    = kv_val;
 	kv.kv_valcnt = 1;
-	
+
 	memset(&rkv, 0, sizeof(kv_t));
 	rkv.kv_key    = rkv_key;
 	rkv.kv_keycnt = 1;
 	rkv.kv_val    = rkv_val;
 	rkv.kv_valcnt = 1;
-	
+
 	/*
 	 * Hang the key
 	 */
@@ -134,22 +146,22 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	switch (ka->ka_cmd) {
 	case KCTL_GET:
 		kstatus = ki_get(ktd, &kv);
-		pkv = &kv;
+		pkv     = &kv;
 		break;
 
 	case KCTL_GETNEXT:
 		kstatus = ki_getnext(ktd, &kv, &rkv);
-		pkv = &rkv;
+		pkv     = &rkv;
 		break;
 
 	case KCTL_GETPREV:
 		kstatus = ki_getprev(ktd, &kv, &rkv);
-		pkv = &rkv;
+		pkv     = &rkv;
 		break;
-		
+
 	case KCTL_GETVERS:
 		kstatus = ki_getversion(ktd, &kv);
-		pkv = &kv;
+		pkv     = &kv;
 		break;
 
 	default:
@@ -186,13 +198,14 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		free(rkey);
 	}
 	printf("): ");
-	
+
 	if (ka->ka_cmd == KCTL_GETVERS) {
 		printf("%s\n", (pkv->kv_ver?(char *)pkv->kv_ver:"N/A"));
 		return(0);
 	}
 
 	printf("\nLength: %lu\n", pkv->kv_val[0].kiov_len);
+
 	if (adump) {
 		asciidump(pkv->kv_val[0].kiov_base, pkv->kv_val[0].kiov_len);
 	} else if (hdump) {
@@ -205,6 +218,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 
 		printf("%s", val_with_null);
 	}
+
 	printf("\n");
 	return(0);
 }
