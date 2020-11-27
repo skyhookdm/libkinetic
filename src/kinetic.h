@@ -56,9 +56,6 @@
 int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac);
 int ki_close(int ktd);
 
-klimits_t      ki_limits(int ktd);
-kstatus_t      ki_setclustervers(int ktd, int64_t vers);
-
 kstatus_t      ki_put(int ktd, kbatch_t *kb, kv_t *kv);
 kstatus_t      ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
 kstatus_t      ki_del(int ktd, kbatch_t *kb, kv_t *key);
@@ -74,12 +71,24 @@ kstatus_t      ki_getversion(int ktd, kv_t *key);
 kstatus_t      ki_range(int ktd, krange_t *kr);
 kstatus_t      ki_getlog(int ktd, kgetlog_t *glog);
 
+
+// ------------------------------
+// key iterator functions
 kiter_t       *ki_itercreate(int ktd);
 int            ki_iterfree(kiter_t *kit);
 int            ki_iterdone(kiter_t *kit);
 struct kiovec *ki_iterstart(kiter_t *kit, krange_t *kr);
 struct kiovec *ki_iternext(kiter_t *kit);
 
+
+// ------------------------------
+// utility functions
+
+// for information structures
+klimits_t      ki_limits(int ktd);
+kstatus_t      ki_setclustervers(int ktd, int64_t vers);
+
+// for key management
 struct kiovec *ki_keycreate(void *keybuf, size_t keylen);
 struct kiovec *ki_keydup(struct kiovec *key, size_t keycnt);
 struct kiovec *ki_keydupf(struct kiovec *key, size_t keycnt);
@@ -88,12 +97,22 @@ struct kiovec *ki_keypostfix(struct kiovec *key, size_t keycnt, void *keybuf, si
 struct kiovec *ki_keyfirst();
 struct kiovec *ki_keylast(size_t len);
 
-int ki_keyfree(struct kiovec *key, size_t keycnt);
-
+// for iterator management
 krange_t *ki_rangedup(krange_t *kr);
-int       ki_rangefree(krange_t *kr);
 
+// for checksum computation
 struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name);
+
+
+// ------------------------------
+// resource management
+
+// for command status messages
+void free_cmdstatus(kstatus_t *cmd_status);
+
+// for keys
+int ki_keyfree(struct kiovec *key, size_t keycnt);
+int ki_rangefree(krange_t *kr);
 
 
 #endif // __KINETIC_INTERFACE_H

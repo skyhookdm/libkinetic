@@ -93,8 +93,6 @@ struct kresult_message create_getlog_message(kmsghdr_t *, kcmdhdr_t *, kgetlog_t
 
 // ------------------------------
 // resource management
-void free_cmdstatus(kstatus_t *cmd_status);
-
 void destroy_command(void *unpacked_cmd);
 void destroy_message(void *unpacked_msg);
 
