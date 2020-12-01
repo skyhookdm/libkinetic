@@ -200,6 +200,12 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
  oex1:
 	// free any status messages
 	free_cmdstatus(&command_status);
+
+	// destroy anything in getlog that was allocated
+	// (including the unpacked command)
+	glog.destroy_protobuf(&glog);
+
+	// destroy the protobuf message itself
 	destroy_message(kmresp.result_message);
 
  oex2:
