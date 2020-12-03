@@ -599,7 +599,9 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	tmp_cmd->header->sequence     = seq;
 
 	// pack field
+	// Free the previous commandbytes and then set it to the newly packed commandbytes
 	// TODO: we eventually want to only have to pack the new field
+	KI_FREE(tmp_msg->commandbytes.data);
 	tmp_msg->commandbytes = pack_kinetic_command(tmp_cmd);
 
     // TODO: figure out if there's a better way to fail if hmac or repack fail
@@ -609,6 +611,8 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 		tmp_msg->hmacauth->hmac.len
 	);
 
+	// Free the previous packed message and then set it to the newly packed message
+	KI_FREE(msg[KIOV_MSG].kiov_base);
 	pack_kinetic_message(
 		tmp_msg,
 		&(msg[KIOV_MSG].kiov_base),
@@ -625,7 +629,7 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 
 	// TODO: since we allocate currently, we need to clean up
 	destroy_command(tmp_cmd);
-	destroy_message(tmp_msg);
+	destroy_message(unpack_result.result_message);
 }
 
 /* ------------------------------
