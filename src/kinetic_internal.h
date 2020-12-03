@@ -13,7 +13,7 @@
 /* Abstracting malloc and free, permits testing  */ 
 #define UNALLOC_VAL ((void *) 0xDEADCAFE)
 
-#define KI_MALLOC(_l) malloc((_l))
+#define KI_MALLOC(_l)     malloc((_l))
 #define KI_REALLOC(_p,_l) realloc((_p),(_l))
 #define KI_FREE(_p) {	    \
 	free((_p));         \

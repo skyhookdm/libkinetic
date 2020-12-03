@@ -102,7 +102,7 @@ int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
 	}
 
 	// finalize the digest into a string (allocated)
-	void *hmac_digest = malloc(sizeof(char) * SHA_DIGEST_LENGTH);
+	void *hmac_digest = KI_MALLOC(sizeof(char) * SHA_DIGEST_LENGTH);
 	result_status = HMAC_Final(
 		hmac_context,
 		(unsigned char *) hmac_digest,
@@ -169,7 +169,7 @@ struct kresult_message unpack_response(struct kbuffer response_buffer) {
 ProtobufCBinaryData pack_kinetic_command(kproto_cmd_t *cmd_data) {
 	// Get size for command and allocate buffer
 	size_t	 command_size	= com__seagate__kinetic__proto__command__get_packed_size(cmd_data);
-	uint8_t *command_buffer = (uint8_t *) malloc(sizeof(uint8_t) * command_size);
+	uint8_t *command_buffer = (uint8_t *) KI_MALLOC(sizeof(uint8_t) * command_size);
 
 	if (command_buffer == NULL) { goto pack_failure; }
 
@@ -235,7 +235,7 @@ struct kresult_message unpack_kinetic_message(void *response_buffer, size_t resp
 	ProtobufCAllocator *mem_allocator = NULL;
 
 	kproto_msg_t *unpacked_msg = com__seagate__kinetic__proto__message__unpack(
-		mem_allocator, response_size, (uint8_t *) response_buffer
+		mem_allocator, response_size, (const uint8_t *) response_buffer
 	);
 
 	return (struct kresult_message) {
@@ -501,7 +501,7 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 	}
 
 	// create a buffer containing the key name
-	char *key_buffer = (char *) malloc(sizeof(char) * total_keylen);
+	char *key_buffer = (char *) KI_MALLOC(sizeof(char) * total_keylen);
 	if (key_buffer == NULL) { return 0; }
 
 	// gather key name fragments into key buffer
@@ -586,8 +586,7 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 
 	if (unpack_result.result_code == FAILURE) {
 		//TODO: we won't allocate in the future, but we should figure out what to do for errors
-		//return -1;
-		;
+		return;
 	}
 
 	kproto_msg_t *tmp_msg = (kproto_msg_t *) unpack_result.result_message;

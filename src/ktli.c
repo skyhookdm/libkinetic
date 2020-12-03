@@ -1304,6 +1304,7 @@ ktli_recvmsg(int kts)
 	pthread_mutex_lock(&rq->ktq_m);
 	rc = list_traverse(rq->ktq_list,
 			   (char *)&aseq, ktli_seqmatch, LIST_ALTR);
+
 	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 		/*
 		 * No matching kio.  Allocate a kio, set it up and mark it as
@@ -1323,8 +1324,8 @@ ktli_recvmsg(int kts)
 		KIOF_SET(kio, KIOF_RESPONLY);
 	} else {
 		debug_printf("KTLI Received Matched KIO\n");
-		lkio = (struct kio **)list_remove_curr(rq->ktq_list);
-		kio = *lkio;
+		lkio = (struct kio **) list_remove_curr(rq->ktq_list);
+		kio  = *lkio;
 		KTLI_FREE(lkio);
 	}
 
@@ -1348,7 +1349,7 @@ ktli_recvmsg(int kts)
 	/* Add to completion queue */
 	pthread_mutex_lock(&cq->ktq_m);
 	(void)list_mvrear(cq->ktq_list);
-	list_insert_before(cq->ktq_list, (char *)&kio, sizeof(struct kio *));
+	list_insert_before(cq->ktq_list, (char *) &kio, sizeof(struct kio *));
 
 	/* Let everyone know there is a new completed  kio */
 	pthread_cond_broadcast(&cq->ktq_cv);
