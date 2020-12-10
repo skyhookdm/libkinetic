@@ -219,6 +219,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		);
 
 		printf("%s", val_with_null);
+		free(val_with_null);
 	}
 
 	printf("\n");
