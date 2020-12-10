@@ -41,7 +41,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	extern char   *optarg;
 	extern int     optind, opterr, optopt;
 	char           c, *rkey;
-	int            hdump = 0, adump = 0;
+	int            hdump = 0, adump = 0, kctl_status = 0;
 
 	kv_t           kv;
 	struct kiovec  kv_key[1]  = {0, 0};
@@ -54,6 +54,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	kstatus_t      kstatus;
 	kv_t          *pkv;
 
+	// This while loop can return early because there are no allocs to manage
 	while ((c = getopt(argc, argv, "AXh?")) != EOF) {
 		switch (c) {
 		case 'A':
@@ -62,7 +63,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 				fprintf(stderr,
 					"*** -X and -A are exclusive\n");
 				CMD_USAGE(ka);
-				return(-1);
+				return (-1);
 			}
 			break;
 
@@ -72,7 +73,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 				fprintf(stderr,
 					"*** -X and -A are exclusive\n");
 				CMD_USAGE(ka);
-				return(-1);
+				return (-1);
 			}
 			break;
 
@@ -80,7 +81,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		case '?':
 		default:
 			CMD_USAGE(ka);
-			return(-1);
+			return (-1);
 		}
 	}
 
@@ -101,17 +102,19 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		if (!decoded_data) {
 			fprintf(stderr, "*** Failed key conversion\n");
 			CMD_USAGE(ka);
-			return(-1);
+			return (-1);
 		}
 #if 0
 		printf("%s\n", argv[optind]);
 		printf("%lu\n", ka->ka_keylen);
 		hexdump(ka->ka_key, ka->ka_keylen);
 #endif
-	} else {
+	}
+
+	else {
 		fprintf(stderr, "*** Too few or too many args\n");
 		CMD_USAGE(ka);
-		return(-1);
+		return (-1);
 	}
 
 	/* Init kv and return kv */
@@ -135,6 +138,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	/*
 	 * 4 cmd supported here: Get, GetNext, GetPrev, GetVers
+	 * NOTE: all of these calls make allocations which need to be cleaned before exit
 	 */
 	switch (ka->ka_cmd) {
 	case KCTL_GET:
@@ -158,52 +162,66 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		break;
 
 	default:
+		// no allocation, so we can still return early
 		fprintf(stderr, "Bad command: %s\n", ka->ka_cmdstr);
-		return(-1);
+		return (-1);
 	}
 
 	switch (kstatus.ks_code) {
 	case K_OK:
-		free_cmdstatus(&kstatus);
 		break;
 
 	case K_ENOTFOUND:
 		printf("%s: No key found.\n", ka->ka_cmdstr);
-		free_cmdstatus(&kstatus);
 
-		return(-1);
+		kctl_status = (-1);
+		goto kctl_gex;
 
 	default:
 		printf("%s: failed: status code %d %s\n",
 			   ka->ka_cmdstr, kstatus.ks_code,
 			   kstatus.ks_message);
-		free_cmdstatus(&kstatus);
 
-		return(-1);
+		kctl_status = (-1);
+		goto kctl_gex;
 	}
 
+	// ------------------------------
+	// Print key name
 	printf("Key(");
 	if (adump) {
 		asciidump(pkv->kv_key[0].kiov_base, pkv->kv_key[0].kiov_len);
-	} else if (hdump) {
+	}
+
+	else if (hdump) {
 		printf("\n");
 		hexdump(pkv->kv_key[0].kiov_base, pkv->kv_key[0].kiov_len);
-	} else {
+	}
+
+	else {
 		/* add null byte to print as a string */
-		rkey = strndup((char *)pkv->kv_key[0].kiov_base,
-			       pkv->kv_key[0].kiov_len);
+		rkey = strndup(
+			(char *) pkv->kv_key[0].kiov_base,
+			         pkv->kv_key[0].kiov_len
+		);
+
 		printf("%s", rkey);
 		free(rkey);
 	}
 	printf("): ");
 
+	// ------------------------------
+	// Print key version
 	if (ka->ka_cmd == KCTL_GETVERS) {
-		printf("%s\n", (pkv->kv_ver?(char *)pkv->kv_ver:"N/A"));
-		return(0);
+		printf("%s\n", (pkv->kv_ver ? (char *) pkv->kv_ver : "N/A"));
+
+		kctl_status = (-1);
+		goto kctl_gex;
 	}
 
+	// ------------------------------
+	// Print key length
 	printf("\nLength: %lu\n", pkv->kv_val[0].kiov_len);
-
 	if (adump) {
 		asciidump(pkv->kv_val[0].kiov_base, pkv->kv_val[0].kiov_len);
 	}
@@ -223,6 +241,12 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 
 	printf("\n");
-	return(0);
+
+ kctl_gex:
+
+	free_cmdstatus(&kstatus);
+	pkv->destroy_protobuf(pkv);
+
+	return kctl_status;
 }
 
