@@ -443,7 +443,7 @@ void destroy_protobuf_getkey(kv_t *kv_data) {
 	if (!kv_data) { return; }
 
 	// first destroy the allocated memory for the message data
-	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
+	destroy_command(kv_data->kv_protobuf);
 }
 
 kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
