@@ -166,6 +166,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 
 	/* cleanup and return error */
 	if (kmresp.result_code == FAILURE) {
+		// TODO: should this set ktd to -1?
 		rc = -1;
 		goto oex2;
 	}
@@ -174,6 +175,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	memset(&glog, 0, sizeof(kgetlog_t));
 	kstatus_t command_status = extract_getlog(&kmresp, &glog);
 	if (command_status.ks_code != (kstatus_code_t) K_OK) {
+		// TODO: should this set ktd to -1?
 		rc = -1;
 		goto oex1;
 	}
@@ -188,13 +190,14 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	memset(&cmd_hdr, 0, sizeof(kcmdhdr_t));
 	command_status = extract_cmdhdr(&kmresp, &cmd_hdr);
 	if (command_status.ks_code != (kstatus_code_t) K_OK) {
+		// TODO: should this set ktd to -1?
 		rc = -1;
 		goto oex1;
 	}
 	memcpy(&ks->ks_ch, &cmd_hdr, sizeof(kcmdhdr_t));
 
 	/* Init session next batch id counter and active batches */
-	ks->ks_bid = 1000;
+	ks->ks_bid  = 1000;
 	ks->ks_bats = 0;
 
  oex1:
