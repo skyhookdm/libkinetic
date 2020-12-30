@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 #include <kinetic/kinetic.h>
 #include "kctl.h"
@@ -24,6 +25,7 @@ kctl_put_usage(struct kargs *ka)
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
 	fprintf(stderr, "\t-b           Add to current batch [no]\n");
 	fprintf(stderr, "\t-c           Compare and swap [no]\n");
+	fprintf(stderr, "\t-f filename  Construct a value from a file\n");
 	fprintf(stderr, "\t-z len       Construct a length len value of 0s\n");
 	fprintf(stderr, "\t-p [wt|wb|f] Cache policy:\n");
 	fprintf(stderr, "\t             writethrough, writeback, flush [wb]\n");
@@ -52,18 +54,19 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 {
  	extern char     *optarg;
         extern int	optind, opterr, optopt;
-        char		c, *cp;
-	kcachepolicy_t	cpolicy = KC_WB;
-	int 		cmpswp=0, exists=0, zlen=0, bat=0;
+        char		c, *cp, *filename=NULL;
+	int 		cmpswp=0, exists=0, zlen=0, bat=0, fd;
 	uint32_t	sum = 0;
+	struct stat	st;
 	char		newver[VERLEN]; 	// holds hex representation of
 						// one int: "0x00000000"
+	kcachepolicy_t	cpolicy = KC_WB;
 	kv_t		kv;
 	struct kiovec	kv_key[1]  = {0, 0};
 	struct kiovec	kv_val[1]  = {0, 0};
 	kstatus_t 	kstatus;
 
-        while ((c = getopt(argc, argv, "bch?p:s:z:")) != EOF) {
+        while ((c = getopt(argc, argv, "bcf:h?p:s:z:")) != EOF) {
                 switch (c) {
 		case 'b':
 			bat = 1;
@@ -75,6 +78,13 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			break;
 		case 'c':
 			cmpswp = 1;
+		case 'f':
+			filename = optarg;
+			if (zlen) {
+				fprintf(stderr, "**** No -z and -f\n");
+				CMD_USAGE(ka);
+				return(-1);
+			}				
 			break;
 		case 'p':
 			if (strlen(optarg) > 2) {
@@ -111,6 +121,11 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				return(-1);
 			}
 
+			if (filename) {
+				fprintf(stderr, "**** No -f and -z\n");
+				CMD_USAGE(ka);
+				return(-1);
+			}				
 			break;
 		case 's':
 			if (strlen(optarg) > 8) {
@@ -129,6 +144,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	// Check for the key and value parms
 	if (argc - optind == 2) {
+		/* read value buffer from the command line */
 		if (!asciidecode(argv[optind], strlen(argv[optind]),
 				 (void **)&ka->ka_key, &ka->ka_keylen)) {
 			fprintf(stderr, "*** Failed key conversion\n");
@@ -144,6 +160,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		}
 		
 	} else if (argc - optind == 1 && zlen) {
+		/* Construct zero value buffer of length zlen */
 		if (!asciidecode(argv[optind], strlen(argv[optind]),
 				 (void **)&ka->ka_key, &ka->ka_keylen)) {
 			fprintf(stderr, "*** Failed key conversion\n");
@@ -159,6 +176,55 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		ka->ka_vallen = zlen;
 		memset(ka->ka_val, 0, zlen);
 		memcpy(ka->ka_val, ka->ka_key, ka->ka_keylen); /* tag it */
+	} else if (argc - optind == 1 && filename) {
+		/* Construct value buffer from file contents */
+		if (!asciidecode(argv[optind], strlen(argv[optind]),
+				 (void **)&ka->ka_key, &ka->ka_keylen)) {
+			fprintf(stderr, "*** Failed key conversion\n");
+			CMD_USAGE(ka);
+			return(-1);
+		}
+		optind++;
+
+		if (stat(filename, &st) < 0) {
+			perror("stat");
+			fprintf(stderr, "*** Error accessing file %s\n",
+				filename);
+			CMD_USAGE(ka);
+			return(-1);
+		}
+
+		if (st.st_size > (size_t)ka->ka_limits.kl_vallen) {
+			fprintf(stderr, "*** file too long (%lu > %d)\n",
+				st.st_size, ka->ka_limits.kl_vallen);
+			return(-1);
+		}
+		
+		ka->ka_vallen	= st.st_size;
+		ka->ka_val	= (char *)malloc(ka->ka_vallen);
+		if (!ka->ka_val) {
+			fprintf(stderr, "*** Unable to alloc %lu bytes\n",
+				ka->ka_vallen);
+			CMD_USAGE(ka);
+			return(-1);
+		}
+		
+		fd = open(filename, O_RDONLY);
+		if (fd < 0) {
+			fprintf(stderr, "*** Unable to open file %s\n",
+				filename);
+			CMD_USAGE(ka);
+			return(-1);
+		}
+		
+		if (read(fd, ka->ka_val, ka->ka_vallen) != ka->ka_vallen){
+			fprintf(stderr, "*** Unable to read file %s\n",
+				filename);
+			CMD_USAGE(ka);
+			return(-1);
+		}
+
+		close(fd);
 	} else {
 		fprintf(stderr, "*** Too few or too many args\n");
 		CMD_USAGE(ka);

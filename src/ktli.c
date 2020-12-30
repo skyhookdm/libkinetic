@@ -1457,10 +1457,14 @@ ktli_receiver(void *p)
 	 * should be signalled by ktli_connect
 	 */
 	do {
+
+#if 0
 		pthread_mutex_lock(&rq->ktq_m);
 		pthread_cond_wait(&rq->ktq_cv, &rq->ktq_m);
 		pthread_mutex_unlock(&rq->ktq_m);
-
+#else
+		usleep(100);
+#endif
 		/* verify kts is connected */
 		st = kts_state(kts);
 	} while (st != KTLI_SSTATE_CONNECTED);
