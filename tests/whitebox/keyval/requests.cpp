@@ -188,6 +188,7 @@ namespace KFixtures {
     // ------------------------------
     // TODO: these tests not yet verified
 
+	/*
     TEST_F(KeyValTest, test_getversion_doesnotexist) {
         // ------------------------------
         // Execute the Test
@@ -610,6 +611,7 @@ namespace KFixtures {
 
         keyval_helper->test_getkey(conn_descriptor, &ok_status, &input_data, &output_data);
     }
+	*/
 
     // ------------------------------
     // Modification Test Cases
@@ -650,7 +652,7 @@ namespace KFixtures {
 
         // ------------------------------
         // First: insert the key and validate
-        fprintf(stdout, "Step 1: Put key\n");
+        // fprintf(stdout, "Step 1: Put key\n");
 
         memcpy(input_key, key_str, key_len);
         memcpy(input_val, val_str, val_len);
@@ -691,7 +693,7 @@ namespace KFixtures {
 
         // ------------------------------
         // Second: get the key and validate
-        fprintf(stdout, "Step 2: Get key\n");
+        // fprintf(stdout, "Step 2: Get key\n");
 
         memcpy(input_key, key_str, key_len);
         input_keyvec  = ki_keycreate(input_key, key_len);
@@ -731,7 +733,7 @@ namespace KFixtures {
 
         // ------------------------------
         // Third: delete the key and validate
-        fprintf(stdout, "Step 3: Del key\n");
+        // fprintf(stdout, "Step 3: Del key\n");
 
         memcpy(input_key, key_str, key_len);
         input_keyvec  = ki_keycreate(input_key, key_len);
@@ -769,15 +771,17 @@ namespace KFixtures {
         keyval_helper->test_delkey(conn_descriptor, &ok_status,
                                    &delkey_input, &delkey_output);
 
+		/*
         fprintf(stdout, "Delete key input:\n");
         keyval_helper->print_keyval(&delkey_input);
 
         fprintf(stdout, "Delete key output:\n");
         keyval_helper->print_keyval(&delkey_output);
+		*/
 
         // ------------------------------
         // Fourth: validate the key does not exist
-        fprintf(stdout, "Step 4: Get key (no longer exists)\n");
+        // fprintf(stdout, "Step 4: Get key (no longer exists)\n");
 
         memcpy(input_key, key_str, key_len);
         input_keyvec  = ki_keycreate(input_key, key_len);

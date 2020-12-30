@@ -102,7 +102,7 @@ int compute_hmac(kproto_msg_t *msg_data, char *key, uint32_t key_len) {
 	}
 
 	// finalize the digest into a string (allocated)
-	void *hmac_digest = malloc(sizeof(char) * SHA_DIGEST_LENGTH);
+	void *hmac_digest = KI_MALLOC(sizeof(char) * SHA_DIGEST_LENGTH);
 	result_status = HMAC_Final(
 		hmac_context,
 		(unsigned char *) hmac_digest,
@@ -169,7 +169,7 @@ struct kresult_message unpack_response(struct kbuffer response_buffer) {
 ProtobufCBinaryData pack_kinetic_command(kproto_cmd_t *cmd_data) {
 	// Get size for command and allocate buffer
 	size_t	 command_size	= com__seagate__kinetic__proto__command__get_packed_size(cmd_data);
-	uint8_t *command_buffer = (uint8_t *) malloc(sizeof(uint8_t) * command_size);
+	uint8_t *command_buffer = (uint8_t *) KI_MALLOC(sizeof(uint8_t) * command_size);
 
 	if (command_buffer == NULL) { goto pack_failure; }
 
@@ -235,7 +235,7 @@ struct kresult_message unpack_kinetic_message(void *response_buffer, size_t resp
 	ProtobufCAllocator *mem_allocator = NULL;
 
 	kproto_msg_t *unpacked_msg = com__seagate__kinetic__proto__message__unpack(
-		mem_allocator, response_size, (uint8_t *) response_buffer
+		mem_allocator, response_size, (const uint8_t *) response_buffer
 	);
 
 	return (struct kresult_message) {
@@ -405,6 +405,16 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 	}
 }
 
+void free_cmdstatus(kstatus_t *cmd_status) {
+	if (cmd_status->ks_message != UNALLOC_VAL) {
+		KI_FREE(cmd_status->ks_message);
+	}
+
+	if (cmd_status->ks_detail != UNALLOC_VAL) {
+		KI_FREE(cmd_status->ks_detail);
+	}
+}
+
 kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command) {
 	if (!protobuf_command || !protobuf_command->status || !protobuf_command->status->has_code) {
 		return kstatus_err(K_OK, KI_ERR_NOMSG, "");
@@ -412,12 +422,12 @@ kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command) {
 
 	kproto_status_t *response_status = protobuf_command->status;
 
-	// copy protobuf string
-	size_t statusmsg_len     = strlen(response_status->statusmessage);
+	// copy protobuf string (strlen + 1 accounts for a null byte)
+	size_t statusmsg_len     = strlen(response_status->statusmessage) + 1;
 	char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
 	if (!response_statusmsg) { return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, ""); }
 
-	strcpy(response_statusmsg, response_status->statusmessage);
+	strncpy(response_statusmsg, response_status->statusmessage, sizeof(char) * statusmsg_len);
 
 	// copy protobuf bytes field to null-terminated string
 	char *response_detailmsg = NULL;
@@ -491,7 +501,7 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 	}
 
 	// create a buffer containing the key name
-	char *key_buffer = (char *) malloc(sizeof(char) * total_keylen);
+	char *key_buffer = (char *) KI_MALLOC(sizeof(char) * total_keylen);
 	if (key_buffer == NULL) { return 0; }
 
 	// gather key name fragments into key buffer
@@ -576,8 +586,7 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 
 	if (unpack_result.result_code == FAILURE) {
 		//TODO: we won't allocate in the future, but we should figure out what to do for errors
-		//return -1;
-		;
+		return;
 	}
 
 	kproto_msg_t *tmp_msg = (kproto_msg_t *) unpack_result.result_message;
@@ -590,7 +599,9 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	tmp_cmd->header->sequence     = seq;
 
 	// pack field
+	// Free the previous commandbytes and then set it to the newly packed commandbytes
 	// TODO: we eventually want to only have to pack the new field
+	KI_FREE(tmp_msg->commandbytes.data);
 	tmp_msg->commandbytes = pack_kinetic_command(tmp_cmd);
 
     // TODO: figure out if there's a better way to fail if hmac or repack fail
@@ -600,6 +611,8 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 		tmp_msg->hmacauth->hmac.len
 	);
 
+	// Free the previous packed message and then set it to the newly packed message
+	KI_FREE(msg[KIOV_MSG].kiov_base);
 	pack_kinetic_message(
 		tmp_msg,
 		&(msg[KIOV_MSG].kiov_base),
@@ -616,7 +629,7 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 
 	// TODO: since we allocate currently, we need to clean up
 	destroy_command(tmp_cmd);
-	destroy_message(tmp_msg);
+	destroy_message(unpack_result.result_message);
 }
 
 /* ------------------------------

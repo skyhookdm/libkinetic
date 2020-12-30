@@ -83,7 +83,7 @@ struct ktable {
 	{ KCTL_UNLOCK,  "unlock",  "Unlock the kinetic device", &kctl_lock},
 	{ KCTL_ACL,     "acl",     "Create/Modify ACL", &kctl_acl},
 #endif
-	
+
 	/* End of Table (EOT) KEEP LAST */
 	{ KCTL_EOT, "nocmd", "nohelp", &kctl_nohandler},
 };
@@ -95,14 +95,14 @@ void
 usage()
 {
 	int i;
-	
+
         fprintf(stderr,
 		"Usage: %s [COMMON OPTIONS] CMD [CMD OPTIONS] [KEY [VALUE]]\n",
 		kargs.ka_progname);
 	fprintf(stderr, "\nWhere, CMD is any one of these:\n");
 
 #define US_ARG_WIDTH "-14"
-	
+
 	/* Loop through the table and print the available commands */
 	for(i=0; ktable[i].ktab_cmd != KCTL_EOT; i++) {
 		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
@@ -139,7 +139,7 @@ print_args(struct kargs *ka)
 	printf("%" PA_LABEL_WIDTH "s kinetic%s://%ld:%s@%s:%s/%s\n", "URL:",
 	       ka->ka_usetls?"s":"", ka->ka_user, ka->ka_hkey,
 	       ka->ka_host, ka->ka_port, ka->ka_cmdstr);
-	
+
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Host:", ka->ka_host);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Port:", ka->ka_port);
 	printf("%" PA_LABEL_WIDTH "s %ld\n","UserID:", ka->ka_user);
@@ -155,62 +155,73 @@ print_args(struct kargs *ka)
 int
 main(int argc, char *argv[])
 {
-	extern char     	*optarg;
-        extern int		optind, opterr, optopt;
-        char			c, *cp;
-	int			i;
+	extern char *optarg;
+	extern int   optind, opterr, optopt;
+	char         c, *cp;
+	int          i;
 
 	kargs.ka_progname = argv[0];
-	
-        while ((c = getopt(argc, argv, "+c:h:m:p:su:tqvy?")) != EOF) {
-                switch (c) {
+
+	while ((c = getopt(argc, argv, "+c:h:m:p:su:tqvy?")) != EOF) {
+		switch (c) {
 		case 'h':
 			kargs.ka_host = optarg;
 			break;
+
 		case 'm':
 			kargs.ka_hkey = optarg;
 			break;
+
 		case 'p':
 			kargs.ka_port = optarg;
 			break;
+
 		case 'c':
 			kargs.ka_clustervers = strtol(optarg, &cp, 0);
 			if (!cp || *cp != '\0') {
-				fprintf(stderr, "*** Invalid Cluster Version %s\n",
-				       optarg);
-				 usage();
+				fprintf(stderr, "*** Invalid Cluster Version %s\n", optarg);
+				usage();
 			}
 			kargs.ka_clustervers = (int64_t) atoi(optarg);
 			break;
-                case 's':
-                        kargs.ka_usetls = 1;
-                        break;
-                case 'q':
-                        kargs.ka_quiet = 1;
-                        break;
-                case 't':
-                        kargs.ka_terse = 1;
-                        break;
+
+		case 's':
+			kargs.ka_usetls = 1;
+			break;
+
+		case 'q':
+			kargs.ka_quiet = 1;
+			break;
+
+		case 't':
+			kargs.ka_terse = 1;
+			break;
+
 		case 'T':
 			kargs.ka_timeout = atoi(optarg);
 			break;
+
 		case 'u':
 			kargs.ka_user = atoi(optarg);
 			break;
-                case 'v':
-                        kargs.ka_verbose = 1;
-                        break;
-                case 'y':
-                        kargs.ka_yes = 1;
-                        break;
-                case '?':
-                        usage();
-                        break;
-                default:
+
+		case 'v':
+			kargs.ka_verbose = 1;
+			break;
+
+		case 'y':
+			kargs.ka_yes = 1;
+			break;
+
+		case '?':
 			usage();
-                        break;
-                }
-        }
+			break;
+
+		default:
+			usage();
+			break;
+		}
+	}
 
 	/* Check for the cmd [key [value]] parms */
 	if (argc - optind == 0) {
@@ -222,12 +233,12 @@ main(int argc, char *argv[])
 
 	/* consume cmd */
 	kargs.ka_cmdstr = argv[optind++];
-	
+
 	/* Loop through the table and validate the command */
 	for(i=0; i<KCTL_EOT; i++) {
 		if (ktable[i].ktab_cmd == KCTL_EOT)
 			break;
-		
+
 		if (strcmp(ktable[i].ktab_cmdstr, kargs.ka_cmdstr) == 0) {
 			// Found a good command
 			kargs.ka_cmd = ktable[i].ktab_cmd;
@@ -243,7 +254,7 @@ main(int argc, char *argv[])
 
 	if (kargs.ka_verbose && !kargs.ka_terse)
 		print_args(&kargs);
-	
+
 	kctl(argc, argv, &kargs);
 
 	exit(0);
@@ -253,10 +264,12 @@ int
 kctl_start(struct kargs *ka)
 {
 	int ktd;
-	
-	ktd = ki_open(ka->ka_host, ka->ka_port,
-		      ka->ka_usetls, ka->ka_user, ka->ka_hkey);
-	
+
+	ktd = ki_open(
+		ka->ka_host, ka->ka_port,
+		ka->ka_usetls, ka->ka_user, ka->ka_hkey
+	);
+
 	if (ktd < 0) {
 		fprintf(stderr, "%s: Connection Failed\n", ka->ka_progname);
 		return(-1);
@@ -264,8 +277,7 @@ kctl_start(struct kargs *ka)
 
 	ka->ka_limits = ki_limits(ktd);
 	if (!ka->ka_limits.kl_keylen) {
-		fprintf(stderr, "%s: Unable to get kinetic limits\n",
-			ka->ka_progname);
+		fprintf(stderr, "%s: Unable to get kinetic limits\n", ka->ka_progname);
 		return(-1);
 	}
 
@@ -277,8 +289,8 @@ int
 kctl(int argc, char *argv[], struct kargs *ka)
 {
 	int i, rc, ktd;
-	
-	ktd = kctl_start(ka);	
+
+	ktd = kctl_start(ka);
 	if (ktd < 0) {
 		fprintf(stderr, "%s: UNable to start\n", ka->ka_progname);
 		return(EINVAL);
@@ -291,9 +303,9 @@ kctl(int argc, char *argv[], struct kargs *ka)
 			break;
 		}
 	}
-	
+
 	ki_close(ktd);
-	
+
 	return rc;
 }
 
@@ -305,8 +317,8 @@ kctl_interactive(struct kargs *ka)
 	int i, rc, ktd, argc;
 	extern char     	*optarg;
         extern int		optind, opterr, optopt;
- 	
-	ktd = kctl_start(ka);	
+
+	ktd = kctl_start(ka);
 	if (ktd < 0) {
 		fprintf(stderr, "%s: Unable to start\n", ka->ka_progname);
 		return(EINVAL);
@@ -322,7 +334,7 @@ kctl_interactive(struct kargs *ka)
 		sline = line;
 
 		/* dup the line for use in the history if appropriate */
-		hline = strdup(line); 
+		hline = strdup(line);
 
 		/* Create the argv array */
 		argc = 0;
@@ -339,12 +351,12 @@ kctl_interactive(struct kargs *ka)
 
 		if (strcmp(argv[0], "quit") == 0)
 			break;
-		
+
 		if (strcmp(argv[0], "verbose") == 0) {
 			ka->ka_verbose = 1;
 			continue;
 		}
-		
+
 		if (strcmp(argv[0], "!verbose") == 0) {
 			ka->ka_verbose = 0;
 			continue;
@@ -355,7 +367,7 @@ kctl_interactive(struct kargs *ka)
 		for(i=0; i<KCTL_EOT; i++) {
 			if (ktable[i].ktab_cmd == KCTL_EOT)
 				break;
-		
+
 			if (strcmp(ktable[i].ktab_cmdstr, ka->ka_cmdstr) == 0) {
 				// Found a good command
 				kargs.ka_cmd = ktable[i].ktab_cmd;
@@ -375,12 +387,12 @@ kctl_interactive(struct kargs *ka)
 		free(sline);
 		free(hline);
 	}
-	
+
 	if (ka->ka_verbose)
 		printf("\nkctl exiting\n");
 
 	ki_close(ktd);
-	
+
 	return rc;
 }
 
