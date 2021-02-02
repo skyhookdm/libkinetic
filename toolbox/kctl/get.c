@@ -188,31 +188,34 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	// ------------------------------
 	// Print key name
-	printf("Key(");
-	if (adump) {
-		asciidump(pkv->kv_key[0].kiov_base, pkv->kv_key[0].kiov_len);
-	}
+	if (!ka->ka_quiet) {
+		printf("Key(");
+		if (adump) {
+			asciidump(pkv->kv_key[0].kiov_base,
+				  pkv->kv_key[0].kiov_len);
+		}
 
-	else if (hdump) {
-		printf("\n");
-		hexdump(pkv->kv_key[0].kiov_base, pkv->kv_key[0].kiov_len);
-	}
+		else if (hdump) {
+			printf("\n");
+			hexdump(pkv->kv_key[0].kiov_base,
+				pkv->kv_key[0].kiov_len);
+		} else {
+			/* add null byte to print as a string */
+			rkey = strndup((char *) pkv->kv_key[0].kiov_base,
+				       pkv->kv_key[0].kiov_len);
 
-	else {
-		/* add null byte to print as a string */
-		rkey = strndup(
-			(char *) pkv->kv_key[0].kiov_base,
-			         pkv->kv_key[0].kiov_len
-		);
-
-		printf("%s", rkey);
-		free(rkey);
+			printf("%s", rkey);
+			free(rkey);
+		}
+		printf(")\n");
 	}
-	printf("): ");
 
 	// ------------------------------
 	// Print key version
 	if (ka->ka_cmd == KCTL_GETVERS) {
+		if (!ka->ka_quiet) {
+			printf("Version: ");
+		}
 		printf("%s\n", (pkv->kv_ver ? (char *) pkv->kv_ver : "N/A"));
 
 		kctl_status = (-1);
@@ -221,26 +224,23 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	// ------------------------------
 	// Print key length
-	printf("\nLength: %lu\n", pkv->kv_val[0].kiov_len);
+	if (!ka->ka_quiet) {
+		printf("\nLength: %lu\n", pkv->kv_val[0].kiov_len);
+	}
+
 	if (adump) {
 		asciidump(pkv->kv_val[0].kiov_base, pkv->kv_val[0].kiov_len);
-	}
-
-	else if (hdump) {
+	} else if (hdump) {
 		hexdump(pkv->kv_val[0].kiov_base, pkv->kv_val[0].kiov_len);
+	} else {
+		/* raw */
+		write(fileno(stdout),
+		      pkv->kv_val[0].kiov_base, pkv->kv_val[0].kiov_len);
 	}
 
-	else {
-		char *val_with_null = strndup(
-			 (char *) pkv->kv_val[0].kiov_base
-			,         pkv->kv_val[0].kiov_len
-		);
-
-		printf("%s", val_with_null);
-		free(val_with_null);
+	if (!ka->ka_quiet) {
+		printf("\n");
 	}
-
-	printf("\n");
 
  kctl_gex:
 

@@ -132,19 +132,19 @@ ktli_open(enum ktli_driver_id did,
 	cq = (struct ktli_queue *)KTLI_MALLOC(sizeof(struct ktli_queue));
 
 	if (sq) {
-		sq->ktq_list = list_init();
+		sq->ktq_list = list_create();
 		pthread_mutex_init(&sq->ktq_m, NULL);
 		pthread_cond_init(&sq->ktq_cv, NULL);
 	}
 
 	if (rq) {
-		rq->ktq_list = list_init();
+		rq->ktq_list = list_create();
 		pthread_mutex_init(&rq->ktq_m, NULL);
 		pthread_cond_init(&rq->ktq_cv, NULL);
 	}
 
 	if (cq) {
-		cq->ktq_list = list_init();
+		cq->ktq_list = list_create();
 		pthread_mutex_init(&cq->ktq_m, NULL);
 		pthread_cond_init(&cq->ktq_cv, NULL );
 	}
@@ -152,9 +152,12 @@ ktli_open(enum ktli_driver_id did,
 	if (!kts || !sq || !rq || !cq ||
 	    !sq->ktq_list || !rq->ktq_list || !cq->ktq_list) {
 		/* undo any successful allocations */
-		(void)(sq->ktq_list?list_free(sq->ktq_list, LIST_NODEALLOC):0);
-		(void)(rq->ktq_list?list_free(rq->ktq_list, LIST_NODEALLOC):0);
-		(void)(cq->ktq_list?list_free(cq->ktq_list, LIST_NODEALLOC):0);
+		(void)(sq->ktq_list?
+		       list_destroy(sq->ktq_list, (void *)LIST_NODEALLOC):0);
+		(void)(rq->ktq_list?
+		       list_destroy(rq->ktq_list, (void *)LIST_NODEALLOC):0);
+		(void)(cq->ktq_list?
+		       list_destroy(cq->ktq_list, (void *)LIST_NODEALLOC):0);
 		(void)(sq?KTLI_FREE(sq):0);
 		(void)(rq?KTLI_FREE(rq):0);
 		(void)(cq?KTLI_FREE(cq):0);
@@ -225,9 +228,9 @@ ktli_open(enum ktli_driver_id did,
 
  open_err:
 	/* free the list, no elements yet so set LIST_NODEALLOC */
-	list_free(sq->ktq_list, LIST_NODEALLOC);
-	list_free(rq->ktq_list, LIST_NODEALLOC);
-	list_free(cq->ktq_list, LIST_NODEALLOC);
+	list_destroy(sq->ktq_list, (void *)LIST_NODEALLOC);
+	list_destroy(rq->ktq_list, (void *)LIST_NODEALLOC);
+	list_destroy(cq->ktq_list, (void *)LIST_NODEALLOC);
 	KTLI_FREE(sq);
 	KTLI_FREE(rq);
 	KTLI_FREE(cq);
@@ -341,7 +344,7 @@ ktli_close(int kts)
 	}
 
 	/* free the list and the queue */
-	list_free(q->ktq_list, LIST_NODEALLOC);
+	list_destroy(q->ktq_list, (void *)LIST_NODEALLOC);
 	KTLI_FREE(q);
 
 	/* close down the receiver thread */
@@ -363,7 +366,7 @@ ktli_close(int kts)
 	}
 
 	/* free the list and the queue */
-	list_free(q->ktq_list, LIST_NODEALLOC);
+	list_destroy(q->ktq_list, (void *)LIST_NODEALLOC);
 	KTLI_FREE(q);
 
 	/* Free up the completion queue */
@@ -376,7 +379,7 @@ ktli_close(int kts)
 	}
 
 	/* free the list and the queue */
-	list_free(q->ktq_list, LIST_NODEALLOC);
+	list_destroy(q->ktq_list, (void *)LIST_NODEALLOC);
 	KTLI_FREE(q);
 
 	/*
@@ -584,12 +587,14 @@ ktli_send(int kts, struct kio *kio)
 
 	/* queue it on the end */
 	(void)list_mvrear(sq->ktq_list);
-	if (!list_insert_after(sq->ktq_list,
-			       (char *)&kio, sizeof(struct kio *))) {
+	if (!list_insert_after(sq->ktq_list, &kio, sizeof(struct kio *))) {
 		errno = ENOMEM;
 		pthread_mutex_unlock(&sq->ktq_m);
 		return(-1);
 	}
+
+	/* preserve the Q back pointer  */
+	kio->kio_qbp = list_element_curr(sq->ktq_list);
 
 	/* wake up the sender */
 	pthread_cond_signal(&sq->ktq_cv);
@@ -601,32 +606,34 @@ ktli_send(int kts, struct kio *kio)
 
 /*
  * List helper function to find a matching kio given a seq number
- * Return 0 for true or a match
+ * If no match return LIST_TRUE to continue searching
+ * Once a match is found return FALSE to terminate search 
  */
-static int
-ktli_kiomatch(char *data, char *ldata)
+static list_boolean_t
+ktli_kiomatch(void *data, void *ldata)
 {
-	int match = -1;
+	list_boolean_t match = LIST_TRUE;
 	struct kio *kio = (struct kio *)data;
 	struct kio *lkio = *(struct kio **)ldata;
 
 	if (kio == lkio)
-		match = 0;
+		match = LIST_FALSE;  /* See comment above */
 	return (match);
 }
 
 /*
  * List helper function to find a kio with no req sendmsg
- * Return 0 for true or a match
+ * If no match return LIST_TRUE to continue searching
+ * Once a match is found return FALSE to terminate search 
  */
-static int
-ktli_kionoreq(char *data, char *ldata)
+static list_boolean_t
+ktli_kionoreq(void *data, void *ldata)
 {
-	int match = -1;
+	list_boolean_t match = LIST_TRUE;
 	struct kio *lkio = *(struct kio **)ldata;
 
 	if (lkio->kio_sendmsg.km_cnt == 0) /* sendmsg vector - no req */
-		match = 0;
+		match = LIST_FALSE;  /* See comment above */
 	return (match);
 }
 
@@ -680,8 +687,35 @@ ktli_receive(int kts, struct kio *kio)
 
 	pthread_mutex_lock(&cq->ktq_m);
 
+	/*
+	 * if the KIO has been received than the KIO has a back pointer
+	 * into the CQ. So set the CQ curr to that back pointer and pop
+	 * it off the list.
+	 */
+	if (kio->kio_state == KIO_RECEIVED) {
+		/*
+		 * check for a NULL as a safety check that the back pointer
+		 * is valid for the CQ
+		 */
+		if (list_setcurr(cq->ktq_list, kio->kio_qbp)) {
+			lkio = (struct kio **)list_remove_curr(cq->ktq_list);
+			assert(kio == *lkio);
+			KTLI_FREE(lkio);
+			rc = 0;
+
+			kio->kio_qbp = NULL; /* no longer on a q */
+		} else {
+			/* Getting here is a bug */
+			assert(0);
+		}
+	} else {
+		errno = ENOENT;
+		rc = -1;
+	}
+
+#if 0
 	/* list_traverse defaults to starting the traverse at the front */
-	rc = list_traverse(cq->ktq_list, (char *)kio, ktli_kiomatch, LIST_ALTR);
+	rc = list_traverse(cq->ktq_list, kio, ktli_kiomatch, LIST_ALTR);
 	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 		errno = ENOENT;
 		rc = -1;
@@ -692,6 +726,7 @@ ktli_receive(int kts, struct kio *kio)
 		KTLI_FREE(lkio);
 		rc = 0;
 	}
+#endif
 
 	if (kio->kio_state == KIO_FAILED ||
 	    kio->kio_state == KIO_TIMEOUT) {
@@ -754,7 +789,7 @@ ktli_receive_unsolicited(int kts, struct kio **kio)
 	pthread_mutex_lock(&cq->ktq_m);
 
 	/* list_traverse defaults to starting the traverse at the front */
-	rc = list_traverse(cq->ktq_list, (char *)kio, ktli_kionoreq, LIST_ALTR);
+	rc = list_traverse(cq->ktq_list, kio, ktli_kionoreq, LIST_ALTR);
 	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 		errno = ENOENT;
 		rc = -1;
@@ -764,6 +799,8 @@ ktli_receive_unsolicited(int kts, struct kio **kio)
 		*kio = *lkio;
 		KTLI_FREE(lkio);
 		rc = 0;
+
+		(*kio)->kio_qbp = NULL;  /* No longer on a Q */
 	}
 	/* leave the list ready for an insert */
 	(void)list_mvrear(cq->ktq_list);
@@ -866,6 +903,8 @@ ktli_drain(int kts, struct kio **kio)
 			*kio = *lkio;
 			KTLI_FREE(lkio);
 			rc = 1;
+
+			(*kio)->kio_qbp = NULL; /* No longer on a Q */
 		}
 		pthread_mutex_unlock(&q->ktq_m);
 
@@ -880,7 +919,7 @@ ktli_drain(int kts, struct kio **kio)
 }
 
 /**
- * int ktli_drain_match(int kts, struct kio **kio)
+ * int ktli_drain_match(int kts, struct kio *kio)
  *
  * This function drains a draining session of queued kio's.
  * This must be done to successfully close a session.  Each call to drain
@@ -896,7 +935,7 @@ int
 ktli_drain_match(int kts, struct kio *kio)
 {
 	int rc, i;
-	int tqlen; /* sum of all q sizes */
+	uint32_t tqlen; /* sum of all q sizes */
 	enum ktli_sstate st;
 	struct kio **lkio;
 	struct ktli_queue *q;
@@ -932,7 +971,7 @@ ktli_drain_match(int kts, struct kio *kio)
 		pthread_mutex_lock(&q->ktq_m);
 
 		/* list_traverse defaults to starting at the front */
-		rc = list_traverse(q->ktq_list, (char *) kio, ktli_kiomatch, LIST_ALTR);
+		rc = list_traverse(q->ktq_list, kio, ktli_kiomatch, LIST_ALTR);
 
 		if (rc != LIST_EXTENT && rc != LIST_EMPTY) {
 			/* Found the requested kio */
@@ -940,6 +979,8 @@ ktli_drain_match(int kts, struct kio *kio)
 			assert(kio == *lkio);
 			KTLI_FREE(lkio);
 			rc = 0;
+
+			kio->kio_qbp = NULL; /* No longer on a Q */
 		}
 
 		tqlen += list_size(q->ktq_list);
@@ -1037,6 +1078,10 @@ ktli_sender(void *p)
 			lkio = (struct kio **)list_remove_front(sq->ktq_list);
 			kio = *lkio;
 			KTLI_FREE(lkio);
+
+			/* no longer on a Q, clear the Q back pointer  */
+			kio->kio_qbp = NULL;
+
 			pthread_mutex_unlock(&sq->ktq_m);
 
 			/* Use current session seq for this kio */
@@ -1059,11 +1104,13 @@ ktli_sender(void *p)
 			if (!KIOF_ISSET(kio, KIOF_REQONLY)) {
 				pthread_mutex_lock(&rq->ktq_m);
 				(void)list_mvrear(rq->ktq_list);
-				list_insert_before(rq->ktq_list,
-						   (char *)&kio,
-						   sizeof(struct kio *));
+				list_insert_after(rq->ktq_list,
+						   &kio, sizeof(struct kio *));
+				/* preserve the Q back pointer  */
+				kio->kio_qbp = list_element_curr(rq->ktq_list);
 				pthread_mutex_unlock(&rq->ktq_m);
 			}
+
 
 			/* Set timeout time */
 			clock_gettime(KIO_CLOCK, &kio->kio_timeout);
@@ -1101,16 +1148,27 @@ ktli_sender(void *p)
 					 * list_traverse defaults to starting
 					 * the traverse at the front */
 					pthread_mutex_lock(&rq->ktq_m);
+					(void)list_setcurr(rq->ktq_list,
+							   kio->kio_qbp);
+					lkio = (struct kio **)list_remove_curr(rq->ktq_list);
+					KTLI_FREE(lkio);
+
+					/* no longer on a Q,
+					   clear the Q back pointer  */
+					kio->kio_qbp = NULL;
+					
+#if 0
 					rc = list_traverse(rq->ktq_list,
-							   (char *)kio,
-							   ktli_kiomatch,
+							   kio, ktli_kiomatch,
 							   LIST_ALTR);
 					if (rc != LIST_EXTENT &&
 					    rc != LIST_EMPTY) {
 						/* Found the requested kio */
-						lkio = (struct kio **)list_remove_curr(cq->ktq_list);
+						lkio = (struct kio **)list_remove_curr(rq->ktq_list);
 						KTLI_FREE(lkio);
 					}
+#endif
+					
 					/* leave the list ready for an insert */
 					(void)list_mvrear(rq->ktq_list);
 					pthread_mutex_unlock(&rq->ktq_m);
@@ -1121,8 +1179,12 @@ ktli_sender(void *p)
 				 */
 				pthread_mutex_lock(&cq->ktq_m);
 				(void)list_mvrear(cq->ktq_list);
-				list_insert_before(cq->ktq_list,
-					   (char *)&kio, sizeof(struct kio *));
+				list_insert_after(cq->ktq_list,
+						  &kio, sizeof(struct kio *));
+
+				/* preserve the Q back pointer  */
+				kio->kio_qbp = list_element_curr(cq->ktq_list);
+
 				pthread_cond_broadcast(&cq->ktq_cv);
 				pthread_mutex_unlock(&cq->ktq_m);
 
@@ -1145,12 +1207,13 @@ ktli_sender(void *p)
 
 /*
  * List helper function to find a kio that should be timed out
- * Return 0 for true or a KIO that should be exited.
+ * If no match, return LIST_TRUE to continue searching
+ * Once a match is found return FALSE to terminate search
  */
-static int
-ktli_timechk(char *data, char *ldata)
+static list_boolean_t
+ktli_timechk(void *data, void *ldata)
 {
-	int match = -1;
+	list_boolean_t match = LIST_TRUE;
 	struct timespec *currtime = (struct timespec *)data;
 	struct kio *lkio = *(struct kio **)ldata;
 
@@ -1160,24 +1223,25 @@ ktli_timechk(char *data, char *ldata)
 	 * wait time
 	 */
 	if (currtime->tv_sec > lkio->kio_timeout.tv_sec) {
-		match = 0;
+		match = LIST_FALSE;  /* See comment above */
 	}
 	return (match);
 }
 
 /*
  * List helper function to find a matching kio given a seq number
- * Return 0 for true or a match
+ * If no match, return LIST_TRUE to continue searching
+ * Once a match is found return FALSE to terminate search
  */
-static int
-ktli_seqmatch(char *data, char *ldata)
+static list_boolean_t
+ktli_seqmatch(void *data, void *ldata)
 {
-	int match = -1;
+	list_boolean_t match = LIST_TRUE;
 	int64_t *aseq = (int64_t *)data;
 	struct kio *lkio = *(struct kio **)ldata;
 
 	if (*aseq == lkio->kio_seq)
-		match = 0;
+		match = LIST_FALSE;  /* See comment above */
 	return (match);
 }
 
@@ -1302,8 +1366,7 @@ ktli_recvmsg(int kts)
 
 	/* search through the recvq, need the mutex */
 	pthread_mutex_lock(&rq->ktq_m);
-	rc = list_traverse(rq->ktq_list,
-			   (char *)&aseq, ktli_seqmatch, LIST_ALTR);
+	rc = list_traverse(rq->ktq_list, &aseq, ktli_seqmatch, LIST_ALTR);
 
 	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 		/*
@@ -1327,6 +1390,9 @@ ktli_recvmsg(int kts)
 		lkio = (struct kio **) list_remove_curr(rq->ktq_list);
 		kio  = *lkio;
 		KTLI_FREE(lkio);
+
+		/* Not on a Q, clear the back pointer */
+		kio->kio_qbp = NULL;
 	}
 
 	(void)list_mvrear(rq->ktq_list); /* reset to rear after traverse */
@@ -1349,7 +1415,10 @@ ktli_recvmsg(int kts)
 	/* Add to completion queue */
 	pthread_mutex_lock(&cq->ktq_m);
 	(void)list_mvrear(cq->ktq_list);
-	list_insert_before(cq->ktq_list, (char *) &kio, sizeof(struct kio *));
+	list_insert_after(cq->ktq_list, &kio, sizeof(struct kio *));
+
+	/* preserve the Q back pointer  */
+	kio->kio_qbp = list_element_curr(cq->ktq_list);
 
 	/* Let everyone know there is a new completed  kio */
 	pthread_cond_broadcast(&cq->ktq_cv);
@@ -1387,10 +1456,15 @@ ktli_recvmsg(int kts)
 		kio = *lkio;
 		KTLI_FREE(lkio); /* created by the list */
 
+		/* Not on a Q, clear the back pointer */
+		kio->kio_qbp = NULL;
+
 		kio->kio_state = KIO_FAILED;
 		kio->kio_errno = ECONNABORTED;
-		list_insert_before(cq->ktq_list, (char *)&kio,
-				   sizeof(struct kio *));
+		list_insert_after(cq->ktq_list, &kio, sizeof(struct kio *));
+
+		/* preserve the Q back pointer  */
+		kio->kio_qbp = list_element_curr(cq->ktq_list);
 	}
 
 	while (list_size(sq->ktq_list)) {
@@ -1398,10 +1472,15 @@ ktli_recvmsg(int kts)
 		kio = *lkio;
 		KTLI_FREE(lkio); /* created by the list */
 
+		/* Not on a Q, clear the back pointer */
+		kio->kio_qbp = NULL;
+
 		kio->kio_state = KIO_FAILED;
 		kio->kio_errno = ECONNABORTED;
-		list_insert_before(cq->ktq_list, (char *)&kio,
-				   sizeof(struct kio *));
+		list_insert_after(cq->ktq_list, &kio, sizeof(struct kio *));
+
+		/* preserve the Q back pointer  */
+		kio->kio_qbp = list_element_curr(cq->ktq_list);
 	}
 
 	/* notify anyone sleeping on the completion queue */
@@ -1523,7 +1602,7 @@ ktli_receiver(void *p)
 		 * Traverse defaults to starting at the front. Use LIST_ALTR
 		 * so that curr points to matched KIO if any.
 		 */
-		rc = list_traverse(rq->ktq_list, (char *)&currtime,
+		rc = list_traverse(rq->ktq_list, &currtime,
 				   ktli_timechk, LIST_ALTR);
 		while (rc == LIST_OK) {
 			if (rc != LIST_EXTENT && rc != LIST_EMPTY) {
@@ -1537,6 +1616,9 @@ ktli_receiver(void *p)
 				kio->kio_state = KIO_TIMEOUT;
 				kio->kio_errno = ETIMEDOUT;
 
+				/* Not on a Q, clear the back pointer */
+				kio->kio_qbp = NULL;
+
 				debug_printf("KIO Timeout seq: %d\n",
 					     kio->kio_seq);
 
@@ -1548,15 +1630,18 @@ ktli_receiver(void *p)
 				pthread_mutex_lock(&cq->ktq_m);
 				(void)list_mvrear(cq->ktq_list);
 
-				list_insert_before(cq->ktq_list, (char *)&kio,
-						   sizeof(struct kio *));
+				list_insert_after(cq->ktq_list, &kio,
+						  sizeof(struct kio *));
+
+				/* preserve the Q back pointer  */
+				kio->kio_qbp = list_element_curr(cq->ktq_list);
+
 				pthread_cond_broadcast(&cq->ktq_cv);
 				pthread_mutex_unlock(&cq->ktq_m);
 
 				/* Continue the search at the curr list ptr */
 				rc = list_traverse(rq->ktq_list,
-						   (char *)&currtime,
-						   ktli_timechk,
+						   &currtime, ktli_timechk,
 						   (LIST_CURR|LIST_ALTR));
 			}
 		}

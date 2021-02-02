@@ -142,7 +142,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 		(*kb)->kb_ktd   = ktd;
 		(*kb)->kb_bid   = bid;
-		(*kb)->kb_seqs  = list_init();
+		(*kb)->kb_seqs  = list_create();
 		(*kb)->kb_ops   = 0;
 		(*kb)->kb_dels  = 0;
 		(*kb)->kb_bytes = 0;
@@ -194,7 +194,8 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 	kmreq = create_batch_message(&msg_hdr, &cmd_hdr, (*kb)->kb_ops);
 	if (kmreq.result_code == FAILURE) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "batch: request");
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ,
+				  "batch: request");
 		goto bex_req;
 	}
 
@@ -264,7 +265,8 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 			// PAK: need to exit, receive failed
 			else {
-				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG, "batch: recvmsg");
+				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG,
+						  "batch: recvmsg");
 				goto bex_sendmsg;
 			}
 		}
@@ -276,7 +278,8 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU, "batch: extract PDU");
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU,
+				  "batch: extract PDU");
 		goto bex_recvmsg;
 	}
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
@@ -284,14 +287,16 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	/* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN, "batch: parse pdu");
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN,
+				  "batch: parse pdu");
 		goto bex_recvmsg;
 	}
 
 	/* Now unpack the message */
 	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "batch: unpack msg");
+		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK,
+				  "batch: unpack msg");
 		goto bex_resp;
 	}
 
@@ -339,12 +344,13 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 		// Did not get an acknowledged op seq for an op seq in our list
 		if (list_size((*kb)->kb_seqs)) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: unacknowledged seq");
+			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH,
+					  "batch: unacknowledged seq");
 		}
  // label for cleaning up batch data *in case KMT_ENDBAT*
  bex_endbat:
 #endif
-		list_free((*kb)->kb_seqs, NULL);
+		list_destroy((*kb)->kb_seqs, NULL);
 		pthread_mutex_unlock(&(*kb)->kb_m);
 		pthread_mutex_destroy(&(*kb)->kb_m);
 		break;
@@ -434,10 +440,10 @@ b_batch_addop(kb_t *kb, kcmdhdr_t *kc)
 }
 
 /**
- * ki_batchcreate(int ktd)
+ * ki_batchstart(int ktd)
  */
 kbatch_t *
-ki_batchcreate(int ktd)
+ki_batchstart(int ktd)
 {
 	kb_t *kb;
 

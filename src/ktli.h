@@ -180,13 +180,15 @@ struct ktli_config {
 /**
  * ktli session helper functions and data.
  * The helper functions and data provide enough session info to abstract the 
- * ktli layer from the the kinetic protocol structure.	To accomplish this a 
- * session must be preconfigured with 3 functions and 1 piece of data:
+ * ktli layer from the kinetic protocol structure. To accomplish this a
+ * session must be preconfigured with 4 functions and 1 piece of data:
  *	o a header(PDU) length that informs the minimum receive 
  *	o a function that sets the seqence number in an outbound request
  *	o a function that gets the ackSequence number from an inbound response
- *	o a function, that given a header buffer, returns the expected response 
- *	  length
+ *	o a function that given a header buffer, returns the expected
+ *	  message length
+ *	o a function that given a header buffer, returns the expected
+ *	  value length
  */
 struct ktli_helpers {
 	/* houses min recv necessary to determine full message length */

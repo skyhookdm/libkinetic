@@ -27,7 +27,7 @@ kctl_batch_usage(struct kargs *ka)
 }
 
 /**
- *  Issue either the batchcreate or batchend command 
+ *  Issue either the batchstart or batchend command
  */
 int
 kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
@@ -90,7 +90,7 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 	}
 
 	if (start) {
-		ka->ka_batch = ki_batchcreate(kts);
+		ka->ka_batch = ki_batchstart(kts);
 		if (!ka->ka_batch) {
 			printf("Batch start failed\n");
 			return(-1);

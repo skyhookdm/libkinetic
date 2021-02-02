@@ -39,7 +39,7 @@ enum kio_flags {
  * a timeout mechanism is implemented.  Prior to sending the req, the current
  * time is read, a timeout is calculated into the future by adding
  * KIO_TIMEOUT_S to it. This timeout is set on the KIO.  The receive loop
- * then scans for KIOs who timeout value is older than the current time. Those
+ * then scans for KIOs who's timeout value is older than the current time. Those
  * KIOs are marked as timedout and moved to the completeion Q.
  *
  * This is the number of seconds to wait for a response
@@ -64,26 +64,28 @@ enum kio_flags {
  * checked by the receiver thread.
  */
 struct kio {
-	uint32_t kio_cmd;		/* kinetic cmd: get, put, getlog, etc
+	uint32_t	kio_cmd;	/* kinetic cmd: get, put, getlog, etc
 					   for debugging only */
-	int64_t kio_seq;		/* kinetic sequence */
+	int64_t		kio_seq;	/* kinetic sequence */
 
-	uint32_t kio_flags;		/* Flags modifying KIO behavior */
-	enum kio_state kio_state;	/* Internal status of the KIO */
-	int kio_errno;			/* Errno for entire KIO */
+	uint32_t	kio_flags;	/* Flags modifying KIO behavior */
+	enum kio_state	kio_state;	/* Internal status of the KIO */
+	int		kio_errno;	/* Errno for entire KIO */
 
-	struct kio_msg kio_sendmsg;	/* fully allocated and populated
+	struct kio_msg	kio_sendmsg;	/* fully allocated and populated
 					   msg buffers for send */
 
-	struct kio_msg kio_recvmsg;	/* passed in empty to be filled
+	struct kio_msg	kio_recvmsg;	/* passed in empty to be filled
 					   by the receive code. Caller
 					   responsible to free msg buffers
 					   within. */
 
-	struct timespec	 kio_timeout;	/* Timestamp when msg should be failed */
+	struct timespec	kio_timeout;	/* Timestamp when msg should be failed*/
+
+	void 		*kio_qbp;	/* Queue element back pointer */ 
 
 	/* Unused so far */
-	void *kio_ccontext;		/* caller context */
+	void 		*kio_ccontext;	/* caller context */
 };
 
 

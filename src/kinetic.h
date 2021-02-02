@@ -61,7 +61,7 @@ kstatus_t      ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
 kstatus_t      ki_del(int ktd, kbatch_t *kb, kv_t *key);
 kstatus_t      ki_cad(int ktd, kbatch_t *kb, kv_t *key);
 
-kbatch_t      *ki_batchcreate(int ktd);
+kbatch_t      *ki_batchstart(int ktd);
 kstatus_t      ki_batchend(int ktd, kbatch_t *kb);
 
 kstatus_t      ki_get(int ktd, kv_t *key);
