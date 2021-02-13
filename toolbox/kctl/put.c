@@ -61,7 +61,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	char		newver[VERLEN]; 	// holds hex representation of
 						// one int: "0x00000000"
 	kcachepolicy_t	cpolicy = KC_WB;
-	kv_t		kv;
+	kv_t		*kv;
 	struct kiovec	kv_key[1]  = {0, 0};
 	struct kiovec	kv_val[1]  = {0, 0};
 	kstatus_t 	kstatus;
@@ -232,11 +232,15 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 
 	/* Init kv */
-	memset(&kv, 0, sizeof(kv_t));
-	kv.kv_key    = kv_key;
-	kv.kv_keycnt = 1;
-	kv.kv_val    = kv_val;
-	kv.kv_valcnt = 1;
+	if (!(kv = ki_create(ktd, KV_T))) {
+		fprintf(stderr, "*** Memory Failure\n");
+		return (-1);
+	}
+
+	kv->kv_key    = kv_key;
+	kv->kv_keycnt = 1;
+	kv->kv_val    = kv_val;
+	kv->kv_valcnt = 1;
 	
 	/*
 	 * Check and hang the key
@@ -247,14 +251,14 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		return(-1);
 	}
  
-	kv.kv_key[0].kiov_base = ka->ka_key;
-	kv.kv_key[0].kiov_len  = ka->ka_keylen;
+	kv->kv_key[0].kiov_base = ka->ka_key;
+	kv->kv_key[0].kiov_len  = ka->ka_keylen;
 
 	/* Get the key's version if it exists and then increment the version */
-	kstatus = ki_getversion(ktd, &kv);
+	kstatus = ki_getversion(ktd, kv);
  	if(kstatus.ks_code == K_OK) {
 		unsigned long nv;
-		nv = strtoul(kv.kv_ver, NULL, 16) + 1; /* increment the vers */
+		nv = strtoul(kv->kv_ver, NULL, 16) + 1; /* increment the vers */
 		sprintf(newver, "0x%08x", (unsigned int)nv);
 		exists = 1;
 	} else { 
@@ -265,31 +269,31 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		sprintf(newver, "0x%08x", 0);
 	}
 	
-	kv.kv_newver = newver;
-	kv.kv_newverlen = VERLEN;
-	kv.kv_disum = &sum;
-	kv.kv_disumlen = sizeof(sum);
-	kv.kv_ditype = KDI_CRC32;
-	kv.kv_cpolicy = cpolicy;
+	kv->kv_newver = newver;
+	kv->kv_newverlen = VERLEN;
+	kv->kv_disum = &sum;
+	kv->kv_disumlen = sizeof(sum);
+	kv->kv_ditype = KDI_CRC32;
+	kv->kv_cpolicy = cpolicy;
 
 	/* Hang the value */
-	kv.kv_val[0].kiov_base = ka->ka_val;
-	kv.kv_val[0].kiov_len  = ka->ka_vallen;
+	kv->kv_val[0].kiov_base = ka->ka_val;
+	kv->kv_val[0].kiov_len  = ka->ka_vallen;
 
 	if (ka->ka_verbose) {
 		printf("Compare & Swap:  %s\n", cmpswp?"Enabled":"Disabled");
-		printf("Version:         %s\n", exists?(char *)kv.kv_ver:"");
-		printf("New Version:     %s\n", (char *)kv.kv_newver);
-		printf("DI Sum:          %08x\n", *(uint32_t *)kv.kv_disum);
+		printf("Version:         %s\n", exists?(char *)kv->kv_ver:"");
+		printf("New Version:     %s\n", (char *)kv->kv_newver);
+		printf("DI Sum:          %08x\n", *(uint32_t *)kv->kv_disum);
 		printf("DI Type:         CRC32\n");
 		printf("Cache Policy:    %s\n", 
-		       ki_cpolicy_label[kv.kv_cpolicy]);
+		       ki_cpolicy_label[kv->kv_cpolicy]);
 	}
 	
         if (cmpswp)
-		kstatus = ki_cas(ktd, (bat?ka->ka_batch:NULL), &kv);
+		kstatus = ki_cas(ktd, (bat?ka->ka_batch:NULL), kv);
 	else
-		kstatus = ki_put(ktd, (bat?ka->ka_batch:NULL), &kv);
+		kstatus = ki_put(ktd, (bat?ka->ka_batch:NULL), kv);
 	
 	if (kstatus.ks_code != K_OK) {
 		fprintf(stderr, "%s: %s: %s: %s\n",
@@ -299,6 +303,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		return(-1);
 	}
 
+	ki_destroy(kv);
 	return(0);
 }
 

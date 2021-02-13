@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC and/or its Affliates
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #ifndef _KINETIC_INT_H
 #define _KINETIC_INT_H
 
@@ -26,68 +41,68 @@
 
 /* - From protobuf structs to custom structs - */
 // extract primitive, optional fields
-#define extract_primitive_optional(lvar, proto_struct, field) { \
-	if ((proto_struct)->has_##field) {                          \
-		lvar = (proto_struct)->field;                           \
-	}                                                           \
+#define extract_primitive_optional(lvar, proto_struct, field) {		\
+	if ((proto_struct)->has_##field) {				\
+		lvar = (proto_struct)->field;				\
+	}								\
 }
 
 // extract bytes (ProtobufCBinaryData) to char * with size
-#define extract_bytes_optional(lptr, lsize, proto_struct, field) { \
-	if ((proto_struct)->has_##field) {                             \
-		lptr  = (proto_struct)->field.data;                        \
-		lsize = (proto_struct)->field.len;                         \
-	}                                                              \
+#define extract_bytes_optional(lptr, lsize, proto_struct, field) {	\
+	if ((proto_struct)->has_##field) {				\
+		lptr  = (proto_struct)->field.data;			\
+		lsize = (proto_struct)->field.len;			\
+	}								\
 }
 
 // extract bytes (ProtobufCBinaryData) to char * (null-terminated string)
-#define copy_bytes_optional(lptr, proto_struct, field) {   \
-	if ((proto_struct)->has_##field) {                     \
-		lptr = (char *) KI_MALLOC(                         \
-			sizeof(char) * ((proto_struct)->field.len + 1) \
-		);                                                 \
-                                                           \
-		if (lptr != NULL) {                                \
-			memcpy(                                        \
-				lptr,                                      \
-				(proto_struct)->field.data,                \
-				(proto_struct)->field.len                  \
-			);                                             \
-														   \
-			lptr[(proto_struct)->field.len] = '\0';        \
-		}                                                  \
-	}                                                      \
+#define copy_bytes_optional(lptr, proto_struct, field) {		\
+	if ((proto_struct)->has_##field) {				\
+		lptr = (char *) KI_MALLOC(				\
+			sizeof(char) * ((proto_struct)->field.len + 1)	\
+		);							\
+									\
+		if (lptr != NULL) {					\
+			memcpy(						\
+				lptr,					\
+				(proto_struct)->field.data,		\
+				(proto_struct)->field.len		\
+			);						\
+									\
+			lptr[(proto_struct)->field.len] = '\0';		\
+		}							\
+	}								\
 }
 
 /* - From custom structs to protobuf structs - */
 // set primitive, optional fields
-#define set_primitive_optional(proto_struct, field, rvar) { \
-	(proto_struct)->has_##field = 1;                        \
-	(proto_struct)->field       = rvar;                     \
+#define set_primitive_optional(proto_struct, field, rvar) {		\
+	(proto_struct)->has_##field = 1;				\
+	(proto_struct)->field       = rvar;				\
 }
 
 // set bytes (ProtobufCBinaryData) from char * with size
-#define set_bytes_optional(proto_struct, field, rptr, rsize) { \
-	(proto_struct)->has_##field = 1;                           \
-	(proto_struct)->field       = (ProtobufCBinaryData) {      \
-		.data = (uint8_t *) rptr,                              \
-		.len  =             rsize,                             \
-	};                                                         \
+#define set_bytes_optional(proto_struct, field, rptr, rsize) {		\
+	(proto_struct)->has_##field = 1;				\
+	(proto_struct)->field       = (ProtobufCBinaryData) {		\
+		.data = (uint8_t *) rptr,				\
+		.len  =             rsize,				\
+	};								\
 }
 
 // macro for constructing errors concisely
-#define kstatus_err(kerror_code, ki_errtype, kerror_detail) ( \
-	(kstatus_t) {                                             \
-		.ks_code    = (kerror_code)  ,                        \
-		.ks_message = (char *) (ki_error_msgs[(ki_errtype)]), \
-		.ks_detail  = (kerror_detail),                        \
-	}                                                         \
+#define kstatus_err(kerror_code, ki_errtype, kerror_detail) (		\
+	(kstatus_t) {							\
+		.ks_code    = (kerror_code),				\
+		.ks_message = (char *) (ki_error_msgs[(ki_errtype)]),	\
+		.ks_detail  = (kerror_detail),				\
+	}								\
 )
 
-#define protobuf_bytelen(proto_struct, field) ( \
-	(proto_struct)->has_##field ?               \
-		  (proto_struct)->field.len             \
-		: 0                                     \
+#define protobuf_bytelen(proto_struct, field) (				\
+	(proto_struct)->has_##field ?					\
+	(proto_struct)->field.len					\
+	: 0								\
 )
 
 
@@ -128,7 +143,8 @@ typedef struct kb {
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
 
-int ki_validate_kv(kv_t *kv, int force, klimits_t *lim);
+int ki_valid(void *p);
+int ki_validate_kv(kv_t *kv, int versck, klimits_t *lim);
 int ki_validate_range(krange_t *kr, klimits_t *lim);
 int ki_validate_glog(kgetlog_t *glrq);
 int ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp);

@@ -56,29 +56,51 @@
 int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac);
 int ki_close(int ktd);
 
-kstatus_t      ki_put(int ktd, kbatch_t *kb, kv_t *kv);
-kstatus_t      ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
-kstatus_t      ki_del(int ktd, kbatch_t *kb, kv_t *key);
-kstatus_t      ki_cad(int ktd, kbatch_t *kb, kv_t *key);
+// Kinetic Type Interfaces
+void *ki_create(int ktd, ktype_t kt);
+int   ki_clean(void *p);
+int   ki_destroy(void *p);
 
-kbatch_t      *ki_batchstart(int ktd);
-kstatus_t      ki_batchend(int ktd, kbatch_t *kb);
+// Kinetic synchronous I/O interfaces
+kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);
+kstatus_t ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
+kstatus_t ki_del(int ktd, kbatch_t *kb, kv_t *key);
+kstatus_t ki_cad(int ktd, kbatch_t *kb, kv_t *key);
 
-kstatus_t      ki_get(int ktd, kv_t *key);
-kstatus_t      ki_getnext(int ktd, kv_t *key, kv_t *next);
-kstatus_t      ki_getprev(int ktd, kv_t *key, kv_t *prev);
-kstatus_t      ki_getversion(int ktd, kv_t *key);
-kstatus_t      ki_range(int ktd, krange_t *kr);
-kstatus_t      ki_getlog(int ktd, kgetlog_t *glog);
+kstatus_t ki_get(int ktd, kv_t *key);
+kstatus_t ki_getnext(int ktd, kv_t *key, kv_t *next);
+kstatus_t ki_getprev(int ktd, kv_t *key, kv_t *prev);
+kstatus_t ki_getversion(int ktd, kv_t *key);
+kstatus_t ki_getrange(int ktd, krange_t *kr);
+kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
+kstatus_t ki_abortbatch(int ktd, kbatch_t *kb);
+kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
+
+// Kinetic asynchronous I/O interfaces
+kstatus_t ki_aio_put(int ktd, kv_t *kv,  void *cctx, kio_t **kio);
+kstatus_t ki_aio_cas(int ktd, kv_t *kv,  void *cctx, kio_t **kio);
+kstatus_t ki_aio_del(int ktd, kv_t *key, void *cctx, kio_t **kio);
+kstatus_t ki_aio_cad(int ktd, kv_t *key, void *cctx, kio_t **kio);
+
+kstatus_t ki_aio_get(int ktd, kv_t *key, void *cctx, kio_t **kio);
+kstatus_t ki_aio_getnext(int ktd, kv_t *key, kv_t *next,
+			 void *cctx, kio_t **kio);
+kstatus_t ki_aio_getprev(int ktd, kv_t *key, kv_t *prev,
+			 void *cctx, kio_t **kio);
+kstatus_t ki_aio_getversion(int ktd, kv_t *key, void *cctx, kio_t **kio);
+
+kstatus_t ki_aio_abortbatch(int ktd,  kbatch_t *kb, void *cctx, kio_t **kio);
+kstatus_t ki_aio_submitbatch(int ktd, kbatch_t *kb, void *cctx, kio_t **kio);
+
+kstatus_t ki_aio_complete(int ktd, kio_t *kio, void **cctx);
+int ki_poll(int ktd, int timeout);
 
 // ------------------------------
 // key iterator functions
-kiter_t       *ki_itercreate(int ktd);
-int            ki_iterfree(kiter_t *kit);
-int            ki_iterdone(kiter_t *kit);
-struct kiovec *ki_iterstart(kiter_t *kit, krange_t *kr);
-struct kiovec *ki_iternext(kiter_t *kit);
+struct kiovec *ki_start(kiter_t *kit, krange_t *kr);
+struct kiovec *ki_next(kiter_t *kit);
+int            ki_done(kiter_t *kit);
 
 
 // ------------------------------
@@ -88,17 +110,55 @@ struct kiovec *ki_iternext(kiter_t *kit);
 klimits_t      ki_limits(int ktd);
 kstatus_t      ki_setclustervers(int ktd, int64_t vers);
 
-// for key management
+// for key utilities/helpers
+
+/* 
+ * Create a new key vector from an existing buffer without copying it,
+ * keycnt=1 for returned vector 
+ */
 struct kiovec *ki_keycreate(void *keybuf, size_t keylen);
+
+/* 
+ * Destroy the provided key, frees both the key buffers(if any) 
+ * and key vector 
+*/
+void ki_keydestroy(struct kiovec *key, size_t keycnt);
+
+/* 
+ * Duplicate the key and vector structure, newkeycnt=keycnt for 
+ * returned vector
+ */
 struct kiovec *ki_keydup(struct kiovec *key, size_t keycnt);
+
+/*
+ * Duplicate the key flattening into a single vector element, newkeycnt=1 for 
+ * returned vector 
+ */
 struct kiovec *ki_keydupf(struct kiovec *key, size_t keycnt);
-struct kiovec *ki_keyprefix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen);
-struct kiovec *ki_keypostfix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen);
+
+/*
+ * Return a new key vector with the provided keybuf added as a 
+ * new vector element:
+ * 	o at location [0] for prepend
+ * 	o at location [keycnt] for append
+ * newkeycnt=keycnt++ for the returned vector. Original vector is invalid after 
+ * this call.  
+ */
+struct kiovec *ki_keyprepend(struct kiovec *key, size_t keycnt,
+			     void *keybuf, size_t keylen);
+struct kiovec *ki_keyappend(struct kiovec *key, size_t keycnt,
+			    void *keybuf, size_t keylen);
+
+/*
+ *  Return either a key that represents 
+ * 	o the very first, key = "\x00"
+ * 	o the last key for a given key size,  key = "\xFF...\xFF"
+ */
 struct kiovec *ki_keyfirst();
 struct kiovec *ki_keylast(size_t len);
 
 // for iterator management
-krange_t *ki_rangedup(krange_t *kr);
+krange_t *ki_rangedup(int ktd, krange_t *kr);
 
 // for checksum computation
 struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name);
@@ -111,7 +171,6 @@ struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *
 void free_cmdstatus(kstatus_t *cmd_status);
 
 // for keys
-int ki_keyfree(struct kiovec *key, size_t keycnt);
 int ki_rangefree(krange_t *kr);
 
 

@@ -10,7 +10,6 @@
 #include <pthread.h>
 #include <sys/types.h>
 
-#include "kinetic.h"
 #include "ktli.h"
 #include "ktli_session.h"
 
@@ -648,6 +647,8 @@ ktli_kionoreq(void *data, void *ldata)
  * @param kio A kio ptr. The completed queue is searched for the passed in kio
  *            if found, it is removed and success returned, failure otherwise.
  *
+ * Error means that the KIO was never found or possibly doesn't exist
+ * Success means that a KIO was located and removed from KTLI's control.
  */
 int
 ktli_receive(int kts, struct kio *kio)
@@ -657,6 +658,8 @@ ktli_receive(int kts, struct kio *kio)
 	struct ktli_queue *cq;
 	struct kio **lkio;
 
+	errno = 0;
+	
 	if (!kts_isvalid(kts)) {
 		errno = EBADF;
 		return(-1);
@@ -701,36 +704,26 @@ ktli_receive(int kts, struct kio *kio)
 			lkio = (struct kio **)list_remove_curr(cq->ktq_list);
 			assert(kio == *lkio);
 			KTLI_FREE(lkio);
-			rc = 0;
 
 			kio->kio_qbp = NULL; /* no longer on a q */
+
+			/* 
+			 * Could be receiving a KIO in any state:
+			 *	KIO_RECEIVED
+			 *	KIO_FAILED
+			 *	KIO_TIMEOUT
+			 * That is still a successful receive of a valid KIO. 
+			 * Caller can use KIO state to determine what to do.
+			 */
+			errno = kio->kio_errno;
+			rc = 0;
+
 		} else {
 			/* Getting here is a bug */
 			assert(0);
 		}
 	} else {
 		errno = ENOENT;
-		rc = -1;
-	}
-
-#if 0
-	/* list_traverse defaults to starting the traverse at the front */
-	rc = list_traverse(cq->ktq_list, kio, ktli_kiomatch, LIST_ALTR);
-	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
-		errno = ENOENT;
-		rc = -1;
-	} else {
-		/* Found the requested kio */
-		lkio = (struct kio **)list_remove_curr(cq->ktq_list);
-		assert(kio == *lkio);
-		KTLI_FREE(lkio);
-		rc = 0;
-	}
-#endif
-
-	if (kio->kio_state == KIO_FAILED ||
-	    kio->kio_state == KIO_TIMEOUT) {
-		errno = kio->kio_errno;
 		rc = -1;
 	}
 
@@ -823,16 +816,17 @@ ktli_receive_unsolicited(int kts, struct kio **kio)
  * becomes ready or until the session is disconnected.
  *
  * @param kts A connected kinetic session descriptor.
-
  *
- * PAK: timeout not implemented
-*/
+ * PAK: timeout not implemented, when implemented make sure to set
+ * errno = ETIMEDOUT
+ */
 int
 ktli_poll(int kts, int timeout)
 {
 	enum ktli_sstate st;
 	struct ktli_queue *cq;
 
+	errno = 0;
 	if (!kts_isvalid(kts)) {
 		errno = EBADF;
 		return(-1);
@@ -905,6 +899,8 @@ ktli_drain(int kts, struct kio **kio)
 			rc = 1;
 
 			(*kio)->kio_qbp = NULL; /* No longer on a Q */
+			(*kio)->kio_state = KIO_FAILED;
+
 		}
 		pthread_mutex_unlock(&q->ktq_m);
 
@@ -940,6 +936,8 @@ ktli_drain_match(int kts, struct kio *kio)
 	struct kio **lkio;
 	struct ktli_queue *q;
 
+	errno = 0;
+	
 	if (!kts_isvalid(kts)) {
 		errno = EBADF;
 		return(-1);
@@ -981,6 +979,7 @@ ktli_drain_match(int kts, struct kio *kio)
 			rc = 0;
 
 			kio->kio_qbp = NULL; /* No longer on a Q */
+			kio->kio_state = KIO_FAILED;
 		}
 
 		tqlen += list_size(q->ktq_list);
@@ -1538,6 +1537,7 @@ ktli_receiver(void *p)
 	do {
 
 #if 0
+		// See issue #33
 		pthread_mutex_lock(&rq->ktq_m);
 		pthread_cond_wait(&rq->ktq_cv, &rq->ktq_m);
 		pthread_mutex_unlock(&rq->ktq_m);

@@ -32,8 +32,8 @@
 
 /*
  * The kinetic iterator. 
- * An iterator must be created (ki_itercreate) before it can be used. Once 
- * created it can be used many times before it is destroyed (ki_iterdestroy). 
+ * An iterator must be created (ki_create) before it can be used. Once 
+ * created it can be used many times before it is destroyed (ki_destroy). 
  * Although a given iterator can be used many times, it can not be shared
  * and used simultaneously.
  *
@@ -62,25 +62,20 @@
  *	}
  */
 
-kiter_t *
-ki_itercreate(int ktd)
+/* This iscalled by ki_create to init the kiter */
+int
+i_iterinit(int ktd, kiter_t *kit)
 {
 	int rc;
-	kiter_t *kit;
 	ksession_t *ses;
 	struct ktli_config *cf;
 
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		return(NULL);
+		return(rc);
 	}
 	ses = (ksession_t *)cf->kcfg_pconf;
-
-	kit = (kiter_t *)KI_MALLOC(sizeof(kiter_t));
-	if (!kit) {
-		return(NULL);
-	}
 
 	kit->ki_ktd   = ktd;
 	kit->ki_range = NULL;
@@ -89,14 +84,18 @@ ki_itercreate(int ktd)
 	kit->ki_maxkeyreq = ses->ks_l.kl_rangekeycnt;
 	kit->ki_boundary = NULL;
 	
-	return(kit);
+	return(0);
 }
 
-int
-ki_iterfree(kiter_t *kit)
+/* this is called by ki_destroy */
+void
+i_iterdestroy(kiter_t *kit)
 {
+	krange_t * kr;
 	if (!kit)
-		return(0);
+		return;
+
+	kr = kit->ki_range;
 	
 	if (kit->ki_boundary) {
 		/* 
@@ -106,28 +105,30 @@ ki_iterfree(kiter_t *kit)
 		 * crossed. if its hit but never crosses we miss the free. 
 		 * handle it here. 
 		 */
-		ki_keyfree(kit->ki_boundary, 1);
+		ki_keydestroy(kit->ki_boundary, 1);
 	}
 
-	ki_rangefree(kit->ki_range);	
-	KI_FREE(kit);
-	return(0);
+	ki_keydestroy(kr->kr_keys,  kr->kr_keyscnt);
+	ki_keydestroy(kr->kr_start, kr->kr_startcnt);
+	ki_keydestroy(kr->kr_end,   kr->kr_endcnt);
+	ki_destroy(kr);	
+	return;
 }
 
 struct kiovec *
-ki_iterstart(kiter_t *kit, krange_t *kr)
+ki_start(kiter_t *kit, krange_t *kr)
 {
 	kstatus_t krc; 
 	if (!kit || !kr || !kr->kr_count)
 		return(NULL);
 
 	/* Cleanup the old range and boundary keys if any */
-	ki_rangefree(kit->ki_range);
-	ki_keyfree(kit->ki_boundary, 1);
+	ki_destroy(kit->ki_range);
+	ki_keydestroy(kit->ki_boundary, 1);
 	kit->ki_boundary = NULL;
 
 	/* Copy the passed in range */
-	kit->ki_range = ki_rangedup(kr);
+	kit->ki_range = ki_rangedup(kit->ki_ktd, kr);
 	if (!kit->ki_range)
 		return(NULL);
 
@@ -151,7 +152,7 @@ ki_iterstart(kiter_t *kit, krange_t *kr)
 	}
 
 	/* Load the first batch of keys */
-	krc = ki_range(kit->ki_ktd, kit->ki_range);
+	krc = ki_getrange(kit->ki_ktd, kit->ki_range);
 	if (krc.ks_code != (kstatus_code_t) K_OK)
 		return(NULL);
 
@@ -171,7 +172,7 @@ ki_iterstart(kiter_t *kit, krange_t *kr)
 }
 
 int
-ki_iterdone(kiter_t *kit)
+ki_done(kiter_t *kit)
 {
 	kstatus_t krc;
 	krange_t *kr;
@@ -203,7 +204,7 @@ ki_iterdone(kiter_t *kit)
 	 *
 	 *  Move last key in cache to new start key
 	 */
-	ki_keyfree(kr->kr_start,  kr->kr_startcnt);
+	ki_keydestroy(kr->kr_start,  kr->kr_startcnt);
 	kr->kr_start    = ki_keydupf(&kr->kr_keys[kit->ki_curr-1], 1);
 	kr->kr_startcnt = 1;
 
@@ -211,7 +212,7 @@ ki_iterdone(kiter_t *kit)
 	KR_FLAG_CLR(kr, KRF_ISTART);
 
 	/* Now that we have copied the last key, free the existing cache */
-	ki_keyfree(kr->kr_keys,  kr->kr_keyscnt);
+	ki_keydestroy(kr->kr_keys,  kr->kr_keyscnt);
 	kr->kr_keys    = NULL;
 	kr->kr_keyscnt = 0;
 
@@ -230,7 +231,7 @@ ki_iterdone(kiter_t *kit)
 	}
 
 	/* Load the next batch of keys */
-	krc = ki_range(kit->ki_ktd, kr);
+	krc = ki_getrange(kit->ki_ktd, kr);
 	if ((krc.ks_code != (kstatus_code_t) K_OK))
 		/* no more keys to get = done */
 		return(1);
@@ -245,7 +246,7 @@ ki_iterdone(kiter_t *kit)
 }
 
 struct kiovec *
-ki_iternext(kiter_t *kit)
+ki_next(kiter_t *kit)
 {
 	krange_t *kr;
 	
@@ -271,7 +272,7 @@ ki_iternext(kiter_t *kit)
 	 */
 	if ((kit->ki_curr == 0) && kit->ki_boundary) {
 		/* first key of a new batch, boundary key not needed */
-		ki_keyfree(kit->ki_boundary, 1);
+		ki_keydestroy(kit->ki_boundary, 1);
 		kit->ki_boundary = NULL;
 	}
 

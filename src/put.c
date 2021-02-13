@@ -38,7 +38,7 @@ struct kresult_message
 create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
 kstatus_t
-p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
+p_put_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 {
 	int rc, i;
 	kstatus_t krc;
@@ -60,8 +60,8 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 
 	ses = (ksession_t *) cf->kcfg_pconf;
 
-	/* Validate the passed in kv */
-	rc = ki_validate_kv(kv, force, &ses->ks_l);
+	/* Validate the passed in kv, if forcing a put do no verck */
+	rc = ki_validate_kv(kv, verck, &ses->ks_l);
 	if (rc < 0) { return kstatus_err(errno, KI_ERR_INVARGS,
 					 "put: validation"); }
 
@@ -100,8 +100,13 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	if (kb) {
 		cmd_hdr.kch_bid = kb->kb_bid;
 	}
-	
-	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, force);
+
+	/* 
+	 * Default put checks the version strings, if they don't match
+	 * put fails.  Forcing the put avoids the version check. So if 
+	 * checking the version, no forced put. If not, force it. 
+	 */
+	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, (verck?0:1));
 	if (kmreq.result_code == FAILURE) {
 		errno = K_EINTERNAL;
 		krc   = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ,
@@ -342,8 +347,8 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 kstatus_t
 ki_put(int ktd, kbatch_t *kb, kv_t *kv)
 {
-	int force;
-	return(p_put_generic(ktd, kv, (kb_t *)kb, force=1));
+	int verck;
+	return(p_put_generic(ktd, kv, (kb_t *)kb, verck=0));
 }
 
 /**
@@ -361,15 +366,15 @@ ki_put(int ktd, kbatch_t *kb, kv_t *kv)
  * CAS performs a compare and swap for the given key value. The key is only
  * put into the DB if kv_version matches the version in the DB. If there is
  * no match the operation fails with the error K_EVERSION.
- * Once the check is complete, the value specified by the given key,
+ * Once the version check is complete, the value specified by the given key,
  * data integrity value/type, and new version is put into the DB, using the
  * specified cache policy.
  */
 kstatus_t
 ki_cas(int ktd, kbatch_t *kb, kv_t *kv)
 {
-	int force;
-	return(p_put_generic(ktd, kv, (kb_t *)kb, force=0));
+	int verck;
+	return(p_put_generic(ktd, kv, (kb_t *)kb, verck=1));
 }
 
 /*

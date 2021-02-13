@@ -31,22 +31,21 @@
 #include "kinetic_internal.h"
 
 /**
- * ki_validate_kv(kv_t *kv, int force, limit_t *lim)
+ * ki_validate_kv(kv_t *kv, int verck, limit_t *lim)
  *
  *  kv		Always contains a key, but optionally may have a value
  *		However there must always value kiovec array of at least
  * 		element and should always be initialized. if unused,
  *		as in a get, kv_val[0].kiov_base=NULL and kv_val[0].kiov_len=0
- *  force	force is a flag used put's and del's, when set version
- * 		fields are ignored and therefore validating those fields
- * 		can be weaker. When cleared the version field must be set.
+ *  verck	ver is an optional field kv_t, but sometimes it is required.
+ * 		When verck is set the version field must be set.
  *  lim 	Contains server limits
  *
  * Validate that the user is passing a valid kv structure
  *
  */
 int
-ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
+ki_validate_kv(kv_t *kv, int verck, klimits_t *lim)
 {
 	// assume we will find a problem
 	errno = K_EINVAL;
@@ -54,9 +53,13 @@ ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
 	// Check the required key
 	if (!kv || !kv->kv_key || kv->kv_keycnt < 1) { return (-1); }
 
+	// Make sure it is a valid KTB
+	if (!ki_valid(kv)) { return (-1); }
+	
 	// Total up the length across all vectors
 	size_t total_keylen = 0;
-	for (size_t key_fragndx = 0; key_fragndx < kv->kv_keycnt; key_fragndx++) {
+	size_t key_fragndx = 0;
+	for (key_fragndx = 0; key_fragndx < kv->kv_keycnt; key_fragndx++) {
 		total_keylen += kv->kv_key[key_fragndx].kiov_len;
 	}
 
@@ -64,13 +67,15 @@ ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
 
 	/* Check the value vectors */
 	if (!kv->kv_val || kv->kv_valcnt < 1) {
-		debug_fprintf(stderr, "Key *Value* is none or has 0 fragments\n");
+		debug_fprintf(stderr,
+			      "Key *Value* is none or has 0 fragments\n");
 		return (-1);
 	}
 
 	/* Total up the length across all vectors */
 	size_t total_vallen = 0;
-	for (size_t val_fragndx = 0; val_fragndx < kv->kv_valcnt; val_fragndx++) {
+	size_t val_fragndx = 0;
+	for (val_fragndx = 0; val_fragndx < kv->kv_valcnt; val_fragndx++) {
 		total_vallen += kv->kv_val[val_fragndx].kiov_len;
 	}
 
@@ -87,28 +92,28 @@ ki_validate_kv(kv_t *kv, int force, klimits_t *lim)
 		return (-1);
 	}
 
-	/* Require the version if force is cleared, new version is optional */
-	if (!force && !kv->kv_ver) { return(-1); }
+	/* If verck, then ver must be set, new version is optional */
+	if (verck && !kv->kv_ver) { return(-1); }
 
-	/* Check the data integrity chksum */
-	if (kv->kv_disum &&
-	    ((kv->kv_disumlen < 1) || (kv->kv_disumlen > lim->kl_disumlen))) {
-		return(-1);
-	}
-
-	/* Check the data integrity type */
-	// To avoid a warning about 0 not being defined in kditype_t enum
-	if (kv->kv_ditype != (kditype_t) 0) {
+	/* Check the data integrity chksum fields */
+	if (kv->kv_disum) {
+		/* if there is a sum, make there is a length */
+		if ((kv->kv_disumlen < 1) ||
+		    (kv->kv_disumlen > lim->kl_disumlen)) {
+			return (-1);
+		}
+		
+		/* Check the data integrity type */
 		switch (kv->kv_ditype) {
-			case KDI_SHA1:
-			case KDI_SHA2:
-			case KDI_SHA3:
-			case KDI_CRC32C:
-			case KDI_CRC64:
-			case KDI_CRC32:
-				break;
-			default:
-				return (-1);
+		case KDI_SHA1:
+		case KDI_SHA2:
+		case KDI_SHA3:
+		case KDI_CRC32C:
+		case KDI_CRC64:
+		case KDI_CRC32:
+			break;
+		default:
+			return (-1);
 		}
 	}
 

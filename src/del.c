@@ -38,7 +38,7 @@ struct kresult_message
 create_delkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
 kstatus_t
-d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
+d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 {
 	int rc;                /* numeric return codes */
 	kstatus_t krc;            /* Holds kinetic return code and messages */
@@ -66,7 +66,7 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	ses = (ksession_t *) cf->kcfg_pconf;
 
 	/* Validate the passed in kv */
-	rc = ki_validate_kv(kv, force, &ses->ks_l);
+	rc = ki_validate_kv(kv, verck, &ses->ks_l);
 	if (rc < 0) {
 		errno = K_EINVAL;
 		return kstatus_err(errno, KI_ERR_INVARGS, "del: kv");
@@ -108,8 +108,12 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
 	if (kb)
 		cmd_hdr.kch_bid = kb->kb_bid;
 	
-
-	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, force);
+	/* 
+	 * Default del checks the version strings, if they don't match
+	 * del fails.  Forcing the del avoids the version check. So if 
+	 * checking the version, no forced put. If not, force it. 
+	 */
+	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, (verck?0:1));
 	if (kmreq.result_code == FAILURE) {
 		errno = K_EINTERNAL;
 		krc   = kstatus_err(errno, KI_ERR_CREATEREQ, "del: request");
@@ -341,14 +345,14 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int force)
  *		kv_cpolicy sets the caching strategy for this put
  *			cpolicy of flush will flush the entire cache
  *
- * Delete the value specified by the given key.This call will force the
+ * Delete the value specified by the given key. This call will force the
  * delete to complete without any version checks.
  */
 kstatus_t
 ki_del(int ktd, kbatch_t *kb, kv_t *kv)
 {
-	int force;
-	return(d_del_generic(ktd, kv, (kb_t *)kb, force=1));
+	int verck;
+	return(d_del_generic(ktd, kv, (kb_t *)kb, verck=0));
 }
 
 /**
@@ -365,15 +369,15 @@ ki_del(int ktd, kbatch_t *kb, kv_t *kv)
  *
  * CAD performs a compare and delete for the given key. The key value is
  * only deleted if kv_version matches the version in the DB. If there is
- * no match the operation fails with the error K_EVERSION.
- * Once a successful check is complete, the given key and its value are
- * deleted.
+ * no version match the operation fails with the error K_EVERSION.
+ * Once a successful version check is complete, the given key and its value 
+ * are deleted.
  */
 kstatus_t
 ki_cad(int ktd, kbatch_t *kb, kv_t *kv)
 {
-	int force;
-	return(d_del_generic(ktd, kv, (kb_t *)kb, force=0));
+	int verck;
+	return(d_del_generic(ktd, kv, (kb_t *)kb, verck=1));
 }
 
 struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,

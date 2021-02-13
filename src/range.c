@@ -37,7 +37,7 @@ struct kresult_message create_rangekey_message(kmsghdr_t *, kcmdhdr_t *, krange_
 kstatus_t extract_keyrange(struct kresult_message *response_msg, krange_t *keyrange_data);
 
 /**
- * ki_range(int ktd, krange_t *kr)
+ * ki_getrange(int ktd, krange_t *kr)
  *
  *  kr		kr_key must contain a fully populated kiovec array
  *		keyrange_val must contain a zero-ed kiovec array of cnt 1
@@ -51,7 +51,7 @@ kstatus_t extract_keyrange(struct kresult_message *response_msg, krange_t *keyra
  *
  */
 kstatus_t
-ki_range(int ktd, krange_t *kr)
+ki_getrange(int ktd, krange_t *kr)
 {
 	int rc, n;              // numeric return codes
 	int freestart=0;		/* bools to remember if ki_range */
@@ -329,14 +329,14 @@ ki_range(int ktd, krange_t *kr)
 
  rex3:
 	if (freeend) {
-		ki_keyfree(kr->kr_end, kr->kr_endcnt);
+		ki_keydestroy(kr->kr_end, kr->kr_endcnt);
 		kr->kr_end = NULL;
 		kr->kr_endcnt = 0;
 	}
 
  //rex2:
 	if (freestart) {
-		ki_keyfree(kr->kr_start, kr->kr_startcnt);
+		ki_keydestroy(kr->kr_start, kr->kr_startcnt);
 		kr->kr_start = NULL;
 		kr->kr_startcnt = 0;
 	}

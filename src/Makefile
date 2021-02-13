@@ -6,7 +6,7 @@ PROTODIR =	protocol
 KOBJ = 		kinetic.o
 OBJS =		ktli.o ktli_socket.o ktli_session.o protocol_interface.o\
 		open.o getlog.o get.o put.o del.o range.o batch.o iter.o\
-		util.o validate.o labels.o kerrors.o			\
+		util.o validate.o labels.o kerrors.o ktb.o aio.o	\
 		$(PROTOBUF)
 
 INC_KPUB =	kinetic.h kinetic_types.h protocol_types.h

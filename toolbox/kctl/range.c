@@ -59,7 +59,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	int		reverse = 0;
 	int		adump = 0, hdump = 0;
 	kstatus_t 	kstatus;
-	krange_t	kr;
+	krange_t	*kr;
 	kiter_t		*kit;
 	struct kiovec	startkey[1] = {0, 0};
 	struct kiovec	endkey[1] = {0, 0};
@@ -153,11 +153,14 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	 * If no start key provided, set kr_start to NULL
 	 * If no end key provided, set kr_end to NULL 
 	 */
-	memset(&kr, 0, sizeof(kr));
+	if (!(kr = ki_create(ktd, KRANGE_T))) {
+		fprintf(stderr, "*** Memory Failure\n");
+		return (-1);
+	}
 
 	if (start) {
-		kr.kr_start		= startkey;
-		kr.kr_startcnt		= 1;
+		kr->kr_start		= startkey;
+		kr->kr_startcnt		= 1;
 
 		/*
 		 * Aways decode any ascii arbitrary hexadecimal value escape
@@ -165,8 +168,8 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 		 * present this amounts to a str copy.
 		 */
 		if (!asciidecode(start, strlen(start),
-				 &kr.kr_start[0].kiov_base,
-				 &kr.kr_start[0].kiov_len)) {
+				 &kr->kr_start[0].kiov_base,
+				 &kr->kr_start[0].kiov_len)) {
 			fprintf(stderr, "*** Failed start key conversion\n");
 			CMD_USAGE(ka);
 			return(-1);
@@ -174,12 +177,12 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 
 	if (starti) {
-		KR_FLAG_SET(&kr, KRF_ISTART);
+		KR_FLAG_SET(kr, KRF_ISTART);
 	}
 	
 	if (end) {
-		kr.kr_end	= endkey;
-		kr.kr_endcnt	= 1;
+		kr->kr_end	= endkey;
+		kr->kr_endcnt	= 1;
 
 		/*
 		 * Aways decode any ascii arbitrary hexadecimal value escape
@@ -187,8 +190,8 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 		 * present this amounts to a str copy.
 		 */
 		if (!asciidecode(end, strlen(end),
-				 &kr.kr_end[0].kiov_base,
-				 &kr.kr_end[0].kiov_len)) {
+				 &kr->kr_end[0].kiov_base,
+				 &kr->kr_end[0].kiov_len)) {
 			fprintf(stderr, "*** Failed end key conversion\n");
 			CMD_USAGE(ka);
 			return(-1);
@@ -196,14 +199,14 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 	
 	if (endi) {
-		KR_FLAG_SET(&kr, KRF_IEND);
+		KR_FLAG_SET(kr, KRF_IEND);
 	}
 
 	if (reverse) {
-		KR_FLAG_SET(&kr, KRF_REVERSE);
+		KR_FLAG_SET(kr, KRF_REVERSE);
 	}
 
-	kr.kr_count = ((count < 0)?KVR_COUNT_INF:count);
+	kr->kr_count = ((count < 0)?KVR_COUNT_INF:count);
 
 	/*
 	 * If verbose dump the range we are getting.
@@ -264,7 +267,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	if ((count > 0) && (count <= ka->ka_limits.kl_rangekeycnt)) {
 		if (ka->ka_verbose) printf("Single Range Call...\n");
 
-		kstatus = ki_range(ktd, &kr);
+		kstatus = ki_getrange(ktd, kr);
 		if(kstatus.ks_code != K_OK) {
 			fprintf(stderr,
 				"%s: Unable to get key range: %s\n",
@@ -272,26 +275,26 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 			return(-1);
 		}
 
-		if (!kr.kr_keyscnt) {
+		if (!kr->kr_keyscnt) {
 			printf("No Keys Found.\n");
 			return(0);
 		}
 		
-		for(int i=0; i<kr.kr_keyscnt; i++) {
+		for(int i=0; i<kr->kr_keyscnt; i++) {
 			if (ka->ka_verbose) {
 				printf("%u: ", i);
 			}
 
 			if (hdump) {
-				hexdump((char *)kr.kr_keys[i].kiov_base,
-					kr.kr_keys[i].kiov_len);
+				hexdump((char *)kr->kr_keys[i].kiov_base,
+					kr->kr_keys[i].kiov_len);
 			}else if (adump) {
-			        asciidump((char *)kr.kr_keys[i].kiov_base,
-					  kr.kr_keys[i].kiov_len), printf("\n");
+			        asciidump((char *)kr->kr_keys[i].kiov_base,
+					  kr->kr_keys[i].kiov_len), printf("\n");
 			} else {
 				/* add null byte to print ads a string */
-				rkey = strndup((char *)kr.kr_keys[i].kiov_base,
-					       kr.kr_keys[i].kiov_len);
+				rkey = strndup((char *)kr->kr_keys[i].kiov_base,
+					       kr->kr_keys[i].kiov_len);
 				printf("%s\n", rkey);
 				free(rkey);
 			}
@@ -308,13 +311,14 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	if (ka->ka_verbose) printf("Iterating...\n");
 
 	/* Create the kinetic range iterator */
-	kit = ki_itercreate(ktd);
+	if (!(kit = ki_create(ktd, KITER_T))) {
+		fprintf(stderr, "*** Memory Failure\n");
+		return (-1);
+	}
 
 	/* Iterate */
 	i=0;
-	for (k = ki_iterstart(kit, &kr);
-	     !ki_iterdone(kit) && k;
-	     k = ki_iternext(kit)) {
+	for (k = ki_start(kit, kr); !ki_done(kit) && k; k = ki_next(kit)) {
 
 		if (ka->ka_verbose) {
 			printf("%u: ", i++);
@@ -334,7 +338,9 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 		}
 	}
 
-	ki_iterfree(kit);
+	ki_destroy(kit);
+	ki_destroy(kr);
+
 	return(0);
 }
 

@@ -90,13 +90,13 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 	}
 
 	if (start) {
-		ka->ka_batch = ki_batchstart(kts);
+		ka->ka_batch = ki_create(kts, KBATCH_T);
 		if (!ka->ka_batch) {
 			printf("Batch start failed\n");
 			return(-1);
 		}
 	} else {
-		kstatus = ki_batchend(kts, ka->ka_batch);
+		kstatus = ki_submitbatch(kts, ka->ka_batch);
 		ka->ka_batch = NULL;
 		
 		if(!kstatus.ks_code) {

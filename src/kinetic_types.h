@@ -5,6 +5,20 @@
 #include "protocol_types.h"
 
 
+/* 
+ * Below are the types required to use the create/clean/destroy interface
+ */
+typedef enum ktype {
+	KT_NONE	= 0,
+	KV_T,
+	KRANGE_T,
+	KITER_T,
+	KBATCH_T,
+	KGETLOG_T,
+	/* Keep last */
+	KT_LAST,	
+} ktype_t;
+
 // ------------------------------
 // Type aliases for protocol
 
@@ -39,31 +53,35 @@ enum {
 
 typedef Com__Seagate__Kinetic__Proto__Command__Status__StatusCode kstatus_code_t;
 enum {
-	K_INVALID_SC   = CSSC(INVALID_STATUS_CODE),
-	K_OK           = CSSC(SUCCESS),
-	K_EREJECTED    = CSSC(NOT_ATTEMPTED),
-	K_EHMAC        = CSSC(HMAC_FAILURE),
-	K_EACCESS      = CSSC(NOT_AUTHORIZED),
-	K_EVERSION     = CSSC(VERSION_FAILURE),
-	K_EINTERNAL    = CSSC(INTERNAL_ERROR),
-	K_ENOHEADER    = CSSC(HEADER_REQUIRED),
-	K_ENOTFOUND    = CSSC(NOT_FOUND),
-	K_EBADVERS     = CSSC(VERSION_MISMATCH),
-	K_EBUSY        = CSSC(SERVICE_BUSY),
-	K_ETIMEDOUT    = CSSC(EXPIRED),
-	K_EDATA        = CSSC(DATA_ERROR),
-	K_EPERMDATA    = CSSC(PERM_DATA_ERROR),
-	K_EP2PCONN     = CSSC(REMOTE_CONNECTION_ERROR),
-	K_ENOSPACE     = CSSC(NO_SPACE),
-	K_ENOHMAC      = CSSC(NO_SUCH_HMAC_ALGORITHM),
-	K_EINVAL       = CSSC(INVALID_REQUEST),
-	K_EP2P         = CSSC(NESTED_OPERATION_ERRORS),
-	K_ELOCKED      = CSSC(DEVICE_LOCKED),
-	K_ENOTLOCKED   = CSSC(DEVICE_ALREADY_UNLOCKED),
-	K_ECONNABORTED = CSSC(CONNECTION_TERMINATED),
-	K_EINVALBAT    = CSSC(INVALID_BATCH),
-	K_EHIBERNATE   = CSSC(HIBERNATE),
-	K_ESHUTDOWN    = CSSC(SHUTDOWN),
+				/* #'s fixed by kinetic.proto */
+	K_INVALID_SC   = CSSC(INVALID_STATUS_CODE),	/* -1 */
+	K_EREJECTED    = CSSC(NOT_ATTEMPTED),		/*  0 */
+	K_OK           = CSSC(SUCCESS),			/*  1 */
+	K_EHMAC        = CSSC(HMAC_FAILURE),		/*  2 */
+	K_EACCESS      = CSSC(NOT_AUTHORIZED),		/*  3 */
+	K_EVERSION     = CSSC(VERSION_FAILURE),		/*  4 */
+	K_EINTERNAL    = CSSC(INTERNAL_ERROR),		/*  5 */
+	K_ENOHEADER    = CSSC(HEADER_REQUIRED),		/*  6 */
+	K_ENOTFOUND    = CSSC(NOT_FOUND),		/*  7 */
+	K_EBADVERS     = CSSC(VERSION_MISMATCH),	/*  2 */
+	K_EBUSY        = CSSC(SERVICE_BUSY),		/*  9 */
+	K_ETIMEDOUT    = CSSC(EXPIRED),			/* 10 */
+	K_EDATA        = CSSC(DATA_ERROR),		/* 11 */
+	K_EPERMDATA    = CSSC(PERM_DATA_ERROR),		/* 12 */
+	K_EP2PCONN     = CSSC(REMOTE_CONNECTION_ERROR),	/* 13 */
+	K_ENOSPACE     = CSSC(NO_SPACE),		/* 14 */
+	K_ENOHMAC      = CSSC(NO_SUCH_HMAC_ALGORITHM),	/* 15 */
+	K_EINVAL       = CSSC(INVALID_REQUEST),		/* 16 */
+	K_EP2P         = CSSC(NESTED_OPERATION_ERRORS),	/* 17 */
+	K_ELOCKED      = CSSC(DEVICE_LOCKED),		/* 18 */
+	K_ENOTLOCKED   = CSSC(DEVICE_ALREADY_UNLOCKED),	/* 19 */
+	K_ECONNABORTED = CSSC(CONNECTION_TERMINATED),	/* 20 */
+	K_EINVALBAT    = CSSC(INVALID_BATCH),		/* 21 */
+	K_EHIBERNATE   = CSSC(HIBERNATE),		/* 22 */
+	K_ESHUTDOWN    = CSSC(SHUTDOWN),  		/* 23 */ 
+
+	/* Need more errnos, Sufficiently outside kinetic.proto */
+	K_EAGAIN       = 1000, 
 };
 
 /**
@@ -253,6 +271,13 @@ typedef struct kiter {
 typedef void kbatch_t;
 
 
+/**
+ * KIO type
+ *
+ * This opaque type permits the AIO calls
+ *
+ */
+typedef void kio_t;
 /* ------------------------------
  * Types for interfacing with API
  */

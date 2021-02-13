@@ -443,7 +443,7 @@ b_batch_addop(kb_t *kb, kcmdhdr_t *kc)
  * ki_batchstart(int ktd)
  */
 kbatch_t *
-ki_batchstart(int ktd)
+i_batchstart(int ktd)
 {
 	kb_t *kb;
 
@@ -456,7 +456,7 @@ ki_batchstart(int ktd)
  *
  */
 kstatus_t
-ki_batchend(int ktd, kbatch_t *kb)
+ki_submitbatch(int ktd, kbatch_t *kb)
 {
 	return (b_batch_generic(ktd, (kb_t **) &kb, KMT_ENDBAT));
 }

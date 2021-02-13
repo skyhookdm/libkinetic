@@ -2,6 +2,10 @@
 #define _KIO_H
 #include <stdint.h>
 #include <time.h>
+#include <endian.h>
+
+#include "kinetic.h"
+#include "kinetic_internal.h"
 
 enum kio_state {
 	KIO_NEW      = 0,
@@ -63,7 +67,14 @@ enum kio_flags {
  * Timeout value should be set by the KTLI send processing and periodically
  * checked by the receiver thread.
  */
+#if __BYTE_ORDER == __LITTLE_ENDIAN
+#define KIO_MAGIC 0x004f494B		// "KIO\0"
+#else
+#define KIO_MAGIC 0x494B4F00		// "KIO\0"
+#endif
+
 struct kio {
+	uint32_t	kio_magic;	/* Identifies a valid KIO */
 	uint32_t	kio_cmd;	/* kinetic cmd: get, put, getlog, etc
 					   for debugging only */
 	int64_t		kio_seq;	/* kinetic sequence */
@@ -84,8 +95,11 @@ struct kio {
 
 	void 		*kio_qbp;	/* Queue element back pointer */ 
 
-	/* Unused so far */
-	void 		*kio_ccontext;	/* caller context */
+	/* Saved caller params and context for aio */
+	void 		*kio_cctx;
+	kv_t		*kio_ckv;
+        kv_t		*kio_caltkv;
+	kb_t		*kio_cbid;
 };
 
 
