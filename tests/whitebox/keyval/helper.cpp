@@ -143,6 +143,8 @@ namespace TestHelpers {
                                       const char *failure_msg) {
         EXPECT_EQ(actual_len, expected_len) << failure_msg;
 
+        if (actual_bytes == nullptr or expected_bytes == nullptr) { return; }
+
         for (size_t byte_ndx = 0; byte_ndx < expected_len; byte_ndx++) {
             EXPECT_EQ(
                 ((uint8_t *) actual_bytes)[byte_ndx],
@@ -163,6 +165,8 @@ namespace TestHelpers {
         if (!expectedcnt) {
             EXPECT_EQ(expected, nullptr) << "(expected) kiov_len is 0 but kiov_base is not null";
         }
+
+        if (actual == nullptr or expected == nullptr) { return; }
 
         for (size_t kio_ndx = 0; kio_ndx < expectedcnt; kio_ndx++) {
             validate_bytes(
