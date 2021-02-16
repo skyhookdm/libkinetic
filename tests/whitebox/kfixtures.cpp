@@ -9,10 +9,10 @@ namespace KFixtures {
     const char test_hkey[] = "asdfasdf";
 
     void
-    validate_status(kstatus_t *cmd_status,
-                    kstatus_code_t exp_code,
-                    char *exp_msg,
-                    char *exp_msgdetail) {
+    validate_status(kstatus_t      *cmd_status,
+                    kstatus_code_t  exp_code,
+                    char           *exp_msg,
+                    char           *exp_msgdetail) {
 
         EXPECT_EQ(cmd_status->ks_code, exp_code);
 

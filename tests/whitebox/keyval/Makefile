@@ -6,7 +6,7 @@ GTESTDIR     =	$(PROJROOTDIR)/vendor/googletest
 BINDIR       =	$(TESTROOTDIR)/bin
 
 TEST_MAIN    =	$(BINDIR)/test_keyval
-OBJS         =	requests.o helper.o ../kfixtures.o
+OBJS         =	requests.o helper.o ../kfixtures.o ../hashtable.o
 CFLAGS       =	-g -I$(BUILDDIR)/include -I$(GTESTDIR)/googletest/include
 CPPFLAGS     =	$(CFLAGS)
 LDFLAGS      =	-L$(BUILDDIR)/lib
