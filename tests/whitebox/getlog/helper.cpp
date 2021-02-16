@@ -61,7 +61,8 @@ namespace TestHelpers {
 
         EXPECT_EQ(actual_config.kcf_port            , 8123);
         EXPECT_EQ(actual_config.kcf_tlsport         , 8443);
-        EXPECT_EQ(actual_config.kcf_interfacescnt   , 1   );
+        // TODO: this assumes kineticd running on x86. If it fails, just disable (and file issue)
+        EXPECT_EQ(actual_config.kcf_interfacescnt   , 3   );
         // this definitely does not come back as an enum
         // EXPECT_NE(actual_config.kcf_power           , 0);
 
