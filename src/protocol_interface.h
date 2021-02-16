@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2015 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -68,15 +68,28 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyval, struct kiovec *keynames,
 
 char *helper_bytes_to_str(ProtobufCBinaryData proto_bytes);
 
-void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_data);
+void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr,
+			       kcmdhdr_t *cmdhdr_data);
 
-kstatus_t extract_cmdhdr(struct kresult_message *response_msg, kcmdhdr_t *cmdhdr_data);
-kstatus_t extract_getlog(struct kresult_message *response_msg, kgetlog_t *getlog_data);
-kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data);
-kstatus_t extract_putkey(struct kresult_message *response_msg, kv_t *kv_data);
-kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data);
+kstatus_t extract_cmdhdr(struct kresult_message *resp_msg,
+			 kcmdhdr_t *cmdhdr_data);
+kstatus_t extract_getlog(struct kresult_message *resp_msg,
+			 kgetlog_t *getlog_data);
+kstatus_t extract_getkey(struct kresult_message *resp_msg, kv_t *kv_data);
+kstatus_t extract_putkey(struct kresult_message *resp_msg, kv_t *kv_data);
+kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data);
+kstatus_t extract_keyrange(struct kresult_message *resp_msg, krange_t *kr_data);
 
-kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command);
+#ifdef KBATCH_SEQTRACKING
+kstatus_t extract_seqlist(struct kresult_message *resp_msg,
+			  kseq_t **seqlist, size_t *seqlistcnt);
+#endif /* KBATCH_SEQTRACKING */
+
+kstatus_t extract_cmdstatus_code(kproto_cmd_t *protobuf_command);
+kstatus_t extract_cmdstatus_msg(kproto_cmd_t *protobuf_command,
+				char **msg, size_t *len);
+kstatus_t extract_cmdstatus_dmsg(kproto_cmd_t *protobuf_command,
+				char **msg, size_t *len);
 
 
 // ------------------------------

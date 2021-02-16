@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2020 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -35,9 +35,7 @@
  * Internal prototypes
  */
 struct kresult_message create_batch_message(kmsghdr_t *, kcmdhdr_t *, uint32_t);
-kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist, size_t *seqlistcnt);
-
-kstatus_t extract_status(struct kresult_message *response_msg);
+kstatus_t extract_status(struct kresult_message *resp_msg);
 
 #ifdef KBATCH_SEQTRACKING
 /**
@@ -65,11 +63,10 @@ b_batch_seqmatch(char *data, char *ldata)
  */
 #define SBCAS __sync_bool_compare_and_swap
 
-
 kstatus_t
 b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 {
-	int rc, retries;
+	int rc, retries, n;
 	kbid_t bid;
 	uint32_t batcnt;
 	kstatus_t krc;
@@ -87,11 +84,8 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		return (kstatus_t) {
-			.ks_code    = K_EREJECTED,
-			.ks_message = "Bad session",
-			.ks_detail  = "",
-		};
+		debug_printf("batch: ktli config");
+		return(K_EBADSESS);
 	}
 	ses = (ksession_t *)cf->kcfg_pconf;
 
@@ -106,11 +100,8 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		}
 
 		if (!retries) {
-			return (kstatus_t) {
-				.ks_code = K_EINTERNAL,
-				.ks_message = "batch; Unable to get Batch ID",
-				.ks_detail  = "",
-			};
+			debug_printf("batch: no batch id");
+			return(K_EBATCH);
 		}
 
 		/* Increment the number of active batches */
@@ -122,21 +113,21 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		batcnt++;
 
 		if (!retries) {
-			return (kstatus_t) {
-				.ks_code = K_EINTERNAL,
-				.ks_message = "batch: Unable to inc batch cnt",
-				.ks_detail  = "",
-			};
+			debug_printf("batch: batch cnt increment");
+			return(K_EBATCH);
 		}
 
-		if ((ses->ks_l.kl_devbatcnt > 0) && (batcnt > ses->ks_l.kl_devbatcnt)) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: Too many active");
+		if ((ses->ks_l.kl_devbatcnt > 0) &&
+		    (batcnt > ses->ks_l.kl_devbatcnt)) {
+			debug_printf("batch: too many batches");
+			krc = K_EBATCH;
 			goto bex_kb;
 		}
 
 		*kb = (kb_t *) KI_MALLOC(sizeof(kb_t));
 		if (!(*kb)) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "batch: kb");
+			debug_printf("batch: kb alloc");
+			krc = K_ENOMEM;
 			goto bex_kb;
 		}
 
@@ -153,19 +144,16 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		break;
 
 	default:
-		return (kstatus_t) {
-			.ks_code    = K_EREJECTED,
-			.ks_message = "batch: bad command",
-			.ks_detail  = "",
-		};
+		debug_printf("batch: bad command");
+		return(K_EREJECTED);
 	}
 
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "batch: kio");
+		debug_printf("batch: kio alloc");
+		krc = K_ENOMEM;
 		goto bex_kb;
-
 	}
 	memset(kio, 0, sizeof(struct kio));
 
@@ -194,9 +182,9 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 	kmreq = create_batch_message(&msg_hdr, &cmd_hdr, (*kb)->kb_ops);
 	if (kmreq.result_code == FAILURE) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ,
-				  "batch: request");
-		goto bex_req;
+		debug_printf("batch: request message create");
+		krc = K_EINTERNAL;
+		goto bex_kio;
 	}
 
 	/* Setup the KIO */
@@ -210,13 +198,12 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	 * See kio.h (previously in message.h) for more details.
 	 */
 	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
-	);
-
+	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "batch: request");
-		goto bex_kio;
+		debug_printf("batch: sendmesg alloc");
+		krc = K_ENOMEM;
+		goto bex_req;
 	}
 
 	/* Hang the Packed PDU buffer, packing occurs later */
@@ -233,8 +220,8 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	);
 
 	if (pack_result == FAILURE) {
-		errno = K_EINTERNAL;
-		krc   = kstatus_err(errno, KI_ERR_MSGPACK, "batch: pack msg");
+		debug_printf("batch: sendmesg msg pack");
+		krc = K_EINTERNAL;
 		goto bex_sendmsg;
 	}
 
@@ -242,11 +229,11 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 	pdu.kp_vallen = 0;
+	
 	PACK_PDU(&pdu, ppdu);
-	debug_printf(
-		"b_batch_generic: PDU(x%2x, %d, %d)\n",
-		pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen
-	);
+	
+	debug_printf("b_batch_generic: PDU(x%2x, %d, %d)\n",
+		     pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
 
 	/* Send the request */
 	ktli_send(ktd, kio);
@@ -265,8 +252,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 			// PAK: need to exit, receive failed
 			else {
-				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG,
-						  "batch: recvmsg");
+				krc = K_EINTERNAL;
 				goto bex_sendmsg;
 			}
 		}
@@ -275,11 +261,13 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		break;
 	} while (1);
 
+	/* Parse response */
+
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU,
-				  "batch: extract PDU");
+		debug_printf("batch: PDU bad length");
+		krc = K_EINTERNAL;
 		goto bex_recvmsg;
 	}
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
@@ -287,16 +275,16 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	/* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN,
-				  "batch: parse pdu");
+		debug_printf("batch: PDU decode");
+		krc = K_EINTERNAL;
 		goto bex_recvmsg;
 	}
 
 	/* Now unpack the message */
 	kmresp = unpack_kinetic_message(kiov->kiov_base, rpdu.kp_msglen);
 	if (kmresp.result_code == FAILURE) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK,
-				  "batch: unpack msg");
+		debug_printf("batch: msg unpack");
+		krc = K_EINTERNAL;
 		goto bex_resp;
 	}
 
@@ -315,7 +303,10 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		kseq_t *seqlist, *seq;
 
 		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
-		if (krc.ks_code != K_OK) { goto bex_endbat; }
+		if (krc != K_OK) {
+			debug_printf("batch: seqlist extract");
+			goto bex_endbat;
+		}
 
 		pthread_mutex_lock(&(*kb)->kb_m);
 
@@ -330,10 +321,11 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 				b_batch_seqmatch, LIST_ALTR
 			);
 
-			// Got an acknowledged op seq that is not in our op seq list
+			// Got an acknowledged op seq that is not
+			// in our op seq list
 			if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
 				debug_printf("NOT FOUND\n");
-				krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH, "batch: unsent seq");
+				krc = K_EBATCH;
 				goto bex_endbat;
 			}
 
@@ -344,12 +336,13 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 
 		// Did not get an acknowledged op seq for an op seq in our list
 		if (list_size((*kb)->kb_seqs)) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_BATCH,
-					  "batch: unacknowledged seq");
+			debug_printf("batch: unacknowledged seq");
+			krc = K_EBATCH;
 		}
  // label for cleaning up batch data *in case KMT_ENDBAT*
  bex_endbat:
-#endif
+#endif /* KBATCH_SEQTRACKING */
+		
 		list_destroy((*kb)->kb_seqs, NULL);
 		pthread_mutex_unlock(&(*kb)->kb_m);
 		pthread_mutex_destroy(&(*kb)->kb_m);
@@ -388,7 +381,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 	KI_FREE(kio);
 
  bex_kb:
-	if ((krc.ks_code != (kstatus_code_t) K_OK) || (msg_type == (kmtype_t) KMT_ENDBAT)) {
+	if ((krc != K_OK) || (msg_type == (kmtype_t) KMT_ENDBAT)) {
 		/*
 		 * an error occurred or this is the exit of BATCHEND
 		 * either way get rid of the batch and decrement the active
@@ -409,11 +402,7 @@ b_batch_generic(int ktd, kb_t **kb, kmtype_t msg_type)
 		}
 
 		if (!retries) {
-			return (kstatus_t) {
-				.ks_code    = K_EINTERNAL,
-				.ks_message = "Unable to release batch",
-				.ks_detail  = "",
-			};
+			return (K_EINTERNAL);
 		}
 		/* fall though using the krc from the op */
 	}
@@ -435,7 +424,7 @@ b_batch_addop(kb_t *kb, kcmdhdr_t *kc)
 		rc = -1;
 	}
 	pthread_mutex_unlock(&kb->kb_m);
-#endif
+#endif /* KBATCH_SEQTRACKING */
 	return(rc);
 }
 
@@ -443,7 +432,7 @@ b_batch_addop(kb_t *kb, kcmdhdr_t *kc)
  * ki_batchstart(int ktd)
  */
 kbatch_t *
-ki_batchstart(int ktd)
+i_batchstart(int ktd)
 {
 	kb_t *kb;
 
@@ -456,7 +445,7 @@ ki_batchstart(int ktd)
  *
  */
 kstatus_t
-ki_batchend(int ktd, kbatch_t *kb)
+ki_submitbatch(int ktd, kbatch_t *kb)
 {
 	return (b_batch_generic(ktd, (kb_t **) &kb, KMT_ENDBAT));
 }
@@ -480,40 +469,57 @@ create_batch_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, uint32_t ops) {
 	return create_message(msg_hdr, command_bytes);
 }
 
+#ifdef KBATCH_SEQTRACKING
 
-kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist, size_t *seqlistcnt) {
+kstatus_t extract_seqlist(struct kresult_message *resp_msg, kseq_t **seqlist, size_t *seqlistcnt) {
 	// assume failure status
-	kstatus_t kb_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+	kstatus_t krc = K_INVALID_SC;
+	kproto_msg_t *kb_resp_msg;
 
 	// check that commandbytes exist, then unpack it
-	kproto_msg_t *kb_response_msg = (kproto_msg_t *) response_msg->result_message;
-	if (!kb_response_msg->has_commandbytes) { return kb_status; }
+	kb_resp_msg = (kproto_msg_t *) resp_msg->result_message;
+	if (!kb_resp_msg->has_commandbytes) {
+		debug_printf("extract_seqlist: no resp cmd");
+		return(K_EINTERNAL);
+	}
 
 	// TODO: memory leak that needs to be addressed:
 	// (https://gitlab.com/kinetic-storage/kinetic-prototype/-/issues/16)
-	kproto_cmd_t *response_cmd = unpack_kinetic_command(kb_response_msg->commandbytes);
-	if (!response_cmd) { return kb_status; }
+	kproto_cmd_t *resp_cmd;
+	resp_cmd = unpack_kinetic_command(kb_resp_msg->commandbytes);
+	if (!resp_cmd) {
+		debug_printf("extract_seqlist: resp cmd unpack");
+		return(K_EINTERNAL);
+	}
 
 	// extract the status from the command data
-	kb_status = extract_cmdstatus(response_cmd);
-	if (!response_cmd->body || !response_cmd->body->batch) {
-		kb_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+	krc = extract_cmdstatus_code(respcmd);
+	if (krc != K_OK) {
+		debug_printf("extract_seqlist: status");
+		goto extract_dex;
+	}
+	
+	// ------------------------------
+	// begin extraction of command data
+	// check if there's command data to parse, otherwise cleanup and exit
+	if (!resp_cmd->body || !resp_cmd->body->batch) {
+		debug_printf("extract_delkey: command missing body or kv");
 		goto extract_emptybatch;
 	}
 
 	// begin extraction of command body into kv_t structure
-	kproto_batch_t *response = response_cmd->body->batch;
+	kproto_batch_t *resp = resp_cmd->body->batch;
 
-	if (response->has_failedsequence) {
+	if (resp->has_failedsequence) {
 		*seqlistcnt = 1;
-		*seqlist    = &(response->failedsequence);
+		*seqlist    = &(resp>failedsequence);
 	}
 	else {
-		*seqlistcnt = response->n_sequence;
-		*seqlist    = response->sequence;
+		*seqlistcnt = resp->n_sequence;
+		*seqlist    = resp->sequence;
 	}
 
-	return kb_status;
+	return krc;
 
  extract_emptybatch:
 
@@ -521,23 +527,31 @@ kstatus_t extract_seqlist(struct kresult_message *response_msg, kseq_t **seqlist
 
 	return kb_status;
 }
+#endif /* KBATCH_SEQTRACKING */
 
-
-kstatus_t extract_status(struct kresult_message *response_msg) {
+kstatus_t extract_status(struct kresult_message *resp_msg) {
 	// assume failure status
-	kstatus_t kb_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+	kstatus_t krc = K_INVALID_SC;
+	kproto_msg_t *kb_resp_msg;
 
 	// check that commandbytes exist, then unpack it
-	kproto_msg_t *kb_response_msg = (kproto_msg_t *) response_msg->result_message;
-	if (!kb_response_msg->has_commandbytes) { return kb_status; }
+	kb_resp_msg = (kproto_msg_t *) resp_msg->result_message;
+	if (!kb_resp_msg->has_commandbytes) {
+		debug_printf("extract_status: no resp cmd");
+		return(K_EINTERNAL);
+	}
 
-	kproto_cmd_t *response_cmd = unpack_kinetic_command(kb_response_msg->commandbytes);
-	if (!response_cmd) { return kb_status; }
+	kproto_cmd_t *resp_cmd;
+	resp_cmd = unpack_kinetic_command(kb_resp_msg->commandbytes);
+	if (!resp_cmd) {
+		debug_printf("extract_status: resp cmd unpack");
+		return(K_EINTERNAL);
+	}
 
 	// extract the status from the command data
-	kb_status = extract_cmdstatus(response_cmd);
+	krc = extract_cmdstatus_code(resp_cmd);
 
-	destroy_command(response_cmd);
+	destroy_command(resp_cmd);
 
-	return kb_status;
+	return krc;
 }

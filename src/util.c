@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2020 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -46,31 +46,6 @@
 #define MAXKEYLEN 4096
 
 /**
- * ki_keyfree
- *  Free the given key
- */
-int
-ki_keyfree(struct kiovec *key, size_t keycnt)
-{
-	int i;
-
-	if (!key)
-		return(0);
-
-	for(i=0;i<keycnt;i++) {
-		if (key[i].kiov_base) {
-			KI_FREE(key[i].kiov_base);
-			key[i].kiov_base = 0;
-			key[i].kiov_len = 0;
-		}
-	}
-
-	KI_FREE(key);
-
-	return(0);
-}
-
-/**
  * create a key vector with a single element around an existing buffer
  * Assumes caller sets keycnt to 1
  */
@@ -95,11 +70,36 @@ ki_keycreate(void *keybuf, size_t keylen)
 }
 
 /**
+ * ki_keydestroy
+ *  Free the given key
+ */
+void
+ki_keydestroy(struct kiovec *key, size_t keycnt)
+{
+	int i;
+
+	if (!key)
+		return;
+
+	for(i=0;i<keycnt;i++) {
+		if (key[i].kiov_base) {
+			KI_FREE(key[i].kiov_base);
+			key[i].kiov_base = 0;
+			key[i].kiov_len = 0;
+		}
+	}
+
+	KI_FREE(key);
+
+	return;
+}
+
+/**
  * reallocates a key vector to include a prefix buffer
  * Assumes caller sets keycnt to keycnt + 1
  */
 struct kiovec *
-ki_keyprefix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
+ki_keyprepend(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
 {
 	int i;
 	size_t newcnt, newlen;
@@ -132,7 +132,7 @@ ki_keyprefix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
  * Assumes caller sets keycnt to keycnt + 1
  */
 struct kiovec *
-ki_keypostfix(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
+ki_keyappend(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
 {
 	size_t newcnt, newlen;
 	struct kiovec *new;
@@ -184,7 +184,7 @@ ki_keydup(struct kiovec *key, size_t keycnt)
 		new[i].kiov_base = KI_MALLOC(key[i].kiov_len);
 
 		if (!new[i].kiov_base) {
-			ki_keyfree(new, i-1);
+			ki_keydestroy(new, i-1);
 			KI_FREE(new);
 			return(NULL);
 		}
@@ -310,7 +310,6 @@ ki_keylast(size_t len)
 	key[0].kiov_len = len;
 
 	return(key);
-
 }
 
 
@@ -321,17 +320,14 @@ ki_keylast(size_t len)
  * Duplicate the given range
  */
 krange_t *
-ki_rangedup(krange_t *kr)
+ki_rangedup(int ktd, krange_t *kr)
 {
 	krange_t *new;
 
 	if (!kr)
 		return(NULL);
 
-	new = (krange_t *)KI_MALLOC(sizeof(krange_t));
-	if (!new) {
-		return(NULL);
-	}
+	new = ki_create(ktd, KRANGE_T);
 
 	/* duplicate the passed in krange_t */
 	memcpy(new, kr, sizeof(krange_t));
@@ -340,7 +336,7 @@ ki_rangedup(krange_t *kr)
 		new->kr_keyscnt = kr->kr_keyscnt; /* Don't flatten */
 		new->kr_keys = ki_keydup(kr->kr_keys, kr->kr_keyscnt);
 		if (!new->kr_keys) {
-			KI_FREE(new);
+			ki_destroy(new);
 			return(NULL);
 		}
 
@@ -350,8 +346,8 @@ ki_rangedup(krange_t *kr)
 		new->kr_startcnt = 1; /* dup flatten below */
 		new->kr_start = ki_keydupf(kr->kr_start, kr->kr_startcnt);
 		if (!new->kr_start) {
-			ki_keyfree(new->kr_keys, new->kr_keyscnt);
-			KI_FREE(new);
+			ki_keydestroy(new->kr_keys, new->kr_keyscnt);
+			ki_destroy(new);
 			return(NULL);
 		}
 	}
@@ -360,32 +356,14 @@ ki_rangedup(krange_t *kr)
 		new->kr_endcnt = 1; /* dup flatten below */
 		new->kr_end = ki_keydupf(kr->kr_end, kr->kr_endcnt);
 		if (!kr->kr_end) {
-			ki_keyfree(new->kr_start, new->kr_startcnt);
-			ki_keyfree(new->kr_keys,  new->kr_endcnt);
-			KI_FREE(new);
+			ki_keydestroy(new->kr_start, new->kr_startcnt);
+			ki_keydestroy(new->kr_keys,  new->kr_endcnt);
+			ki_destroy(new);
 			return(NULL);
 		}
 	}
 
 	return(new);
-}
-
-/**
- * ki_rangefree
- *
- * Free the given range
- */
-int
-ki_rangefree(krange_t *kr)
-{
-	if (!kr)
-		return(0);
-
-	ki_keyfree(kr->kr_keys,  kr->kr_keyscnt);
-	ki_keyfree(kr->kr_start, kr->kr_startcnt);
-	ki_keyfree(kr->kr_end,   kr->kr_endcnt);
-	KI_FREE(kr);
-	return(0);
 }
 
 /**

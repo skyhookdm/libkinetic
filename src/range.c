@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2020 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -33,11 +33,14 @@
 #include "kinetic_internal.h"
 #include "protocol_interface.h"
 
-struct kresult_message create_rangekey_message(kmsghdr_t *, kcmdhdr_t *, krange_t *);
-kstatus_t extract_keyrange(struct kresult_message *response_msg, krange_t *keyrange_data);
+/**
+ * Internal prototypes
+ */
+struct kresult_message
+create_rangekey_message(kmsghdr_t *, kcmdhdr_t *, krange_t *);
 
 /**
- * ki_range(int ktd, krange_t *kr)
+ * ki_getrange(int ktd, krange_t *kr)
  *
  *  kr		kr_key must contain a fully populated kiovec array
  *		keyrange_val must contain a zero-ed kiovec array of cnt 1
@@ -46,12 +49,9 @@ kstatus_t extract_keyrange(struct kresult_message *response_msg, krange_t *keyra
  *		keyrange_ditype is returned by the server, but it should
  * 		have either a 0 or a valid ditype in it to start with
  *
- * The get APIs share about 95% of the same code. This routine Consolidates
- * the code.
- *
  */
 kstatus_t
-ki_range(int ktd, krange_t *kr)
+ki_getrange(int ktd, krange_t *kr)
 {
 	int rc, n;              // numeric return codes
 	int freestart=0;		/* bools to remember if ki_range */
@@ -75,28 +75,11 @@ ki_range(int ktd, krange_t *kr)
 	// Get KTLI config
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		krc = (kstatus_t) {
-			.ks_code    = K_EREJECTED,
-			.ks_message = "Bad session",
-			.ks_detail  = "",
-		};
-		goto rex1;
+		debug_printf("range: ktli config");
+		krc = K_EBADSESS;
+		goto rex_end;
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
-
-	/* Validate the passed in kr */
-	if (!kr) {
-		krc = (kstatus_t) {
-			.ks_code    = K_EINVAL,
-			.ks_message = "Missing Parameters",
-			.ks_detail  = "",
-		};
-		goto rex1;
-	}
-
-	/* If kr_count is set to infinity, fix it */
-	if (kr->kr_count == KVR_COUNT_INF)
-		kr->kr_count = ses->ks_l.kl_rangekeycnt;
 
 	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_validatestart = clock();
@@ -105,13 +88,14 @@ ki_range(int ktd, krange_t *kr)
 	/* validate the input keyrange */
 	rc = ki_validate_range(kr, &ses->ks_l);
 	if (rc < 0) {
-		krc = (kstatus_t) {
-			.ks_code    = K_EINVAL,
-			.ks_message = "Invalid KV",
-			.ks_detail  = "",
-		};
-		goto rex1;
+		debug_printf("range: kv invalid");
+		krc = K_EINVAL;
+		goto rex_end;
 	}
+	
+	/* If kr_count is set to infinity, fix it */
+	if (kr->kr_count == KVR_COUNT_INF)
+		kr->kr_count = ses->ks_l.kl_rangekeycnt;
 
 	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_validateend = clock();
@@ -120,40 +104,11 @@ ki_range(int ktd, krange_t *kr)
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		krc = (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
-		goto rex3;
+		debug_printf("range: kio alloc");
+	        krc = K_ENOMEM;
+		goto rex_end;
 	}
 	memset(kio, 0, sizeof(struct kio));
-
-	/* Setup the KIO */
-	kio->kio_cmd = KMT_GETRANGE;
-	kio->kio_flags		= KIOF_INIT;
-	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
-
-	/*
-	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
-	 * is for the protobuf message. There is no value.
-	 * See kio.h (previously in message.h) for more details.
-	 */
-	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
-	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
-	if (!kio->kio_sendmsg.km_msg) {
-		krc =  (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to allocate memory for request",
-			.ks_detail  = "",
-		};
-		goto rex4;
-	}
-
-	// hang the Packed PDU buffer, packing occurs later
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
 	/*
 	 * Setup msg_hdr
@@ -173,24 +128,45 @@ ki_range(int ktd, krange_t *kr)
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 
-	/* setup cmd_hdr */
+	/* Setup cmd_hdr */
 	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
 	cmd_hdr.kch_type = KMT_GETRANGE;
+
+	/* sequence number gets set during the send */
+	
+	kmreq = create_rangekey_message(&msg_hdr, &cmd_hdr, kr);
+	if (kmreq.result_code == FAILURE) {
+		debug_printf("range: request message create");
+		krc = K_EINTERNAL;
+		goto rex_kio;
+	}
+
+	/* Setup the KIO */
+	kio->kio_cmd 	= KMT_GETRANGE;
+	kio->kio_flags	= KIOF_INIT;
+	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
+
+	/*
+	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
+	 * is for the protobuf message. There is no value.
+	 * See kio.h (previously in message.h) for more details.
+	 */
+	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
+	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
+	if (!kio->kio_sendmsg.km_msg) {
+		debug_printf("range: sendmesg alloc");
+		krc = K_ENOMEM;
+		goto rex_req;
+	}
+
+	// hang the Packed PDU buffer, packing occurs later
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
+	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
 	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_reqstart = clock();
 	#endif
-
-	kmreq = create_rangekey_message(&msg_hdr, &cmd_hdr, kr);
-	if (kmreq.result_code == FAILURE) {
-		krc   = (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to construct kinetic message for request",
-			.ks_detail  = "",
-		};
-
-		goto rex5;
-	}
 
 	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_reqend = clock();
@@ -206,13 +182,9 @@ ki_range(int ktd, krange_t *kr)
 	);
 
 	if (pack_result == FAILURE) {
-		krc   = (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to pack kinetic message for request",
-			.ks_detail  = "",
-		};
-
-		goto rex6;
+		debug_printf("range: sendmesg msg pack");
+		krc = K_EINTERNAL;
+		goto rex_sendmsg;
 	}
 
 	#if LOGLEVEL >= LOGLEVEL_DEBUG
@@ -226,6 +198,7 @@ ki_range(int ktd, krange_t *kr)
 	pdu.kp_vallen = 0;
 
 	PACK_PDU(&pdu, ppdu);
+	
 	debug_printf("ki_range: PDU(x%2x, %d, %d)\n",
 	       pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen);
 
@@ -249,7 +222,10 @@ ki_range(int ktd, krange_t *kr)
 			if (errno == ENOENT) { continue; }
 
 			/* PAK: need to exit, receive failed */
-			else { ; }
+			else {
+				krc = K_EINTERNAL;
+				goto rex_sendmsg;
+			}
 		}
 
 		// Got our response
@@ -263,29 +239,26 @@ ki_range(int ktd, krange_t *kr)
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		/* PAK: error handling -need to clean up Yikes! */
-		assert(0);
+		debug_printf("range: PDU bad length");
+		krc = K_EINTERNAL;
+		goto rex_recvmsg;
 	}
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
 
 	/* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
-		/* PAK: error handling -need to clean up Yikes! */
-		assert(0);
+		debug_printf("range: PDU decode");
+		krc = K_EINTERNAL;
+		goto rex_recvmsg;
 	}
 
 	/* Now unpack the message */
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		krc   = (kstatus_t) {
-			.ks_code    = K_EINTERNAL,
-			.ks_message = "Unable to unpack kinetic message from response",
-			.ks_detail  = "",
-		};
-
-		// cleanup and return error
-		goto rex7;
+		debug_printf("range: msg unpack");
+		krc = K_EINTERNAL;
+		goto rex_resp;
 	}
 
 	#if LOGLEVEL >= LOGLEVEL_DEBUG
@@ -299,11 +272,19 @@ ki_range(int ktd, krange_t *kr)
 	#endif
 
 	/* clean up */
- // TODO: update cleanup code
- // rex8:
+ rex_resp:
 	destroy_message(kmresp.result_message);
 
- rex7:
+ rex_recvmsg:
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_recvmsg.km_msg);
+
+ rex_sendmsg:
+	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+	KI_FREE(kio->kio_sendmsg.km_msg);
+
+ rex_req:
 	/*
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that
 	 * was made in kmreq before freeingcalling destroy.
@@ -312,36 +293,25 @@ ki_range(int ktd, krange_t *kr)
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len  = 0;
 
-	/* sendmsg.km_msg[0] Not allocated, static */
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg);
-	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
-
- rex6:
 	destroy_message(kmreq.result_message);
 
- rex5:
-	KI_FREE(kio->kio_sendmsg.km_msg);
 
- rex4:
+ rex_kio:
 	KI_FREE(kio);
 
- rex3:
+ rex_end:
 	if (freeend) {
-		ki_keyfree(kr->kr_end, kr->kr_endcnt);
+		ki_keydestroy(kr->kr_end, kr->kr_endcnt);
 		kr->kr_end = NULL;
 		kr->kr_endcnt = 0;
 	}
 
- //rex2:
 	if (freestart) {
-		ki_keyfree(kr->kr_start, kr->kr_startcnt);
+		ki_keydestroy(kr->kr_start, kr->kr_startcnt);
 		kr->kr_start = NULL;
 		kr->kr_startcnt = 0;
 	}
 
- rex1:
 	debug_printf("Times for ki_range:\n");
 	debug_printf("\tTotal           : %lu\n", clock_extract - clock_rangestart);
 	debug_printf("\tValidation      : %lu\n", clock_validateend - clock_validatestart);
@@ -422,43 +392,73 @@ void destroy_protobuf_keyrange(krange_t *keyrange_data) {
 	KI_FREE(keyrange_data);
 }
 
-kstatus_t extract_keyrange(struct kresult_message *response_msg, krange_t *keyrange_data) {
+kstatus_t extract_keyrange(struct kresult_message *resp_msg, krange_t *kr_data){
 	// assume failure status
-	kstatus_t keyrange_status = (kstatus_t) {
-		.ks_code    = K_INVALID_SC,
-		.ks_message = NULL,
-		.ks_detail  = NULL,
-	};
-
+	kstatus_t krc = K_INVALID_SC;
+	kproto_msg_t *kr_resp_msg;
+	
 	// commandbytes should exist, but we should probably be thorough
-	kproto_msg_t *keyrange_response_msg = (kproto_msg_t *) response_msg->result_message;
-	if (!keyrange_response_msg->has_commandbytes) { return keyrange_status; }
-
-	// unpack the command bytes
-	kproto_cmd_t *response_cmd = unpack_kinetic_command(keyrange_response_msg->commandbytes);
-
-	// extract the response status to be returned.
-	// prepare this early to make cleanup easy
-	keyrange_status = extract_cmdstatus(response_cmd);
-
-	if (response_cmd->body == NULL) { return keyrange_status; }
-	if (response_cmd->body->range == NULL) { return keyrange_status; }
-
-	// ------------------------------
-	// begin extraction of command body into krange_t structure
-	kproto_keyrange_t *response = response_cmd->body->range;
-
-	keyrange_data->kr_keyscnt = response->n_keys;
-	keyrange_data->kr_keys    = (struct kiovec *) KI_MALLOC(sizeof(struct kiovec) * response->n_keys);
-
-	for (size_t result_keyndx = 0; result_keyndx < response->n_keys; result_keyndx++) {
-		keyrange_data->kr_keys[result_keyndx].kiov_base = response->keys[result_keyndx].data;
-		keyrange_data->kr_keys[result_keyndx].kiov_len  = response->keys[result_keyndx].len;
+	kr_resp_msg = (kproto_msg_t *) resp_msg->result_message;
+	if (!kr_resp_msg->has_commandbytes) {
+		debug_printf("extract_keyrange: no resp cmd");
+		return(K_EINTERNAL);
 	}
 
-	// set fields used for cleanup
-	keyrange_data->keyrange_protobuf = response_cmd;
-	keyrange_data->destroy_protobuf  = destroy_protobuf_keyrange;
+	// unpack the command bytes
+	kproto_cmd_t *resp_cmd;
+	
+	resp_cmd = unpack_kinetic_command(kr_resp_msg->commandbytes);
+	if (!resp_cmd) {
+		debug_printf("extract_keyrange: resp cmd unpack");
+		return(K_EINTERNAL);
+	}
+	kr_data->keyrange_protobuf = resp_cmd;
 
-	return keyrange_status;
+	// set destructor to be called later
+	kr_data->destroy_protobuf  = destroy_protobuf_keyrange;
+
+	// extract the status. On failure, skip to cleanup
+	krc = extract_cmdstatus_code(resp_cmd);
+	if (krc != K_OK) {
+		debug_printf("extract_keyrange: status");
+		goto extract_rex;
+	}
+
+	
+	// ------------------------------
+	// begin extraction of command data
+	// check if there's command data to parse, otherwise cleanup and exit
+	if (!resp_cmd->body  || !resp_cmd->body->range) {
+		debug_printf("extract_keyrange: command missing body or kv");
+		goto extract_rex;
+	}
+	kproto_keyrange_t *resp = resp_cmd->body->range;
+	int n;
+	
+	kr_data->kr_keyscnt = resp->n_keys;
+	n = sizeof(struct kiovec) * resp->n_keys;
+	kr_data->kr_keys    = (struct kiovec *) KI_MALLOC(n);
+
+	if (!kr_data->kr_keys) {
+		debug_printf("extract_keyrange: key vector");
+		krc = K_ENOMEM;
+		goto extract_rex;
+	}
+		
+	for (size_t i = 0; i < resp->n_keys; i++) {
+		kr_data->kr_keys[i].kiov_base = resp->keys[i].data;
+		kr_data->kr_keys[i].kiov_len  = resp->keys[i].len;
+	}
+	
+	return krc;
+
+ extract_rex:
+
+	// Just make sure we don't return an ok message
+	if (krc == K_OK) {
+		debug_printf("extract_keyrange: error exit");
+		krc = K_EINTERNAL;
+	}
+
+	return krc;
 }

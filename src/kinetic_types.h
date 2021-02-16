@@ -1,9 +1,38 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #ifndef _KINETIC_TYPES_H
 #define _KINETIC_TYPES_H
 
 #include "protocol/kinetic.pb-c.h"
 #include "protocol_types.h"
 
+
+/* 
+ * Below are the types required to use the create/clean/destroy interface
+ */
+typedef enum ktype {
+	KT_NONE	= 0,
+	KV_T,
+	KRANGE_T,
+	KITER_T,
+	KBATCH_T,
+	KGETLOG_T,
+	/* Keep last */
+	KT_LAST,	
+} ktype_t;
 
 // ------------------------------
 // Type aliases for protocol
@@ -37,34 +66,56 @@ enum {
 // Kinetic Status Codes
 #define CSSC(cssc) COM__SEAGATE__KINETIC__PROTO__COMMAND__STATUS__STATUS_CODE__##cssc
 
-typedef Com__Seagate__Kinetic__Proto__Command__Status__StatusCode kstatus_code_t;
-enum {
-	K_INVALID_SC   = CSSC(INVALID_STATUS_CODE),
-	K_OK           = CSSC(SUCCESS),
-	K_EREJECTED    = CSSC(NOT_ATTEMPTED),
-	K_EHMAC        = CSSC(HMAC_FAILURE),
-	K_EACCESS      = CSSC(NOT_AUTHORIZED),
-	K_EVERSION     = CSSC(VERSION_FAILURE),
-	K_EINTERNAL    = CSSC(INTERNAL_ERROR),
-	K_ENOHEADER    = CSSC(HEADER_REQUIRED),
-	K_ENOTFOUND    = CSSC(NOT_FOUND),
-	K_EBADVERS     = CSSC(VERSION_MISMATCH),
-	K_EBUSY        = CSSC(SERVICE_BUSY),
-	K_ETIMEDOUT    = CSSC(EXPIRED),
-	K_EDATA        = CSSC(DATA_ERROR),
-	K_EPERMDATA    = CSSC(PERM_DATA_ERROR),
-	K_EP2PCONN     = CSSC(REMOTE_CONNECTION_ERROR),
-	K_ENOSPACE     = CSSC(NO_SPACE),
-	K_ENOHMAC      = CSSC(NO_SUCH_HMAC_ALGORITHM),
-	K_EINVAL       = CSSC(INVALID_REQUEST),
-	K_EP2P         = CSSC(NESTED_OPERATION_ERRORS),
-	K_ELOCKED      = CSSC(DEVICE_LOCKED),
-	K_ENOTLOCKED   = CSSC(DEVICE_ALREADY_UNLOCKED),
-	K_ECONNABORTED = CSSC(CONNECTION_TERMINATED),
-	K_EINVALBAT    = CSSC(INVALID_BATCH),
-	K_EHIBERNATE   = CSSC(HIBERNATE),
-	K_ESHUTDOWN    = CSSC(SHUTDOWN),
-};
+//typedef Com__Seagate__Kinetic__Proto__Command__Status__StatusCode kstatus_code_t;
+typedef enum kstatus {
+	/* Error #'s fixed by kinetic.proto */
+	K_INVALID_SC	= CSSC(INVALID_STATUS_CODE),	/* -1 */
+
+	KSTAT_GRP1	= 0,
+	K_EREJECTED	= CSSC(NOT_ATTEMPTED),		/*  0 */
+	K_OK		= CSSC(SUCCESS),		/*  1 */
+	K_EHMAC		= CSSC(HMAC_FAILURE),		/*  2 */
+	K_EACCESS	= CSSC(NOT_AUTHORIZED),		/*  3 */
+	K_EVERSION	= CSSC(VERSION_FAILURE),	/*  4 */
+	K_EINTERNAL	= CSSC(INTERNAL_ERROR),		/*  5 */
+	K_ENOHEADER	= CSSC(HEADER_REQUIRED),	/*  6 */
+	K_ENOTFOUND	= CSSC(NOT_FOUND),		/*  7 */
+	K_EBADVERS	= CSSC(VERSION_MISMATCH),	/*  8 */
+	K_EBUSY		= CSSC(SERVICE_BUSY),		/*  9 */
+	K_ETIMEDOUT	= CSSC(EXPIRED),		/* 10 */
+	K_EDATA		= CSSC(DATA_ERROR),		/* 11 */
+	K_EPERMDATA	= CSSC(PERM_DATA_ERROR),	/* 12 */
+	K_EP2PCONN	= CSSC(REMOTE_CONNECTION_ERROR),/* 13 */
+	K_ENOSPACE	= CSSC(NO_SPACE),		/* 14 */
+	K_ENOHMAC	= CSSC(NO_SUCH_HMAC_ALGORITHM),	/* 15 */
+	K_EINVAL	= CSSC(INVALID_REQUEST),	/* 16 */
+	K_EP2P		= CSSC(NESTED_OPERATION_ERRORS),/* 17 */
+	K_ELOCKED	= CSSC(DEVICE_LOCKED),		/* 18 */
+	K_ENOTLOCKED	= CSSC(DEVICE_ALREADY_UNLOCKED),/* 19 */
+	K_ECONNABORTED	= CSSC(CONNECTION_TERMINATED),	/* 20 */
+	K_EINVALBAT	= CSSC(INVALID_BATCH),		/* 21 */
+	K_EHIBERNATE	= CSSC(HIBERNATE),		/* 22 */
+	K_ESHUTDOWN	= CSSC(SHUTDOWN),  		/* 23 */
+	KSTAT_GRP1_LAST	= 24,
+
+	/* Need more errnos, Sufficiently outside kinetic.proto */
+	KSTAT_GRP2	= 0x8000, 		/* Prefix for nonproto errors */
+	K_EAGAIN	= (KSTAT_GRP2 | 0),
+	K_ENOMSG	= (KSTAT_GRP2 | 0),
+	K_ENOMEM	= (KSTAT_GRP2 | 0),
+	K_EBADSESS	= (KSTAT_GRP2 | 0),
+	K_EMSGPACK	= (KSTAT_GRP2 | 0),
+	K_EMSGUNPACK	= (KSTAT_GRP2 | 0),
+	K_ECMDUNPACK	= (KSTAT_GRP2 | 0),
+	K_ENOCMD	= (KSTAT_GRP2 | 0),
+	K_ECREATEREQ	= (KSTAT_GRP2 | 0),
+	K_ERECVMSG	= (KSTAT_GRP2 | 0),
+	K_ERECVPDU	= (KSTAT_GRP2 | 0),
+	K_EPDUMSGLEN	= (KSTAT_GRP2 | 0),
+	K_EBATCH	= (KSTAT_GRP2 | 0),
+	KSTAT_GRP2_LAST	= 0,
+	
+} kstatus_t;
 
 /**
  * koivec structure
@@ -253,6 +304,13 @@ typedef struct kiter {
 typedef void kbatch_t;
 
 
+/**
+ * KIO type
+ *
+ * This opaque type permits the AIO calls
+ *
+ */
+typedef void kio_t;
 /* ------------------------------
  * Types for interfacing with API
  */
@@ -278,11 +336,13 @@ struct kresult_message {
 };
 
 // Kinetic Status block
+#if 0
 typedef struct kstatus {
 	kstatus_code_t  ks_code;
 	char           *ks_message;
 	char           *ks_detail;
 } kstatus_t;
+#endif
 
 
 #endif /*  _KINETIC_TYPES_H */

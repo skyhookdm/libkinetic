@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +28,6 @@
 
 #include <kinetic/kinetic.h>
 #include "kctl.h"
-
 
 /* Initialization must be in same struct defintion order */
 struct kargs kargs = {
@@ -324,7 +338,7 @@ kctl_interactive(struct kargs *ka)
 		return(EINVAL);
 	}
 
-	while (line = readline("kctl> ")) {
+	while ((line = readline("kctl> "))) {
 		if (!strlen(line)) {
 			free(line);
 			continue;

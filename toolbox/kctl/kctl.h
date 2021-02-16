@@ -1,11 +1,20 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #ifndef _KCTL_H
 #define _KCTL_H
-
-/* 
- * Arbitrary number determined by empirical tests 
- * PAK: fix with Limits call 
- */
-#define GETKEYRANGE_MAX_COUNT 800
 
 enum kctl_cmd {
 	KCTL_NOOP = 0,
