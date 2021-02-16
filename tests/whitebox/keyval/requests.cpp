@@ -12,22 +12,20 @@ extern "C" {
 }
 
 #include "../kfixtures.hpp"
+#include "../hashtable.hpp"
 #include "helper.hpp"
+
+using TestHelpers::Buffer;
+using TestHelpers::KVEntry;
 
 
 namespace KFixtures {
-
-    void check_status(kstatus_t *command_status, kstatus_t *expected_status) {
-        ASSERT_EQ(command_status->ks_code, expected_status->ks_code);
-
-        ASSERT_STREQ(command_status->ks_message, expected_status->ks_message);
-        ASSERT_STREQ(command_status->ks_detail , expected_status->ks_detail );
-    }
 
     class KeyValTest: public ::testing::Test {
         protected:
             int conn_descriptor;
             TestHelpers::KeyValHelper *keyval_helper;
+            TestHelpers::HashTable    *keyval_kstore;
 
             KeyValTest() {
                 this->conn_descriptor = -1;
@@ -52,6 +50,11 @@ namespace KFixtures {
                 if (!device_limits.kl_keylen) {
                     fprintf(stderr, "Failed to receive kinetic device limits\n");
                 }
+
+                // Initialize keyval_kstore once we have a connection descriptor
+                this->keyval_kstore = new TestHelpers::HashTable(
+                    this->conn_descriptor
+                );
             }
 
             void TearDown() override {
@@ -65,60 +68,78 @@ namespace KFixtures {
     // ------------------------------
     // Read-only Test Cases
     TEST_F(KeyValTest, test_getkey_doesnotexist) {
-        // ------------------------------
-        // Execute the Test
+        // Prepare inputs
         char key_str[] = "-ForSureThisisAUniqueKeyName-";
-        size_t key_len = strlen(key_str);
-        size_t key_cnt = 1;
-        size_t val_cnt = 1;
 
-        char *input_key = (char *) malloc(sizeof(char) * key_len);
-        memcpy(input_key, key_str, key_len);
+        // Execute code to be tested
+        TestHelpers::KVEntry *kv_entry = keyval_kstore->get_key(key_str);
 
-        struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = { .kiov_len = 0, .kiov_base = nullptr };
-        kv_t input_data   = (kv_t) {
-            .kv_key       = input_keyvec          ,
-            .kv_keycnt    = key_cnt               ,
-            .kv_val       = &input_valvec         ,
-            .kv_valcnt    = 1                     ,
-            .kv_ver       = nullptr               ,
-            .kv_verlen    = 0                     ,
-            .kv_newver    = nullptr               ,
-            .kv_newverlen = 0                     ,
-            .kv_disum     = nullptr               ,
-            .kv_disumlen  = 0                     ,
-            .kv_ditype    = (kditype_t) 0         ,
-            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
-        };
+        // Prepare expected outputs
+        kv_t   output_data;
+        memset(&output_data, 0, sizeof(kv_t));
 
-        struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = { .kiov_len = 0, .kiov_base = nullptr };
-        kv_t output_data  = (kv_t) {
-            .kv_key       = output_keyvec         ,
-            .kv_keycnt    = key_cnt               ,
-            .kv_val       = &output_valvec        ,
-            .kv_valcnt    = 1                     ,
-            .kv_ver       = nullptr               ,
-            .kv_verlen    = 0                     ,
-            .kv_newver    = nullptr               ,
-            .kv_newverlen = 0                     ,
-            .kv_disum     = nullptr               ,
-            .kv_disumlen  = 0                     ,
-            .kv_ditype    = (kditype_t) 0         ,
-            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
-        };
+        // Validate
+        keyval_helper->validate_keyval(kv_entry->entry_data, &output_data);
 
-        kstatus_t notfound_status = {
-            .ks_code    = (kstatus_code_t) K_ENOTFOUND,
-            .ks_message = (char *) "Key not found",
-            .ks_detail  = nullptr,
-        };
-
-        keyval_helper->test_getkey(conn_descriptor, &notfound_status,
-                                   &input_data, &output_data);
+        validate_status(
+            kv_entry->op_status         ,
+            (kstatus_code_t) K_ENOTFOUND,
+            (char *) "Key not found"    ,
+            nullptr
+        );
     }
 
+    TEST_F(KeyValTest, test_getkey_exists_simple) {
+        // Prepare inputs
+        char key_str[] = "pak";
+
+        // Execute code to be tested
+        TestHelpers::KVEntry *kv_entry = keyval_kstore->get_key(key_str);
+
+        // ------------------------------
+        // Prepare expected outputs
+
+        // expected value
+        char     val_str[]         = "Hello World";
+        size_t   val_len           = strlen(val_str);
+
+        // expected checksum
+        uint32_t val_checksum      = 0;
+        Buffer disum_buffer = (Buffer) {
+            .len  =          sizeof(uint32_t),
+            .data = (void *) &val_checksum   ,
+        };
+
+        // expected db version
+        char     existing_dbver[11];
+        sprintf(existing_dbver, "0x%08x", val_checksum);
+        Buffer dbver_buffer = (Buffer) {
+            .len  = (size_t) 10                  ,
+            .data = (void *) &(existing_dbver[0]),
+        };
+
+        // expected result (put it all together)
+        TestHelpers::KVEntry *expected_entry = new TestHelpers::KVEntry();
+        expected_entry->set_key    (&(key_str[0])         )
+                      ->set_val    (&(val_str[0]), val_len)
+                      ->with_dbver (&dbver_buffer         )
+                      ->with_disum (&disum_buffer         )
+                      ->with_ditype((kditype_t) KDI_CRC32 )
+        ;
+
+        // Validate
+        keyval_helper->validate_keyval(kv_entry->entry_data, expected_entry->entry_data);
+
+        validate_status(
+            kv_entry->op_status  ,
+            (kstatus_code_t) K_OK,
+            (char *) ""          ,
+            nullptr
+        );
+    }
+
+
+    /*
     TEST_F(KeyValTest, test_getkey_exists) {
         // ------------------------------
         // Execute the Test
@@ -129,15 +150,15 @@ namespace KFixtures {
         size_t key_cnt = 1;
         size_t val_cnt = 1;
 
-		/* These should reflect kctl defaults */
-		uint32_t       val_checksum      = 0;
+        // These should reflect kctl defaults
+        uint32_t       val_checksum      = 0;
         size_t         existing_dbverlen = 11;
-		size_t         checksum_len      = sizeof(uint32_t);
-		kditype_t      checksum_type     = (kditype_t) KDI_CRC32;
-		kcachepolicy_t cpolicy_type      = (kcachepolicy_t) KC_WB;
+        size_t         checksum_len      = sizeof(uint32_t);
+        kditype_t      checksum_type     = (kditype_t) KDI_CRC32;
+        kcachepolicy_t cpolicy_type      = (kcachepolicy_t) KC_WB;
 
         char existing_dbver[11];
-		sprintf(existing_dbver, "0x%08x", val_checksum);
+        sprintf(existing_dbver, "0x%08x", val_checksum);
 
         char *input_key = (char *) malloc(sizeof(char) * key_len);
         memcpy(input_key, key_str, key_len);
@@ -184,11 +205,12 @@ namespace KFixtures {
 
         keyval_helper->test_getkey(conn_descriptor, &ok_status, &input_data, &output_data);
     }
+    */
 
     // ------------------------------
     // TODO: these tests not yet verified
 
-	/*
+    /*
     TEST_F(KeyValTest, test_getversion_doesnotexist) {
         // ------------------------------
         // Execute the Test
@@ -611,7 +633,7 @@ namespace KFixtures {
 
         keyval_helper->test_getkey(conn_descriptor, &ok_status, &input_data, &output_data);
     }
-	*/
+    */
 
     // ------------------------------
     // Modification Test Cases
@@ -771,13 +793,13 @@ namespace KFixtures {
         keyval_helper->test_delkey(conn_descriptor, &ok_status,
                                    &delkey_input, &delkey_output);
 
-		/*
+        /*
         fprintf(stdout, "Delete key input:\n");
         keyval_helper->print_keyval(&delkey_input);
 
         fprintf(stdout, "Delete key output:\n");
         keyval_helper->print_keyval(&delkey_output);
-		*/
+        */
 
         // ------------------------------
         // Fourth: validate the key does not exist
