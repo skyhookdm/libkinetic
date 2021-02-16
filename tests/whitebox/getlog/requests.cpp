@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -17,11 +32,8 @@ extern "C" {
 
 namespace KFixtures {
 
-    void check_status(kstatus_t *command_status, kstatus_t *expected_status) {
-        ASSERT_EQ(command_status->ks_code, expected_status->ks_code);
-
-        ASSERT_STREQ(command_status->ks_message, expected_status->ks_message);
-        ASSERT_STREQ(command_status->ks_detail , expected_status->ks_detail );
+    void check_status(kstatus_t command_status, kstatus_t expected_status) {
+	    ASSERT_EQ(command_status, expected_status);
     }
 
     class GetLogTest: public ::testing::Test {
@@ -71,9 +83,7 @@ namespace KFixtures {
         // Verify response data against test expectations
 
         // verify returned status
-        KFixtures::validate_status(&cmd_status,
-            (kstatus_code_t) K_OK, (char *) "", nullptr
-        );
+        check_status(cmd_status, K_OK);
 
         // verify returned front-end getlog struct
         kgetlog_t actual_getlog = getlog_helper->getlog_data;
@@ -106,9 +116,7 @@ namespace KFixtures {
         // Verify response data against test expectations
 
         // verify returned status
-        KFixtures::validate_status(&cmd_status,
-            (kstatus_code_t) K_OK, (char *) "", nullptr
-        );
+        check_status(cmd_status, K_OK);
 
         // verify returned front-end getlog struct
         kgetlog_t actual_getlog = getlog_helper->getlog_data;

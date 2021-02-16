@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,7 +32,8 @@ extern char *ki_cpolicy_label[];
 extern char *ki_status_label[];
 
 #define CMD_USAGE(_ka) kctl_put_usage(_ka)
-int
+
+void
 kctl_put_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY VALUE\n",
@@ -62,9 +78,9 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 						// one int: "0x00000000"
 	kcachepolicy_t	cpolicy = KC_WB;
 	kv_t		*kv;
-	struct kiovec	kv_key[1]  = {0, 0};
-	struct kiovec	kv_val[1]  = {0, 0};
-	kstatus_t 	kstatus;
+	struct kiovec	kv_key[1]  = {{0, 0}};
+	struct kiovec	kv_val[1]  = {{0, 0}};
+	kstatus_t 	krc;
 
         while ((c = getopt(argc, argv, "bcf:h?p:s:z:")) != EOF) {
                 switch (c) {
@@ -255,8 +271,8 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	kv->kv_key[0].kiov_len  = ka->ka_keylen;
 
 	/* Get the key's version if it exists and then increment the version */
-	kstatus = ki_getversion(ktd, kv);
- 	if(kstatus.ks_code == K_OK) {
+	krc = ki_getversion(ktd, kv);
+ 	if(krc == K_OK) {
 		unsigned long nv;
 		nv = strtoul(kv->kv_ver, NULL, 16) + 1; /* increment the vers */
 		sprintf(newver, "0x%08x", (unsigned int)nv);
@@ -291,15 +307,13 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 	
         if (cmpswp)
-		kstatus = ki_cas(ktd, (bat?ka->ka_batch:NULL), kv);
+		krc = ki_cas(ktd, (bat?ka->ka_batch:NULL), kv);
 	else
-		kstatus = ki_put(ktd, (bat?ka->ka_batch:NULL), kv);
+		krc = ki_put(ktd, (bat?ka->ka_batch:NULL), kv);
 	
-	if (kstatus.ks_code != K_OK) {
-		fprintf(stderr, "%s: %s: %s: %s\n",
-			ka->ka_cmdstr, ka->ka_key,
-			ki_status_label[kstatus.ks_code],
-			kstatus.ks_message);
+	if (krc != K_OK) {
+		fprintf(stderr, "%s: %s: %s\n",
+			ka->ka_cmdstr, ka->ka_key, ki_error(krc));
 		return(-1);
 	}
 

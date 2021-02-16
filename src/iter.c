@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2020 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -153,7 +153,7 @@ ki_start(kiter_t *kit, krange_t *kr)
 
 	/* Load the first batch of keys */
 	krc = ki_getrange(kit->ki_ktd, kit->ki_range);
-	if (krc.ks_code != (kstatus_code_t) K_OK)
+	if (krc !=  K_OK)
 		return(NULL);
 
 	/* for an iter of size 1 */
@@ -232,7 +232,7 @@ ki_done(kiter_t *kit)
 
 	/* Load the next batch of keys */
 	krc = ki_getrange(kit->ki_ktd, kr);
-	if ((krc.ks_code != (kstatus_code_t) K_OK))
+	if (krc != K_OK)
 		/* no more keys to get = done */
 		return(1);
 

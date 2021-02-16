@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2020 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -61,8 +61,8 @@ ki_aio_complete(int ktd, kio_t *ckio, void **cctx)
 
 
 	default:
-		return kstatus_err(K_EREJECTED,
-				   KI_ERR_INVARGS, "aio_complete: bad command");
+		debug_printf("aio_complete: bad cmd");
+		return(K_EINVAL);
 	}
 
 	return(ks);

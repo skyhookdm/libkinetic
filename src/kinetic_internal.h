@@ -90,6 +90,7 @@
 	};								\
 }
 
+
 // macro for constructing errors concisely
 #define kstatus_err(kerror_code, ki_errtype, kerror_detail) (		\
 	(kstatus_t) {							\
@@ -105,7 +106,7 @@
 	: 0								\
 )
 
-
+#if 0
 // some forward declarations of what's in kerrors.c
 extern const char *ki_error_msgs[];
 enum ki_error_type {
@@ -123,7 +124,7 @@ enum ki_error_type {
 	KI_ERR_PDUMSGLEN  ,
 	KI_ERR_BATCH      ,
 };
-
+#endif
 /**
  * This is the internal structure for managing a batch across many API calls.
  * It is meant to be completely opaque to the caller. The kbatch_t type

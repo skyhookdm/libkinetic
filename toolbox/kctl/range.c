@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +26,7 @@
 
 #define CMD_USAGE(_ka) kctl_range_usage(_ka)
 
-int
+void
 kctl_range_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
@@ -58,11 +73,11 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
         int 		count = KVR_COUNT_INF;
 	int		reverse = 0;
 	int		adump = 0, hdump = 0;
-	kstatus_t 	kstatus;
+	kstatus_t 	krc;
 	krange_t	*kr;
 	kiter_t		*kit;
-	struct kiovec	startkey[1] = {0, 0};
-	struct kiovec	endkey[1] = {0, 0};
+	struct kiovec	startkey[1] = {{0, 0}};
+	struct kiovec	endkey[1] = {{0, 0}};
 	struct kiovec	*k;
 	
         while ((c = getopt(argc, argv, "rs:S:e:E:n:AXh?")) != EOF) {
@@ -267,11 +282,10 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	if ((count > 0) && (count <= ka->ka_limits.kl_rangekeycnt)) {
 		if (ka->ka_verbose) printf("Single Range Call...\n");
 
-		kstatus = ki_getrange(ktd, kr);
-		if(kstatus.ks_code != K_OK) {
-			fprintf(stderr,
-				"%s: Unable to get key range: %s\n",
-				ka->ka_cmdstr, kstatus.ks_message);
+		krc = ki_getrange(ktd, kr);
+		if(krc != K_OK) {
+			fprintf(stderr, "%s: Unable to get key range: %s\n",
+				ka->ka_cmdstr, ki_error(krc));
 			return(-1);
 		}
 

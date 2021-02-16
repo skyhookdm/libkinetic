@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +28,8 @@
 #define VERLEN 11
 
 #define CMD_USAGE(_ka) kctl_del_usage(_ka)
-int
+
+void
 kctl_del_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
@@ -66,17 +82,15 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 	int		all = 0;
         int 		count = KVR_COUNT_INF;;
 	int 		cmpdel = 0, bat=0;
-	char		newver[VERLEN]; 	// holds hex representation of
-						// one int: "0x00000000"
 	kv_t		*kv;
 	krange_t	*kr;
 	kiter_t		*kit;
-	struct kiovec	kv_key[1]   = {0, 0};
-	struct kiovec	kv_val[1]   = {0, 0};
-	struct kiovec	startkey[1] = {0, 0};
-	struct kiovec	endkey[1]   = {0, 0};
+	struct kiovec	kv_key[1]   = {{0, 0}};
+	struct kiovec	kv_val[1]   = {{0, 0}};
+	struct kiovec	startkey[1] = {{0, 0}};
+	struct kiovec	endkey[1]   = {{0, 0}};
 	struct kiovec	*k;
-	kstatus_t 	kstatus;
+	kstatus_t 	krc;
 
         while ((c = getopt(argc, argv, "abcp:s:S:e:E:n:h?")) != EOF) {
                 switch (c) {
@@ -236,10 +250,10 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		 * Get the key to prove the it exists 
 		 * and to get the current version
 		 */
-		kstatus = ki_getversion(ktd, kv);
-		if (kstatus.ks_code != K_OK) {
+		krc = ki_getversion(ktd, kv);
+		if (krc != K_OK) {
 			fprintf(stderr, "%s: %s\n", 
-				ka->ka_cmdstr,  kstatus.ks_message);
+				ka->ka_cmdstr,  ki_error(krc));
 			return(-1);
 		}
 
@@ -259,17 +273,16 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		/* ka_yes must be first to short circuit the conditional */
 		if (ka->ka_yes || yorn("Please answer y or n [yN]: ", 0, 5)) {
 			if (cmpdel)
-				kstatus = ki_cad(ktd,
+				krc = ki_cad(ktd,
 						 (bat?ka->ka_batch:NULL), kv);
 			else
-				kstatus = ki_del(ktd,
+				krc = ki_del(ktd,
 						 (bat?ka->ka_batch:NULL), kv);
 				
-			if (kstatus.ks_code != K_OK) {
+			if (krc != K_OK) {
 				fprintf(stderr,
-					"%s: Unable to delete key: %s: %s\n", 
-					ka->ka_cmdstr,  kstatus.ks_message,
-					kstatus.ks_detail?kstatus.ks_detail:"");
+					"%s: Unable to delete key: %s\n", 
+					ka->ka_cmdstr,  ki_error(krc));
 				return(-1);
 			}
 		}
@@ -414,23 +427,21 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				/* 
 				 * Get the key's the current version
 				 */
-				kstatus = ki_getversion(ktd, kv);
-				if (kstatus.ks_code != K_OK) {
+				krc = ki_getversion(ktd, kv);
+				if (krc != K_OK) {
 					fprintf(stderr, "%s: %s\n", 
-						ka->ka_cmdstr,
-						kstatus.ks_message);
+						ka->ka_cmdstr, ki_error(krc));
 					return(-1);
 				}
-				kstatus = ki_cad(ktd, NULL, kv);
+				krc = ki_cad(ktd, NULL, kv);
 			} else {
-				kstatus = ki_del(ktd, NULL, kv);
+				krc = ki_del(ktd, NULL, kv);
 			}
 
-			if (kstatus.ks_code != K_OK) {
+			if (krc != K_OK) {
 				fprintf(stderr,
-					"%s: Unable to delete key: %s: %s\n", 
-					ka->ka_cmdstr,  kstatus.ks_message,
-					kstatus.ks_detail?kstatus.ks_detail:"");
+					"%s: Unable to delete key: %s\n", 
+					ka->ka_cmdstr, ki_error(krc));
 				return(-1);
 			}
 		}

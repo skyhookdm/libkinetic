@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include "helper.hpp"
 
 namespace TestHelpers {
@@ -48,92 +63,68 @@ namespace TestHelpers {
     // KeyValHelper
     KeyValHelper::KeyValHelper() {}
 
-    void KeyValHelper::test_getversion(int conn_descriptor, kstatus_t *exp_status,
+    void KeyValHelper::test_getversion(int conn_descriptor, kstatus_t exp_status,
                                        kv_t *actual, kv_t *expected) {
         kstatus_t get_cmd_status = ki_getversion(conn_descriptor, actual);
         // getkey_helper->print_keyval();
 
-        ASSERT_EQ(get_cmd_status.ks_code, exp_status->ks_code);
-        KFixtures::validate_status(
-            &get_cmd_status,
-            exp_status->ks_code, exp_status->ks_message, exp_status->ks_detail
-        );
+        ASSERT_EQ(get_cmd_status, exp_status);
 
         this->validate_keyval(actual, expected);
     }
 
-    void KeyValHelper::test_getnext(int conn_descriptor, kstatus_t *exp_status,
+    void KeyValHelper::test_getnext(int conn_descriptor, kstatus_t exp_status,
                                     kv_t *actual, kv_t *actual_next,
                                     kv_t *expected, kv_t *expected_next) {
         kstatus_t get_cmd_status = ki_getnext(conn_descriptor, actual, actual_next);
         // getkey_helper->print_keyval();
 
-        ASSERT_EQ(get_cmd_status.ks_code, exp_status->ks_code);
-        KFixtures::validate_status(
-            &get_cmd_status,
-            exp_status->ks_code, exp_status->ks_message, exp_status->ks_detail
-        );
+        ASSERT_EQ(get_cmd_status, exp_status);
 
         this->validate_keyval(actual, expected);
         this->validate_keyval(actual_next, expected_next);
     }
 
-    void KeyValHelper::test_getprev(int conn_descriptor, kstatus_t *exp_status,
+    void KeyValHelper::test_getprev(int conn_descriptor, kstatus_t exp_status,
                                     kv_t *actual, kv_t *actual_prev,
                                     kv_t *expected, kv_t *expected_prev) {
         kstatus_t get_cmd_status = ki_getprev(conn_descriptor, actual, actual_prev);
         // getkey_helper->print_keyval();
 
-        ASSERT_EQ(get_cmd_status.ks_code, exp_status->ks_code);
-        KFixtures::validate_status(
-            &get_cmd_status,
-            exp_status->ks_code, exp_status->ks_message, exp_status->ks_detail
-        );
+        ASSERT_EQ(get_cmd_status, exp_status);
 
         this->validate_keyval(actual, expected);
         this->validate_keyval(actual_prev, expected_prev);
     }
 
-    void KeyValHelper::test_getkey(int conn_descriptor, kstatus_t *exp_status,
+    void KeyValHelper::test_getkey(int conn_descriptor, kstatus_t exp_status,
                                    kv_t *actual, kv_t *expected) {
         kstatus_t get_cmd_status = ki_get(conn_descriptor, actual);
         // getkey_helper->print_keyval();
 
-        ASSERT_EQ(get_cmd_status.ks_code, exp_status->ks_code);
-        KFixtures::validate_status(
-            &get_cmd_status,
-            exp_status->ks_code, exp_status->ks_message, exp_status->ks_detail
-        );
+        ASSERT_EQ(get_cmd_status, exp_status);
 
         this->validate_keyval(actual, expected);
     }
 
-    void KeyValHelper::test_putkey(int conn_descriptor, kstatus_t *exp_status,
+    void KeyValHelper::test_putkey(int conn_descriptor, kstatus_t exp_status,
                                    kv_t *actual, kv_t *expected) {
         kbatch_t *batch_info     = NULL;
         kstatus_t put_cmd_status = ki_put(conn_descriptor, batch_info, actual);
         // putkey_helper->print_keyval();
 
-        ASSERT_EQ(put_cmd_status.ks_code, exp_status->ks_code);
-        KFixtures::validate_status(
-            &put_cmd_status,
-            exp_status->ks_code, exp_status->ks_message, exp_status->ks_detail
-        );
+        ASSERT_EQ(put_cmd_status, exp_status);
 
         this->validate_keyval(actual, expected);
     }
 
-    void KeyValHelper::test_delkey(int conn_descriptor, kstatus_t *exp_status,
+    void KeyValHelper::test_delkey(int conn_descriptor, kstatus_t exp_status,
                                    kv_t *actual, kv_t *expected) {
         kbatch_t *batch_info = nullptr;
         kstatus_t del_cmd_status = ki_cad(conn_descriptor, batch_info, actual);
         // delkey_helper->print_keyval();
 
-        ASSERT_EQ(del_cmd_status.ks_code, exp_status->ks_code);
-        KFixtures::validate_status(
-            &del_cmd_status,
-            exp_status->ks_code, exp_status->ks_message, exp_status->ks_detail
-        );
+        ASSERT_EQ(del_cmd_status, exp_status);
 
         this->validate_keyval(actual, expected);
     }

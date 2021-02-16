@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2015 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -13,7 +13,6 @@
  * License for more details.
  *
  */
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -405,62 +404,89 @@ void extract_to_command_header(kproto_cmdhdr_t *proto_cmdhdr, kcmdhdr_t *cmdhdr_
 	}
 }
 
-void free_cmdstatus(kstatus_t *cmd_status) {
-	if (cmd_status->ks_message != UNALLOC_VAL) {
-		KI_FREE(cmd_status->ks_message);
+kstatus_t extract_cmdstatus_code(kproto_cmd_t *protobuf_command)
+{
+	if (!protobuf_command 		||
+	    !protobuf_command->status	||
+	    !protobuf_command->status->has_code) {
+		debug_printf("extract_getstatus_code: no cmd");
+		return(K_EINTERNAL);
 	}
 
-	if (cmd_status->ks_detail != UNALLOC_VAL) {
-		KI_FREE(cmd_status->ks_detail);
-	}
+	return(protobuf_command->status->code);
 }
 
-kstatus_t extract_cmdstatus(kproto_cmd_t *protobuf_command) {
-	if (!protobuf_command || !protobuf_command->status || !protobuf_command->status->has_code) {
-		return kstatus_err(K_OK, KI_ERR_NOMSG, "");
+kstatus_t
+extract_cmdstatus_msg(kproto_cmd_t *protobuf_command, char **msg, size_t *len)
+{
+	if (!protobuf_command	||
+	    !protobuf_command->status) {
+		debug_printf("extract_getstatus_msg: no cmd");
+		return(K_EINTERNAL);
 	}
 
 	kproto_status_t *response_status = protobuf_command->status;
 
 	// copy protobuf string (strlen + 1 accounts for a null byte)
-	size_t statusmsg_len     = strlen(response_status->statusmessage) + 1;
-	char *response_statusmsg = (char *) KI_MALLOC(sizeof(char) * statusmsg_len);
-	if (!response_statusmsg) { return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, ""); }
-
-	strncpy(response_statusmsg, response_status->statusmessage, sizeof(char) * statusmsg_len);
-
-	// copy protobuf bytes field to null-terminated string
-	char *response_detailmsg = NULL;
-	if (response_status->has_detailedmessage) {
-		response_detailmsg = helper_bytes_to_str(response_status->detailedmessage);
-
-		// if we fail to malloc in helper_bytes_to_str()
-		if (!response_detailmsg) {
-			KI_FREE(response_statusmsg);
-			return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "");
-		}
+	*len	= strlen(response_status->statusmessage) + 1;
+	*msg	= (char *) KI_MALLOC(*len);
+	if (!(*msg)) {
+		debug_printf("extract_getstatus_msg: msg alloc");
+		return(K_EINTERNAL);
 	}
 
-	return (kstatus_t) {
-		.ks_code    = response_status->code,
-		.ks_message = response_statusmsg,
-		.ks_detail  = response_detailmsg,
-	};
+	strcpy(*msg, response_status->statusmessage);
+
+	return (K_OK);
 }
 
-kstatus_t extract_cmdhdr(struct kresult_message *response_msg, kcmdhdr_t *cmdhdr_data) {
-	kstatus_t extracted_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+kstatus_t
+extract_cmdstatus_dmsg(kproto_cmd_t *protobuf_command, char **msg, size_t *len)
+{
+	if (!protobuf_command	||
+	    !protobuf_command->status) {
+		debug_printf("extract_getstatus_msg: no cmd");
+		return(K_EINTERNAL);
+	}
+
+	kproto_status_t *response_status = protobuf_command->status;
+
+	if (!response_status->has_detailedmessage) {
+		debug_printf("extract_getstatus_dmsg: no msg");
+		return(K_OK);
+	}
+		
+	// copy protobuf string (strlen + 1 accounts for a null byte)
+	*len	= response_status->detailedmessage.len + 1;
+	*msg	= (char *) KI_MALLOC(*len);
+	if (!(*msg)) {
+		debug_printf("extract_getstatus_msg: msg alloc");
+		return(K_EINTERNAL);
+	}
+
+	memcpy(*msg, response_status->detailedmessage.data, *len);
+	msg[*len-1] = '\0';
+
+	return (K_OK);
+}
+
+kstatus_t extract_cmdhdr(struct kresult_message *response_msg,
+			 kcmdhdr_t *cmdhdr_data)
+{
+	kstatus_t krc = K_INVALID_SC;
 	kproto_msg_t *kinetic_msg = (kproto_msg_t *) response_msg->result_message;
 
 	// commandbytes should exist, but we should probably be thorough
 	if (!kinetic_msg || !kinetic_msg->has_commandbytes) {
-		return kstatus_err(K_INVALID_SC, KI_ERR_NOCMD, "extract command header");
+		debug_printf("extract_cmdhdr: msg");
+		return(K_EINTERNAL);
 	}
 
 	// unpack the command bytes into a command structure
 	kproto_cmd_t *response_cmd = unpack_kinetic_command(kinetic_msg->commandbytes);
 	if (!response_cmd) {
-		return kstatus_err(K_EINTERNAL, KI_ERR_CMDUNPACK, "extract command header");
+		debug_printf("extract_cmdhdr: extract");
+		return(K_EINTERNAL);
 	}
 
 	kproto_cmdhdr_t *response_cmd_hdr = response_cmd->header;
@@ -473,12 +499,12 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_msg, kcmdhdr_t *cmdhdr
 	extract_primitive_optional(cmdhdr_data->kch_bid      , response_cmd_hdr, batchid);
 
 	// extract the kinetic response status; copy the messages for independence from the body data
-	extracted_status = extract_cmdstatus(response_cmd);
+	krc = extract_cmdstatus_code(response_cmd);
 
 	// cleanup before we return the status data
 	destroy_command(response_cmd);
 
-	return extracted_status;
+	return krc;
 }
 
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count) {

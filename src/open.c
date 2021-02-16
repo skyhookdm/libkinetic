@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -80,10 +95,10 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	struct kio             *kio;
 	struct kiovec          *kiov;
 	struct kresult_message  kmresp;
-
-	ksession_t *ks;
-	kgetlog_t   glog;
-	kcmdhdr_t   cmd_hdr;
+	kstatus_t		krc;
+	ksession_t		*ks;
+	kgetlog_t		glog;
+	kcmdhdr_t		cmd_hdr;
 
 	/*
 	 * these ktli and session configs get hung on the ktli session
@@ -173,8 +188,8 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 
 	// initialize glog now that it's going to be used by extract_getlog
 	memset(&glog, 0, sizeof(kgetlog_t));
-	kstatus_t command_status = extract_getlog(&kmresp, &glog);
-	if (command_status.ks_code != (kstatus_code_t) K_OK) {
+	krc = extract_getlog(&kmresp, &glog);
+	if (krc != K_OK) {
 		// TODO: should this set ktd to -1?
 		rc = -1;
 		goto oex1;
@@ -184,12 +199,9 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	memcpy(&ks->ks_l   , &glog.kgl_limits, sizeof(klimits_t)       );
 	memcpy(&ks->ks_conf, &glog.kgl_conf  , sizeof(kconfiguration_t));
 
-	// free the previous status messages
-	free_cmdstatus(&command_status);
-
 	memset(&cmd_hdr, 0, sizeof(kcmdhdr_t));
-	command_status = extract_cmdhdr(&kmresp, &cmd_hdr);
-	if (command_status.ks_code != (kstatus_code_t) K_OK) {
+	krc = extract_cmdhdr(&kmresp, &cmd_hdr);
+	if (krc != K_OK) {
 		// TODO: should this set ktd to -1?
 		rc = -1;
 		goto oex1;
@@ -201,9 +213,6 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	ks->ks_bats = 0;
 
  oex1:
-	// free any status messages
-	free_cmdstatus(&command_status);
-
 	// destroy anything in getlog that was allocated
 	// (including the unpacked command)
 	glog.destroy_protobuf(&glog);

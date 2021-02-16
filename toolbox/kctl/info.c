@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -17,7 +32,8 @@ extern char *ki_msgtype_label[];
 void kctl_dump(kgetlog_t *glog);
 
 #define CMD_USAGE(_ka) kctl_info_usage(_ka)
-int
+
+void
 kctl_info_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
@@ -46,7 +62,7 @@ kctl_info(int argc, char *argv[], int kts, struct kargs *ka)
         extern int	optind, opterr, optopt;
         char		c;
 	kgetlog_t 	glog;
-	kstatus_t 	kstatus;
+	kstatus_t 	krc;
 	kgltype_t	glt[10];
 	
 	/* clear global flag vars */
@@ -150,10 +166,10 @@ kctl_info(int argc, char *argv[], int kts, struct kargs *ka)
 	}
 
 	/* Get the log */
-	kstatus = ki_getlog(kts, &glog);
+	krc = ki_getlog(kts, &glog);
 	
-	if(!kstatus.ks_code) {
-		printf("GetLog failed: %s\n", kstatus.ks_message);
+	if (krc != K_OK) {
+		printf("GetLog failed: %s\n", ki_error(krc));
 		return(-1);
 	}
 

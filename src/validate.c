@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2020 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -47,8 +47,6 @@
 int
 ki_validate_kv(kv_t *kv, int verck, klimits_t *lim)
 {
-	// assume we will find a problem
-	errno = K_EINVAL;
 
 	// Check the required key
 	if (!kv || !kv->kv_key || kv->kv_keycnt < 1) { return (-1); }
@@ -130,7 +128,6 @@ ki_validate_kv(kv_t *kv, int verck, klimits_t *lim)
 		}
 	}
 
-	errno = 0;
 	return (0);
 }
 
@@ -153,9 +150,6 @@ int
 ki_validate_range(krange_t *kr, klimits_t *lim)
 {
 	int i, len;
-
-	/* assume we will find a problem */
-	errno = K_EINVAL;
 
 	/* Check for range structure */
 	if (!kr)
@@ -185,10 +179,11 @@ ki_validate_range(krange_t *kr, klimits_t *lim)
 	}
 
 	/* check the count */
-	if (!kr->kr_count || kr->kr_count > lim->kl_rangekeycnt)
+	if ((kr->kr_count != KVR_COUNT_INF) &&
+	    (!kr->kr_count || kr->kr_count > lim->kl_rangekeycnt)) {
 		return (-1);
+	}
 
-	errno = 0;
 	return (0);
 }
 

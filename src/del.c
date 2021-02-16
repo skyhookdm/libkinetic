@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2020 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -40,7 +40,7 @@ create_delkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 kstatus_t
 d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 {
-	int rc;                /* numeric return codes */
+	int rc, n;                /* numeric return codes */
 	kstatus_t krc;            /* Holds kinetic return code and messages */
 	struct kio *kio;          /* Holds all KTLI req/resp data */
 	struct kiovec *kiov;      /* Temp kiov holder to shorten code wdith */
@@ -57,26 +57,23 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		return (kstatus_t) {
-			.ks_code    = K_EREJECTED,
-			.ks_message = "Bad session",
-			.ks_detail  = "",
-		};
+		debug_printf("del: ktli config");
+		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
 
 	/* Validate the passed in kv */
 	rc = ki_validate_kv(kv, verck, &ses->ks_l);
 	if (rc < 0) {
-		errno = K_EINVAL;
-		return kstatus_err(errno, KI_ERR_INVARGS, "del: kv");
+		debug_printf("del: kv invalid");
+		return(K_EINVAL);
 	}
 
 	/* create the kio structure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		errno = K_EINTERNAL;
-		return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "put: kio");
+		debug_printf("del: kio alloc");
+		return(K_ENOMEM);
 	}
 	memset(kio, 0, sizeof(struct kio));
 
@@ -115,9 +112,8 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 	 */
 	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, (verck?0:1));
 	if (kmreq.result_code == FAILURE) {
-		errno = K_EINTERNAL;
-		krc   = kstatus_err(errno, KI_ERR_CREATEREQ, "del: request");
-
+		debug_printf("del: request message create");
+		krc = K_EINTERNAL;
 		goto dex_kio;
 	}
 
@@ -137,13 +133,11 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 	 * See kio.h (previously in message.h) for more details.
 	 */
 	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
-	);
-
+	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
-		errno = K_EINTERNAL;
-		krc   = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "del: sendmsg");
+		debug_printf("del: sendmesg alloc");
+		krc = K_ENOMEM;
 		goto dex_req;
 	}
 
@@ -161,8 +155,8 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 	);
 
 	if (pack_result == FAILURE) {
-		errno = K_EINTERNAL;
-		krc   = kstatus_err(errno, KI_ERR_MSGPACK, "del: pack msg");
+		debug_printf("del: sendmesg msg pack");
+		krc = K_EINTERNAL;
 		goto dex_sendmsg;
 	}
 
@@ -193,21 +187,21 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 
 		if (( ses->ks_l.kl_batlen > 0) &&
 		    (kb->kb_bytes > ses->ks_l.kl_batlen)) {
-			krc   = kstatus_err(errno, KI_ERR_BATCH,
-					    "batch: length exceeded");
+			debug_printf("del: batch len");
+			krc = K_EBATCH;
 			goto dex_sendmsg;
 		}
 		if ((ses->ks_l.kl_batopscnt > 0) &&
 		    (kb->kb_ops > ses->ks_l.kl_batopscnt)) {
-			krc   = kstatus_err(errno, KI_ERR_BATCH,
-					    "batch: ops count exceeded");
+			debug_printf("del: batch ops");
+			krc = K_EBATCH;
 			goto dex_sendmsg;
 
 		}
 		if ((ses->ks_l.kl_batdelcnt > 0 ) &&
 		    (kb->kb_dels > ses->ks_l.kl_batdelcnt)) {
-			krc   = kstatus_err(errno, KI_ERR_BATCH,
-					    "batch: delete count exceeded");
+			debug_printf("del: batch del ops");
+			krc = K_EBATCH;
 			goto dex_sendmsg;
 		}
 	}
@@ -231,7 +225,7 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 
 			/* PAK: need to exit, receive failed */
 			else {
-				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG, "put: recvmsg");
+				krc = K_EINTERNAL;
 				goto dex_sendmsg;
 			}
 		}
@@ -259,12 +253,13 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 		kmbat = unpack_kinetic_message(kiov->kiov_base,
 						kiov->kiov_len);
 		if (kmbat.result_code == FAILURE) {
-			krc = kstatus_err(K_EINTERNAL, KI_ERR_MSGUNPACK, "del: unpack batch send msg");
+			debug_printf("del: sendmsg unpack");
+			krc = K_EINTERNAL;
 			goto dex_sendmsg;
 		}
 
 		krc = extract_cmdhdr(&kmbat, &cmd_hdr);
-		if (krc.ks_code == (kstatus_code_t) K_OK) {
+		if (krc == K_OK) {
 			/* Preserve the req on the batch */
 			b_batch_addop(kb, &cmd_hdr);
 		}
@@ -278,30 +273,31 @@ d_del_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 	/* Parse response */
 
 	/* extract the return PDU */
-	struct kiovec *kiov_rpdu = &kio->kio_recvmsg.km_msg[KIOV_PDU];
-	if (kiov_rpdu->kiov_len != KP_PLENGTH) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU, "del: extract PDU");
+	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
+	if (kiov->kiov_len != KP_PLENGTH) {
+		debug_printf("del: PDU bad length");
+		krc = K_EINTERNAL;
 		goto dex_recvmsg;
 	}
-	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov_rpdu->kiov_base)));
+	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
 
 	/* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len ) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN, "del: parse pdu");
+		debug_printf("del: PDU decode");
+		krc = K_EINTERNAL;
 		goto dex_recvmsg;
 	}
 
 	// Now unpack the message
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		errno = K_EINTERNAL;
-		krc   = kstatus_err(errno, KI_ERR_MSGUNPACK, "del: unpack msg");
+		debug_printf("del: msg unpack");
+		krc = K_EINTERNAL;
 		goto dex_resp;
 	}
 
 	krc = extract_delkey(&kmresp, kv);
-	//if (krc.ks_code != K_OK) { kv->destroy_protobuf(kv); }
 
 	/* clean up */
  dex_resp:
@@ -434,49 +430,74 @@ void destroy_protobuf_delkey(kv_t *kv_data) {
 	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
 }
 
-kstatus_t extract_delkey(struct kresult_message *response_msg, kv_t *kv_data) {
+kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 	// assume failure status
-	kstatus_t kv_status = kstatus_err(K_INVALID_SC, KI_ERR_NOMSG, "");
+	kstatus_t krc = K_INVALID_SC;
+	kproto_msg_t *kv_resp_msg;
 
-	// commandbytes should exist, but we should probably be thorough
-	kproto_msg_t *kv_response_msg = (kproto_msg_t *) response_msg->result_message;
-	if (!kv_response_msg->has_commandbytes) { return kv_status; }
+	// commandbytes should exist
+	kv_resp_msg = (kproto_msg_t *) resp_msg->result_message;
+	if (!kv_resp_msg->has_commandbytes) {
+		debug_printf("extract_delkey: no resp cmd");
+		return(K_EINTERNAL);
+	}
 
 	// unpack the command bytes
-	kproto_cmd_t *response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
-	if (!response_cmd) { return kv_status; }
-	kv_data->kv_protobuf = response_cmd;
+	kproto_cmd_t *resp_cmd;
+	
+	resp_cmd = unpack_kinetic_command(kv_resp_msg->commandbytes);
+	if (!resp_cmd) {
+		debug_printf("extract_delkey: resp cmd unpack");
+		return(K_EINTERNAL);
+	}
+	kv_data->kv_protobuf = resp_cmd;
 
-	// extract the response status to be returned. prepare this early to make cleanup easy
-	kv_status = extract_cmdstatus(response_cmd);
-	if (!response_cmd->body || !response_cmd->body->keyvalue) { goto extract_dex; }
-
-	// ------------------------------
-	// begin extraction of command body into kv_t structure
-	kproto_kv_t *response = response_cmd->body->keyvalue;
-
-    // NOTE: this is tricky. Only modify the value if the response returns a key
-    // (otherwise kv_key and kv_keycnt fall out of sync)
-	if (response->has_key) { kv_data->kv_keycnt = 1; }
-
-	// extract key name, db version, tag, and data integrity algorithm
-	extract_bytes_optional(kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len , response, key);
-
-	extract_bytes_optional(kv_data->kv_ver, kv_data->kv_verlen, response, dbversion);
-	extract_bytes_optional(kv_data->kv_disum, kv_data->kv_disumlen, response, tag);
-
-	extract_primitive_optional(kv_data->kv_ditype, response, algorithm);
-
-	// set fields used for cleanup
+	// set destructor to be called later
 	kv_data->destroy_protobuf = destroy_protobuf_delkey;
 
-	return kv_status;
+	// extract the status. On failure, skip to cleanup
+	krc = extract_cmdstatus_code(resp_cmd);
+	if (krc != K_OK) {
+		debug_printf("extract_delkey: status");
+		goto extract_dex;
+	}
+
+	// ------------------------------
+	// begin extraction of command data
+	// check if there's command data to parse, otherwise cleanup and exit
+	if (!resp_cmd->body || !resp_cmd->body->keyvalue) {
+		debug_printf("extract_delkey: command missing body or kv");
+		goto extract_dex;
+	}
+	kproto_kv_t *resp = resp_cmd->body->keyvalue;
+
+	// get the command data from the response
+	// NOTE: this is tricky. Only modify the value if the response
+	// returns a key (otherwise kv_key and kv_keycnt fall out of sync)
+	if (resp->has_key) {
+		kv_data->kv_keycnt = 1;
+	}
+
+	// extract key name, db version, tag, and data integrity algorithm
+	extract_bytes_optional(kv_data->kv_key->kiov_base,
+			       kv_data->kv_key->kiov_len, resp, key);
+	extract_bytes_optional(kv_data->kv_ver,
+			       kv_data->kv_verlen, resp, dbversion);
+	extract_bytes_optional(kv_data->kv_disum,
+			       kv_data->kv_disumlen, resp, tag);
+	extract_primitive_optional(kv_data->kv_ditype, resp, algorithm);
+
+	return krc;
 
  extract_dex:
-	destroy_protobuf_delkey(kv_data);
+
+	destroy_command(resp_cmd);
 
 	// Just make sure we don't return an ok message
-	if (kv_status.ks_code == (kstatus_code_t) K_OK) { kv_status.ks_code = K_EINTERNAL; }
+	if (krc == K_OK) {
+		debug_printf("extract_delkey: error exit");
+		krc = K_EINTERNAL;
+	}
 
-	return kv_status;
+	return krc;
 }

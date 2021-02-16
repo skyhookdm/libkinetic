@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -14,7 +29,8 @@ static char	start, commit;
 void kctl_dump(kgetlog_t *glog);
 
 #define CMD_USAGE(_ka) kctl_batch_usage(_ka)
-int
+
+void 
 kctl_batch_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
@@ -35,7 +51,7 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 	extern char     *optarg;
         extern int	optind, opterr, optopt;
         char		c;
-	kstatus_t 	kstatus;
+	kstatus_t 	krc;
 	
 	/* clear global flag vars */
 	start = commit = 0;
@@ -96,11 +112,11 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 			return(-1);
 		}
 	} else {
-		kstatus = ki_submitbatch(kts, ka->ka_batch);
+		krc = ki_submitbatch(kts, ka->ka_batch);
 		ka->ka_batch = NULL;
 		
-		if(!kstatus.ks_code) {
-			printf("Batch commit failed: %s\n", kstatus.ks_message);
+		if(krc != K_OK) {
+			printf("Batch commit failed: %s\n", ki_error(krc));
 			return(-1);
 		}
 	}

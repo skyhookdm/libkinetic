@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -10,7 +25,8 @@
 #include "kctl.h"
 
 #define CMD_USAGE(_ka) kctl_get_usage(_ka)
-int
+
+void
 kctl_get_usage(struct kargs *ka)
 {
 	fprintf(
@@ -45,14 +61,14 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	int            hdump = 0, adump = 0, aio = 0, kctl_status = 0;
 
 	kv_t           *kv;
-	struct kiovec  kv_key[1]  = {0, 0};
-	struct kiovec  kv_val[1]  = {0, 0};
+	struct kiovec  kv_key[1]  = {{0, 0}};
+	struct kiovec  kv_val[1]  = {{0, 0}};
 
 	kv_t           *rkv;
-	struct kiovec  rkv_key[1] = {0, 0};
-	struct kiovec  rkv_val[1] = {0, 0};
+	struct kiovec  rkv_key[1] = {{0, 0}};
+	struct kiovec  rkv_val[1] = {{0, 0}};
 
-	kstatus_t      kstatus;
+	kstatus_t      krc;
 	kv_t          *pkv;
 
 	// This while loop can return early because there are no allocs to manage
@@ -150,13 +166,14 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	/*
 	 * 4 cmd supported here: Get, GetNext, GetPrev, GetVers
-	 * NOTE: all of these calls make allocations which need to be cleaned before exit
+	 * NOTE: all of these calls make allocations which need to be 
+	 * cleaned before exit
 	 */
 	switch (ka->ka_cmd) {
 	case KCTL_GET:
 		pkv = kv; 
 		if (!aio) {
-			kstatus = ki_get(ktd, kv);
+			krc = ki_get(ktd, kv);
 			break;
 		}
 
@@ -164,8 +181,8 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		kio_t *kio;
 		void  *ctx = (void *)kv;
 			
-		kstatus = ki_aio_get(ktd, kv, NULL, &kio);
-		if (kstatus.ks_code != K_OK) {
+		krc = ki_aio_get(ktd, kv, NULL, &kio);
+		if (krc != K_OK) {
 			break;
 		}
 
@@ -174,8 +191,8 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 			/* Poll timed out, poll again */
 			if (ki_poll(ktd, 100) < 1) continue;
 
-			kstatus = ki_aio_complete(ktd, kio, &ctx);
-			if (kstatus.ks_code == K_EAGAIN) continue;
+			krc = ki_aio_complete(ktd, kio, &ctx);
+			if (krc == K_EAGAIN) continue;
 
 			/* Found the key or an error occurred, time to go */
 			break;
@@ -185,18 +202,18 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		break;
 
 	case KCTL_GETNEXT:
-		kstatus = ki_getnext(ktd, kv, rkv);
-		pkv     = rkv;
+		krc = ki_getnext(ktd, kv, rkv);
+		pkv = rkv;
 		break;
 
 	case KCTL_GETPREV:
-		kstatus = ki_getprev(ktd, kv, rkv);
-		pkv     = rkv;
+		krc = ki_getprev(ktd, kv, rkv);
+		pkv = rkv;
 		break;
 
 	case KCTL_GETVERS:
-		kstatus = ki_getversion(ktd, kv);
-		pkv     = kv;
+		krc = ki_getversion(ktd, kv);
+		pkv = kv;
 		break;
 
 	default:
@@ -205,7 +222,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		return (-1);
 	}
 
-	switch (kstatus.ks_code) {
+	switch (krc) {
 	case K_OK:
 		break;
 
@@ -217,8 +234,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	default:
 		printf("%s: failed: status code %d %s\n",
-			   ka->ka_cmdstr, kstatus.ks_code,
-			   kstatus.ks_message);
+		       ka->ka_cmdstr, krc, ki_error(krc));
 
 		kctl_status = (-1);
 		goto kctl_gex;

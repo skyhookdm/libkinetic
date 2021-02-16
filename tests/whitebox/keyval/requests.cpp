@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #include <stdio.h>
 #include <string.h>
 #include <fcntl.h>
@@ -17,11 +32,8 @@ extern "C" {
 
 namespace KFixtures {
 
-    void check_status(kstatus_t *command_status, kstatus_t *expected_status) {
-        ASSERT_EQ(command_status->ks_code, expected_status->ks_code);
-
-        ASSERT_STREQ(command_status->ks_message, expected_status->ks_message);
-        ASSERT_STREQ(command_status->ks_detail , expected_status->ks_detail );
+    void check_status(kstatus_t command_status, kstatus_t expected_status) {
+        ASSERT_EQ(command_status, expected_status);
     }
 
     class KeyValTest: public ::testing::Test {
@@ -109,13 +121,9 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        kstatus_t notfound_status = {
-            .ks_code    = (kstatus_code_t) K_ENOTFOUND,
-            .ks_message = (char *) "Key not found",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t notfound_status = K_ENOTFOUND;
 
-        keyval_helper->test_getkey(conn_descriptor, &notfound_status,
+        keyval_helper->test_getkey(conn_descriptor, notfound_status,
                                    &input_data, &output_data);
     }
 
@@ -176,13 +184,9 @@ namespace KFixtures {
             .kv_cpolicy   = cpolicy_type     ,
         };
 
-        kstatus_t ok_status = {
-            .ks_code    = (kstatus_code_t) K_OK,
-            .ks_message = (char *) "",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t ok_status = K_OK;
 
-        keyval_helper->test_getkey(conn_descriptor, &ok_status, &input_data, &output_data);
+        keyval_helper->test_getkey(conn_descriptor, ok_status, &input_data, &output_data);
     }
 
     // ------------------------------
@@ -234,13 +238,9 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        kstatus_t notfound_status = {
-            .ks_code    = (kstatus_code_t) K_ENOTFOUND,
-            .ks_message = (char *) "Key not found",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t notfound_status = K_ENOTFOUND;
 
-        keyval_helper->test_getkey(conn_descriptor, &notfound_status, &input_data, &output_data);
+        keyval_helper->test_getkey(conn_descriptor, notfound_status, &input_data, &output_data);
     }
 
     TEST_F(KeyValTest, test_getversion_exists) {
@@ -293,13 +293,9 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        kstatus_t ok_status = {
-            .ks_code    = (kstatus_code_t) K_OK,
-            .ks_message = (char *) "",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t ok_status = K_OK;
 
-        keyval_helper->test_getkey(conn_descriptor, &ok_status, &input_data, &output_data);
+        keyval_helper->test_getkey(conn_descriptor, ok_status, &input_data, &output_data);
     }
 
     // TODO
@@ -385,14 +381,10 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        kstatus_t notfound_status = {
-            .ks_code    = (kstatus_code_t) K_ENOTFOUND,
-            .ks_message = (char *) "Key not found",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t notfound_status = K_ENOTFOUND;
 
         keyval_helper->test_getnext(
-            conn_descriptor, &notfound_status,
+            conn_descriptor, notfound_status,
             &input_data,  &input_nextdata,
             &output_data, &output_nextdata
         );
@@ -486,14 +478,10 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        kstatus_t notfound_status = {
-            .ks_code    = (kstatus_code_t) K_ENOTFOUND,
-            .ks_message = (char *) "Key not found",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t notfound_status = K_ENOTFOUND;
 
         keyval_helper->test_getnext(
-            conn_descriptor, &notfound_status,
+            conn_descriptor, notfound_status,
             &input_data,  &input_nextdata,
             &output_data, &output_nextdata
         );
@@ -603,13 +591,9 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        kstatus_t ok_status = {
-            .ks_code    = (kstatus_code_t) K_OK,
-            .ks_message = (char *) "",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t ok_status = K_OK;
 
-        keyval_helper->test_getkey(conn_descriptor, &ok_status, &input_data, &output_data);
+        keyval_helper->test_getkey(conn_descriptor, ok_status, &input_data, &output_data);
     }
 	*/
 
@@ -644,11 +628,7 @@ namespace KFixtures {
 
         TestHelpers::Buffer ver_buffer = ver->serialize();
 
-        kstatus_t ok_status = {
-            .ks_code    = (kstatus_code_t) K_OK,
-            .ks_message = (char *) "",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t ok_status = K_OK;
 
         // ------------------------------
         // First: insert the key and validate
@@ -688,7 +668,7 @@ namespace KFixtures {
             .kv_cpolicy    = (kcachepolicy_t) KC_WB,
         };
 
-        keyval_helper->test_putkey(conn_descriptor, &ok_status,
+        keyval_helper->test_putkey(conn_descriptor, ok_status,
                                    &putkey_input, &putkey_output);
 
         // ------------------------------
@@ -728,7 +708,7 @@ namespace KFixtures {
             .kv_cpolicy     = (kcachepolicy_t) KC_WB,
         };
 
-        keyval_helper->test_getkey(conn_descriptor, &ok_status,
+        keyval_helper->test_getkey(conn_descriptor, ok_status,
                                    &getkey_input1, &getkey_output1);
 
         // ------------------------------
@@ -768,7 +748,7 @@ namespace KFixtures {
             .kv_cpolicy    = (kcachepolicy_t) KC_WB,
         };
 
-        keyval_helper->test_delkey(conn_descriptor, &ok_status,
+        keyval_helper->test_delkey(conn_descriptor, ok_status,
                                    &delkey_input, &delkey_output);
 
 		/*
@@ -816,13 +796,9 @@ namespace KFixtures {
             .kv_cpolicy     = (kcachepolicy_t) KC_WB,
         };
 
-        kstatus_t notfound_status = {
-            .ks_code    = (kstatus_code_t) K_ENOTFOUND,
-            .ks_message = (char *) "Key not found",
-            .ks_detail  = nullptr,
-        };
+        kstatus_t notfound_status = K_ENOTFOUND;
 
-        keyval_helper->test_getkey(conn_descriptor, &notfound_status,
+        keyval_helper->test_getkey(conn_descriptor, notfound_status,
                                    &getkey_input2, &getkey_output2);
 
         // ------------------------------

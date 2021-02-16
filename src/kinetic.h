@@ -1,5 +1,5 @@
 /**
- * Copyright 2013-2015 Seagate Technology LLC.
+ * Copyright 2020-2021 Seagate Technology LLC.
  *
  * This Source Code Form is subject to the terms of the Mozilla
  * Public License, v. 2.0. If a copy of the MPL was not
@@ -163,15 +163,10 @@ krange_t *ki_rangedup(int ktd, krange_t *kr);
 // for checksum computation
 struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name);
 
-
-// ------------------------------
-// resource management
-
-// for command status messages
-void free_cmdstatus(kstatus_t *cmd_status);
-
-// for keys
+// for range 
 int ki_rangefree(krange_t *kr);
+
+const char *ki_error(kstatus_t ks);
 
 
 #endif // __KINETIC_INTERFACE_H
