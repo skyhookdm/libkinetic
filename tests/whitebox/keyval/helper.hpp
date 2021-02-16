@@ -14,6 +14,18 @@ extern "C" {
 #include "../kfixtures.hpp"
 #include "../hashtable.hpp"
 
+namespace KFixtures {
+    struct TestKVEntry : KVEntry {
+        TestKVEntry(kv_t *kv_data, kstatus_t *expected_status
+    };
+
+    // For `test_getkey_doesnotexist`
+    char key_str[] = "-ForSureThisisAUniqueKeyName-";
+
+    // For test
+
+} // namespace KFixtures
+
 namespace TestHelpers {
     struct KeyValVersion {
         size_t    vector_len;
@@ -58,6 +70,6 @@ namespace TestHelpers {
         void print_cachepolicy(kcachepolicy_t);
         void print_keyval(kv_t *keyval_data);
     };
-}
+} // namespace TestHelpers
 
 #endif // __KEYVAL_HELPER_HPP
