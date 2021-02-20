@@ -41,15 +41,15 @@ kstatus_t
 g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 		  kmtype_t msg_type, void *cctx, kio_t **ckio)
 {
-	int rc, verck;
+	int rc, n, verck;
 	kstatus_t krc;
-	struct kio *kio;		/* Passed pack KIO */
-	ksession_t *ses;		/* KTLI Session ptr  */
-	kmsghdr_t msg_hdr;
-	kcmdhdr_t cmd_hdr;
-	struct ktli_config *cf;		/* KTLI configuration */
+	struct kio *kio;		/* Built and returned KIO */
+	ksession_t *ses;		/* KTLI Session info  */
+	kmsghdr_t msg_hdr;		/* Unpacked message header */ 
+	kcmdhdr_t cmd_hdr;		/* Unpacked Command header */
+	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kresult_message kmreq;	/* Intermediate req representation */
-	kpdu_t pdu;			/* Unpacked PDU Structure */
+	kpdu_t pdu;			/* Unpacked PDU structure */
 	
 	/* Clear the callers kio, ckio */
 	*ckio = NULL;
@@ -155,7 +155,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	KIOF_SET(kio, KIOF_REQRESP);	/* Normal RPC KIO */
 
 	kio->kio_ckv	= kv;		/* Hang the callers kv */
-	kio->kio_caltkv	= altkv;	/* Hang the callers altkv */
+	kio->kio_caltkv	= altkv;	/* Hang the callers altkv, if any */
 	kio->kio_cctx	= cctx;		/* Hang the callers context */
 
 	/* 
@@ -164,9 +164,8 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	 * See kio.h (previously in message.h) for more details.
 	 */
 	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
-	);
+	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 
 	if (!kio->kio_sendmsg.km_msg) {
 		debug_printf("get: sendmesg alloc");
@@ -177,12 +176,12 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	/* Allocate the Packed PDU buffer, packing occurs later */
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = KI_MALLOC(KP_PLENGTH);
+
 	if (!kio->kio_sendmsg.km_msg) {
 		debug_printf("get: sendmesg PDU alloc");
 		krc = K_ENOMEM;
 		goto gex_kmmsg;
 	}
-
 
 	/* pack the message and hang it on the kio */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
@@ -302,7 +301,6 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 			return(K_EINTERNAL);
 		}
 	}
-
 	
 	/* 
 	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO 
@@ -317,6 +315,15 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 
 	/* Got a RECEIVED KIO, validate and decode */
 	
+	/*
+	 * Grab the original KVs sent in from the caller. 
+	 * Although these are not directly passed back in the complete, 
+	 * the caller should have maintained them across the originating 
+	 * aio call and the complete.
+	 */
+	kv = kio->kio_ckv;
+	altkv = kio->kio_caltkv;
+
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
@@ -326,8 +333,11 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 	}
 	UNPACK_PDU(&pdu, ((uint8_t *)(kiov->kiov_base)));
 
-	/* Does the PDU match what was given in the recvmsg */
-		kiov = kio->kio_recvmsg.km_msg;
+	/* 
+	 * Does the PDU match what was given in the recvmsg
+	 * Value is always there even if len = 0 
+	 */
+	kiov = kio->kio_recvmsg.km_msg;
 	if ((pdu.kp_msglen != kiov[KIOV_MSG].kiov_len) ||
 	    (pdu.kp_vallen != kiov[KIOV_VAL].kiov_len))    {
 		debug_printf("get: PDU decode");
@@ -335,21 +345,14 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		goto gex;
 	}
 
-	// unpack the message; KIOV_MSG may contain both msg and value
-	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base, pdu.kp_msglen);
+	// unpack the message; 
+	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base,
+					kiov[KIOV_MSG].kiov_len);
 	if (kmresp.result_code == FAILURE) {
 		debug_printf("get: msg unpack");
 		krc = K_EINTERNAL;
 		goto gex;
 	}
-
-	/*
-	 * Grab the original KVs sent in from the caller. Although these are 
-	 * not directly passed back in the complete, the caller should have 
-	 * maintained them across the originating aio call and the complete.
-	 */
-	kv = kio->kio_ckv;
-	altkv = kio->kio_caltkv;
 
 	/*
 	 * Grab the value and hang it on either the kv or altkv as approriate
@@ -394,6 +397,10 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
  gex:
 	/* depending on errors the recvmsg may or may not exist */
 	if (kio->kio_recvmsg.km_msg) {
+		/* 
+		 * Dont use a generic kiov destroy loop, because KIOV_VAL 
+		 * may need to be retained and returned to caller
+		 */
 		if ((kio->kio_recvmsg.km_cnt > KIOV_PDU) &&
 		    kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base)
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
@@ -402,10 +409,13 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		    kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base)
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 
-		/* Leave the value buffer for the caller if K_OK */
+		/* 
+		 * In most cases leave the value buffer for the caller.
+		 * Free it if: there was an error or the command was GETVERS 
+		 */
 		if ((kio->kio_recvmsg.km_cnt > KIOV_VAL) &&
 		    kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base &&
-		    krc != K_OK)
+		    ((krc != K_OK) || (kio->kio_cmd == KMT_GETVERS)))
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base);
 
 		KI_FREE(kio->kio_recvmsg.km_msg);
@@ -474,7 +484,9 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	return(ks);
 }
 
+
 /**
+ * kstatus_t
  * ki_aio_get(int ktd, kv_t *kv, void *cctx, kio_t **kio)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -498,6 +510,7 @@ ki_aio_get(int ktd, kv_t *key, void *cctx, kio_t **ckio)
 
 
 /**
+ * kstatus_t
  * ki_get(int ktd, kv_t *kv)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -516,7 +529,33 @@ ki_get(int ktd, kv_t *key)
 	return(g_get_generic(ktd, key, NULL, KMT_GET));
 }
 
+
 /**
+ * kstatus_t
+ * ki_aio_getnext(int ktd, kv_t *kv, kv_t *next, void *cctx, kio_t **kio)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
+ * 		have either a 0 or a valid ditype in it to start with
+ *  cctx	caller provided context, completely opaque to this call
+ *		passed back to the caller in the complete call
+ *  ckio 	returned back KIO ptr
+ *
+ * Initiate getting the value specified by the given key.
+ *
+ */
+kstatus_t
+ki_aio_getnext(int ktd, kv_t *key, kv_t *next, void *cctx, kio_t **ckio)
+{
+	return(g_get_aio_generic(ktd, key, next, KMT_GET, cctx, ckio));
+}
+
+
+/**
+ * kstatus_t
  * ki_getnext(int ktd, kv_t *kv, kv_t *next)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -538,7 +577,33 @@ ki_getnext(int ktd, kv_t *key, kv_t *next)
 	return(g_get_generic(ktd, key, next, KMT_GETNEXT));
 }
 
+
 /**
+ * kstatus_t
+ * ki_aio_getnext(int ktd, kv_t *kv, kv_t *prev, void *cctx, kio_t **kio)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
+ * 		have either a 0 or a valid ditype in it to start with
+ *  cctx	caller provided context, completely opaque to this call
+ *		passed back to the caller in the complete call
+ *  ckio 	returned back KIO ptr
+ *
+ * Initiate getting the value specified by the given key.
+ *
+ */
+kstatus_t
+ki_aio_getprev(int ktd, kv_t *key, kv_t *prev, void *cctx, kio_t **ckio)
+{
+	return(g_get_aio_generic(ktd, key, prev, KMT_GET, cctx, ckio));
+}
+
+
+/**
+ * kstatus_t
  * ki_getprev(int ktd, kv_t *key, kv_t *prev)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -560,7 +625,33 @@ ki_getprev(int ktd, kv_t *key, kv_t *prev)
 	return(g_get_generic(ktd, key, prev, KMT_GETPREV));
 }
 
+
 /**
+ * kstatus_t
+ * ki_aio_getvers(int ktd, kv_t *kv, void *cctx, kio_t **kio)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
+ * 		have either a 0 or a valid ditype in it to start with
+ *  cctx	caller provided context, completely opaque to this call
+ *		passed back to the caller in the complete call
+ *  ckio 	returned back KIO ptr
+ *
+ * Initiate getting the value specified by the given key.
+ *
+ */
+kstatus_t
+ki_aio_getvers(int ktd, kv_t *key, void *cctx, kio_t **ckio)
+{
+	return(g_get_aio_generic(ktd, key, NULL, KMT_GET, cctx, ckio));
+}
+
+
+/**
+ * kstatus_t
  * ki_getversion(int ktd, kv_t *kv)
  *
  *  kv		kv_key must contain a fully populated kiovec array

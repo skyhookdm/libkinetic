@@ -78,10 +78,10 @@ kstatus_t ki_abortbatch(int ktd, kbatch_t *kb);
 kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
 
 // Kinetic asynchronous I/O interfaces
-kstatus_t ki_aio_put(int ktd, kv_t *kv,  void *cctx, kio_t **kio);
-kstatus_t ki_aio_cas(int ktd, kv_t *kv,  void *cctx, kio_t **kio);
-kstatus_t ki_aio_del(int ktd, kv_t *key, void *cctx, kio_t **kio);
-kstatus_t ki_aio_cad(int ktd, kv_t *key, void *cctx, kio_t **kio);
+kstatus_t ki_aio_put(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);
+kstatus_t ki_aio_cas(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);
+kstatus_t ki_aio_del(int ktd, kbatch_t *kb, kv_t *key, void *cctx, kio_t **kio);
+kstatus_t ki_aio_cad(int ktd, kbatch_t *kb, kv_t *key, void *cctx, kio_t **kio);
 
 kstatus_t ki_aio_get(int ktd, kv_t *key, void *cctx, kio_t **kio);
 kstatus_t ki_aio_getnext(int ktd, kv_t *key, kv_t *next,
@@ -94,13 +94,13 @@ kstatus_t ki_aio_abortbatch(int ktd,  kbatch_t *kb, void *cctx, kio_t **kio);
 kstatus_t ki_aio_submitbatch(int ktd, kbatch_t *kb, void *cctx, kio_t **kio);
 
 kstatus_t ki_aio_complete(int ktd, kio_t *kio, void **cctx);
+
 int ki_poll(int ktd, int timeout);
 
 // ------------------------------
 // key iterator functions
 struct kiovec *ki_start(kiter_t *kit, krange_t *kr);
 struct kiovec *ki_next(kiter_t *kit);
-int            ki_done(kiter_t *kit);
 
 
 // ------------------------------
