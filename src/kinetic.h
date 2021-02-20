@@ -158,10 +158,12 @@ struct kiovec *ki_keyfirst();
 struct kiovec *ki_keylast(size_t len);
 
 // for iterator management
+krange_t *ki_rangecpy(krange_t *dst, krange_t *src);
 krange_t *ki_rangedup(int ktd, krange_t *kr);
 
 // for checksum computation
-struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name);
+struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt,
+			      const char *digest_name);
 
 // for range 
 int ki_rangefree(krange_t *kr);

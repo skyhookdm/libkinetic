@@ -332,7 +332,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	/* Iterate */
 	i=0;
-	for (k = ki_start(kit, kr); !ki_done(kit) && k; k = ki_next(kit)) {
+	for (k = ki_start(kit, kr); k; k = ki_next(kit)) {
 
 		if (ka->ka_verbose) {
 			printf("%u: ", i++);

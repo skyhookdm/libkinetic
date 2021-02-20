@@ -91,15 +91,15 @@ ktb_buf_len(ktype_t t)
 {
 	switch(t) {
 	case KV_T:
-		return((uint32_t)sizeof(kv_t)); 
+		return((uint32_t)sizeof(kv_t));
 	case KRANGE_T:
-		return((uint32_t)sizeof(krange_t)); 
+		return((uint32_t)sizeof(krange_t));
 	case KITER_T:
-		return((uint32_t)sizeof(kiter_t)); 
+		return((uint32_t)sizeof(ki_t));
 	case KBATCH_T:
-		return((uint32_t)sizeof(kbatch_t)); 
+		return((uint32_t)sizeof(kb_t));
 	case KGETLOG_T:
-		return((uint32_t)sizeof(kgetlog_t)); 
+		return((uint32_t)sizeof(kgetlog_t));
 	default:
 		return(0);
 	}

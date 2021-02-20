@@ -415,9 +415,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		}
 
 		/* Iterate */
-		for (k = ki_start(kit, kr);
-		     !ki_done(kit) && k;
-		     k = ki_next(kit)) {
+		for (k = ki_start(kit, kr); k; k = ki_next(kit)) {
 
 			/* Set the key */
 			kv->kv_key[0].kiov_base = k->kiov_base;

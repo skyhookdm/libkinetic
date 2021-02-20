@@ -313,6 +313,50 @@ ki_keylast(size_t len)
 }
 
 
+/**
+ * ki_rangecpy
+ *
+ * Duplicate the given range, functionally a dup without the ki_create
+ */
+krange_t *
+ki_rangecpy(krange_t *dst, krange_t *src)
+{
+	if (!dst) {
+		return(NULL);
+	}
+
+	/* Its a legal range to have an empty start and end key */
+
+	/* Copy start key, this allocates new space and copies the key */
+	dst->kr_startcnt = src->kr_startcnt;
+	dst->kr_start = ki_keydup(src->kr_start, src->kr_startcnt);
+	if (src->kr_start && !dst->kr_start) {
+		return(NULL);
+	}
+
+	/* Copy end key, this allocates new space and copies the key */
+	dst->kr_endcnt = src->kr_endcnt;
+	dst->kr_end = ki_keydup(src->kr_end, src->kr_endcnt);
+	if (src->kr_end && !dst->kr_end) {
+		ki_keydestroy(dst->kr_start, dst->kr_startcnt);
+		return(NULL);
+	}
+
+	/* Copy keys list, this allocates new space and copies the key */
+	dst->kr_keyscnt = src->kr_keyscnt;
+	dst->kr_keys = ki_keydup(src->kr_keys, src->kr_keyscnt);
+	if (src->kr_keys && !dst->kr_keys) {
+		ki_keydestroy(dst->kr_start, dst->kr_startcnt);
+		ki_keydestroy(dst->kr_end, dst->kr_endcnt);
+		return(NULL);
+	}
+
+	dst->kr_flags = src->kr_flags;
+	dst->kr_count = src->kr_count;
+
+	return(dst);
+}
+
 
 /**
  * ki_rangedup
@@ -327,40 +371,14 @@ ki_rangedup(int ktd, krange_t *kr)
 	if (!kr)
 		return(NULL);
 
-	new = ki_create(ktd, KRANGE_T);
+	if ((new = ki_create(ktd, KRANGE_T)) == NULL) {
+		return(NULL);
+	}
 
 	/* duplicate the passed in krange_t */
-	memcpy(new, kr, sizeof(krange_t));
-
-	if (kr->kr_keys) {
-		new->kr_keyscnt = kr->kr_keyscnt; /* Don't flatten */
-		new->kr_keys = ki_keydup(kr->kr_keys, kr->kr_keyscnt);
-		if (!new->kr_keys) {
-			ki_destroy(new);
-			return(NULL);
-		}
-
-	}
-
-	if (kr->kr_start) {
-		new->kr_startcnt = 1; /* dup flatten below */
-		new->kr_start = ki_keydupf(kr->kr_start, kr->kr_startcnt);
-		if (!new->kr_start) {
-			ki_keydestroy(new->kr_keys, new->kr_keyscnt);
-			ki_destroy(new);
-			return(NULL);
-		}
-	}
-
-	if (kr->kr_end) {
-		new->kr_endcnt = 1; /* dup flatten below */
-		new->kr_end = ki_keydupf(kr->kr_end, kr->kr_endcnt);
-		if (!kr->kr_end) {
-			ki_keydestroy(new->kr_start, new->kr_startcnt);
-			ki_keydestroy(new->kr_keys,  new->kr_endcnt);
-			ki_destroy(new);
-			return(NULL);
-		}
+	if (ki_rangecpy(new, kr) < 0) {
+		ki_destroy(new);
+		return(NULL);
 	}
 
 	return(new);

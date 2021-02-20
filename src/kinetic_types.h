@@ -270,22 +270,15 @@ typedef struct krange {
 	void (*destroy_protobuf)(struct krange *keyrange_data);
 } krange_t;
 
+
 /**
  * Key Range Iter structure
  *
- * This structure permits the iteration through a key a defined keyrange
+ * This opaque type permits the iteration through a key a defined keyrange
  *
  */
-typedef struct kiter {
-	int       ki_ktd;
-	krange_t *ki_range;
-	uint32_t  ki_curr;      // Current key index
-	uint32_t  ki_maxkeyreq; // Max count of keys per request
-	int32_t   ki_count;     // Total keys requested, could be INF
+typedef void kiter_t;
 
-	// Last key special case, always cnt=1 (see `ki_iternext()`)
-	struct kiovec *ki_boundary; 
-} kiter_t;
 
 /**
  * Key Batch type
@@ -303,6 +296,8 @@ typedef void kbatch_t;
  *
  */
 typedef void kio_t;
+
+
 /* ------------------------------
  * Types for interfacing with API
  */

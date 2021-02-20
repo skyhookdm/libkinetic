@@ -141,6 +141,18 @@ typedef struct kb {
 	pthread_mutex_t  kb_m;		/* mutex protecting this structure */
 } kb_t;
 
+typedef struct kiter {
+	int       ki_ktd;
+	krange_t *ki_rreq; 	/* Original Caller Request Range */
+	krange_t *ki_rwin1;	/* Range Window 1 */
+	krange_t *ki_rwin2;	/* Range Window 2 - UNUSED until AIO */
+	krange_t *ki_curwin;	/* Current Range Window */
+	uint32_t  ki_curkey;	/* Current key index */
+	int32_t   ki_seenkeys;	/* Total keys returned to caller */
+	uint32_t  ki_maxkeyreq; /* Max count of keys per request */
+	kio_t    *ki_kio;	/* kio for async getrange - UNUSED until AIO */
+} ki_t;
+
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
 
