@@ -38,11 +38,11 @@ struct kresult_message
 create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
 kstatus_t
-p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb,
-		  int verck, void *cctx, kio_t **ckio)
+p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
+		  void *cctx, kio_t **ckio)
 {
-	int rc, i, n;
-	kstatus_t krc;
+	int rc, i, n;			/* return code, temps */
+	kstatus_t krc;			/* Kinetic return code */
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info */
 	kmsghdr_t msg_hdr;		/* Unpacked message header */ 
@@ -113,7 +113,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb,
 	/* 
 	 * Default put checks the version strings, if they don't match
 	 * put fails.  Forcing the put avoids the version check. So if 
-	 * checking the version, no forced put. If not, force it. 
+	 * checking the version, no forced put.
 	 */
 	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, (verck?0:1));
 	if (kmreq.result_code == FAILURE) {
@@ -159,7 +159,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb,
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = KI_MALLOC(KP_PLENGTH);
 
-	if (!kio->kio_sendmsg.km_msg) {
+	if (!kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base) {
 		debug_printf("put: sendmesg PDU alloc");
 		krc = K_ENOMEM;
 		goto pex_kmmsg;
@@ -256,6 +256,12 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb,
 	return(K_OK);
 
  	/* Error Exit. */
+
+	/* pex_kmmsg_val:
+	 * Nothing to do as the kv val buffers were only hung here,
+	 * no allocations or copies made
+	 */
+
  pex_kmmsg_msg:
 	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
@@ -283,8 +289,9 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb,
 	return (krc);
 }
 
+
 /*
- * Complete a AIO get* call.
+ * Complete a AIO put/cas call.
  * Any error other no available response, the KIO should be cleaned up
  * and terminated. 
  */
@@ -353,7 +360,7 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 	/* Special case a batch put handling */
 	if (kb) {
 		/* 
-		 * Batch receives only get the sendmsg KIO back, no resp.
+		 * Batch receives only the sendmsg KIO back, no resp.
 		 * Therefore the rest of this put routine is not needed 
 		 * except for the cleanup.
 		 *
@@ -498,7 +505,7 @@ kstatus_t
 ki_aio_put(int ktd, kbatch_t *kb, kv_t *kv, void *cctx, kio_t **kio)
 {
 	int verck;
-	return(p_put_generic(ktd, kv, (kb_t *)kb, verck=0));
+	return(p_put_aio_generic(ktd, kv, (kb_t *)kb, verck=0, cctx, kio));
 }
 
 
@@ -546,7 +553,7 @@ kstatus_t
 ki_aio_cas(int ktd, kbatch_t *kb, kv_t *kv, void *cctx, kio_t **kio)
 {
 	int verck;
-	return(p_put_generic(ktd, kv, (kb_t *)kb, verck=0));
+	return(p_put_aio_generic(ktd, kv, (kb_t *)kb, verck=1, cctx, kio));
 }
 
 
@@ -624,7 +631,7 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 		};
 	}
 
-	// return the constructed getlog message (or failure)
+	// return the constructed put message (or failure)
 	return create_message(msg_hdr, command_bytes);
 }
 

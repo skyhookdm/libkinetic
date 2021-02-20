@@ -38,11 +38,11 @@ struct kresult_message create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
 
 
 kstatus_t
-g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
-		  kmtype_t msg_type, void *cctx, kio_t **ckio)
+g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
+		  void *cctx, kio_t **ckio)
 {
-	int rc, n, verck;
-	kstatus_t krc;
+	int rc, n, verck;		/* return code, temp, version check */
+	kstatus_t krc;			/* Kinetic return code */
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info  */
 	kmsghdr_t msg_hdr;		/* Unpacked message header */ 
@@ -177,7 +177,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = KI_MALLOC(KP_PLENGTH);
 
-	if (!kio->kio_sendmsg.km_msg) {
+	if (!kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base) {
 		debug_printf("get: sendmesg PDU alloc");
 		krc = K_ENOMEM;
 		goto gex_kmmsg;
@@ -233,6 +233,11 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	return(K_OK);
 
 	/* Error Exit. */
+
+	/* gex_kmmsg_val:
+	 * Nothing to do as get KV are just keys no values
+	 */
+
  gex_kmmsg_msg:
 	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
