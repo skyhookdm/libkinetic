@@ -101,18 +101,10 @@ typedef enum kstatus {
 	/* Need more errnos, Sufficiently outside kinetic.proto */
 	KSTAT_GRP2	= 0x8000, 		/* Prefix for nonproto errors */
 	K_EAGAIN	= (KSTAT_GRP2 | 0),
-	K_ENOMSG	= (KSTAT_GRP2 | 0),
-	K_ENOMEM	= (KSTAT_GRP2 | 0),
-	K_EBADSESS	= (KSTAT_GRP2 | 0),
-	K_EMSGPACK	= (KSTAT_GRP2 | 0),
-	K_EMSGUNPACK	= (KSTAT_GRP2 | 0),
-	K_ECMDUNPACK	= (KSTAT_GRP2 | 0),
-	K_ENOCMD	= (KSTAT_GRP2 | 0),
-	K_ECREATEREQ	= (KSTAT_GRP2 | 0),
-	K_ERECVMSG	= (KSTAT_GRP2 | 0),
-	K_ERECVPDU	= (KSTAT_GRP2 | 0),
-	K_EPDUMSGLEN	= (KSTAT_GRP2 | 0),
-	K_EBATCH	= (KSTAT_GRP2 | 0),
+	K_ENOMSG	= (KSTAT_GRP2 | 1),
+	K_ENOMEM	= (KSTAT_GRP2 | 2),
+	K_EBADSESS	= (KSTAT_GRP2 | 3),
+	K_EBATCH	= (KSTAT_GRP2 | 4),
 	KSTAT_GRP2_LAST	= 0,
 	
 } kstatus_t;
