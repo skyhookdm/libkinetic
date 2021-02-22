@@ -51,6 +51,11 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	struct kresult_message kmreq;	/* Intermediate resp representation */
 	kpdu_t pdu;			/* Unpacked PDU structure */
 
+	if (!ckio) {
+		debug_printf("put: kio ptr required");
+		return(K_EINVAL);
+	}
+
 	/* Clear the callers kio, ckio */
 	*ckio = NULL;
 
@@ -66,6 +71,13 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	rc = ki_validate_kv(kv, verck, &ses->ks_l);
 	if (rc < 0) {
 		debug_printf("put: kv invalid");
+		return(K_EINVAL);
+	}
+
+	/* Validate the passed in kb, if any */
+	rc =  ki_validate_kb(kb, KMT_PUT);
+	if (kb && (rc < 0)) {
+		debug_printf("put: kb invalid");
 		return(K_EINVAL);
 	}
 
@@ -196,8 +208,8 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 		pdu.kp_vallen += kv->kv_val[i].kiov_len;
 	}
 	PACK_PDU(&pdu, (uint8_t *)kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base);
-	debug_printf("p_put_generic: PDU(x%2x, %d, %d)\n",
-	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+	debug_printf("put: PDU(x%2x, %d, %d)\n",
+		     pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen);
 
 	/* Some batch accounting */
 	if (kb) {
@@ -303,9 +315,7 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kb_t *kb;			/* Set to KB passed in orig aio call */
 	kpdu_t pdu;			/* Unpacked PDU Structure */
 	kstatus_t krc;			/* Returned status */
-	kcmdhdr_t cmd_hdr;		/* Unpacked Batch Command header */
 	struct kiovec *kiov;		/* Message KIO vector */
-	struct kresult_message kmbat;	/* Intermediate resp representation */
 	struct kresult_message kmresp;	/* Intermediate resp representation */
 
 	/* Setup in case of an error return */
@@ -359,6 +369,9 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 
 	/* Special case a batch put handling */
 	if (kb) {
+		krc = K_OK;
+
+#ifdef KBATCH_SEQTRACKING
 		/* 
 		 * Batch receives only the sendmsg KIO back, no resp.
 		 * Therefore the rest of this put routine is not needed 
@@ -387,7 +400,8 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 		}
 		
 		destroy_message(kmbat.result_message);
-		
+#endif /* KBATCH_SEQTRACKING */
+
 		/* normal exit, jump past all response handling */
 		goto pex;
 	}

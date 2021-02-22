@@ -1,5 +1,17 @@
-/*
- * KTLI - Kinetic Transport Layer Interface
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
  */
 #include <assert.h>
 #include <stdio.h>
@@ -12,6 +24,12 @@
 
 #include "ktli.h"
 #include "ktli_session.h"
+
+/*
+ * KTLI - Kinetic Transport Layer Interface
+ */
+
+#define KTLI_POLLINTERVAL (10 * 1000) /* 10 uS, needed locally only  */
 
 /*
  * *******  KTLI DRIVER TABLE *******
@@ -371,11 +389,17 @@ ktli_close(int kts)
 	/* Free up the completion queue */
 	q = kts_compq(kts);
 
+	/* Signal ktli_polls to exit */
+	q->ktq_exit = 1; 
+
 	/* Pull any kio's off the list and free them */
 	/* PAK: Unecessary code */
 	while (list_size(q->ktq_list)) {
 		KTLI_FREE(list_remove_rear(q->ktq_list));
 	}
+
+	/* pause to allow any miscreant ktli_polls to exit */
+	usleep((KTLI_POLLINTERVAL * 5));
 
 	/* free the list and the queue */
 	list_destroy(q->ktq_list, (void *)LIST_NODEALLOC);
@@ -691,7 +715,7 @@ ktli_receive(int kts, struct kio *kio)
 	pthread_mutex_lock(&cq->ktq_m);
 
 	/*
-	 * if the KIO has been received than the KIO has a back pointer
+	 * if the KIO has been received then the KIO has a back pointer
 	 * into the CQ. So set the CQ curr to that back pointer and pop
 	 * it off the list.
 	 */
@@ -813,18 +837,19 @@ ktli_receive_unsolicited(int kts, struct kio **kio)
  *
  * This function polls a connected session to see if there are any
  * completed and receivable kios.  Will block till either a kio
- * becomes ready or until the session is disconnected.
+ * becomes ready, a timeout occurs or until the session is disconnected.
  *
  * @param kts A connected kinetic session descriptor.
+ * @param timeout Number of micro seconds to wait, approximate
  *
- * PAK: timeout not implemented, when implemented make sure to set
- * errno = ETIMEDOUT
  */
 int
 ktli_poll(int kts, int timeout)
 {
 	enum ktli_sstate st;
 	struct ktli_queue *cq;
+	int timeleft;
+	struct timespec interval, remain;
 
 	errno = 0;
 	if (!kts_isvalid(kts)) {
@@ -841,12 +866,41 @@ ktli_poll(int kts, int timeout)
 
 	cq = kts_compq(kts);
 
-	pthread_mutex_lock(&cq->ktq_m);
-	if (!list_size(cq->ktq_list))
-	    pthread_cond_wait(&cq->ktq_cv, &cq->ktq_m);
-	pthread_mutex_unlock(&cq->ktq_m);
+	interval.tv_sec		= 0;
+	interval.tv_nsec	= KTLI_POLLINTERVAL;
+	remain.tv_sec 		= 0;
+	remain.tv_nsec		= 0;
+	timeleft		= timeout * 1000;	/* uS -> nS */
 
-	return(1);
+	do {
+		nanosleep(&interval, &remain);
+
+		pthread_mutex_lock(&cq->ktq_m);
+
+		/* Check the for completed items */
+		if (list_size(cq->ktq_list)) {
+			pthread_mutex_unlock(&cq->ktq_m);
+			return(0);
+		}
+
+		/* see if someone pulled the rug out from under us */
+		if (cq->ktq_exit) {
+			pthread_mutex_unlock(&cq->ktq_m);
+			errno = ECONNABORTED;
+			return(-1);
+		}
+		
+		pthread_mutex_unlock(&cq->ktq_m);
+
+		/* Update the timeleft, if caller passed a timeout */
+		if (timeout) {
+			timeleft =- (interval.tv_nsec - remain.tv_nsec);
+			if (timeleft <= 0) {
+				errno = ETIMEDOUT;
+				return(-1);
+			}
+		}
+	} while(1);
 }
 
 /**
@@ -1171,6 +1225,9 @@ ktli_sender(void *p)
 					/* leave the list ready for an insert */
 					(void)list_mvrear(rq->ktq_list);
 					pthread_mutex_unlock(&rq->ktq_m);
+				} else if (rc >= 0) {
+					/* Successful REQONLY */
+					kio->kio_state = KIO_RECEIVED;
 				}
 
 				/*
@@ -1557,7 +1614,7 @@ ktli_receiver(void *p)
 		 * wait for 10ms, arbitrary delay
 		 */
 		rc = (de->ktlid_fns->ktli_dfns_poll)(dh, 10);
-		debug_printf("BE Poll returned: %d\n", rc);
+		//debug_printf("Receiver: BE Poll returned: %d\n", rc);
 
 		/* -1 error, 0 timeout, 1 need to receive data */
 		if (rc < 0) {
@@ -1619,7 +1676,7 @@ ktli_receiver(void *p)
 				/* Not on a Q, clear the back pointer */
 				kio->kio_qbp = NULL;
 
-				debug_printf("KIO Timeout seq: %d\n",
+				debug_printf("KIO Timeout seq: %ld\n",
 					     kio->kio_seq);
 
 				/*

@@ -95,8 +95,10 @@ ktb_buf_len(ktype_t t)
 	case KRANGE_T:
 		return((uint32_t)sizeof(krange_t));
 	case KITER_T:
+		/* opaque type, use the backing type */
 		return((uint32_t)sizeof(ki_t));
 	case KBATCH_T:
+		/* opaque type, use the backing type */
 		return((uint32_t)sizeof(kb_t));
 	case KGETLOG_T:
 		return((uint32_t)sizeof(kgetlog_t));
@@ -136,7 +138,7 @@ ki_create(int ktd, ktype_t t)
 	case KITER_T:
 		i_iterinit(ktd, (kiter_t *)p); break;
 	case KBATCH_T:
-		//b_startbatch(ktd); break;
+		b_startbatch(ktd, (kbatch_t *)p); break;
 		break;
 	default:
 		break;
@@ -190,7 +192,7 @@ ki_destroy(void *p)
 	case KITER_T:
 		i_iterdestroy((kiter_t *)p); break;
 	case KBATCH_T:
-		//ki_batchstart(ktd); break;
+		//b_batchdestroy(ktd); break;
 		break;
 	default:
 		break;

@@ -24,7 +24,7 @@
 #include "kctl.h"
 
 /* Cheating with globals */
-static char	start, commit;
+static char	create, submit, abort;
 
 void kctl_dump(kgetlog_t *glog);
 
@@ -36,8 +36,9 @@ kctl_batch_usage(struct kargs *ka)
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-S           Start a batch\n");
-	fprintf(stderr, "\t-C           Complete/Commit a batch\n");
+	fprintf(stderr, "\t-C           Create a batch\n");
+	fprintf(stderr, "\t-S           Submit a batch\n");
+	fprintf(stderr, "\t-A           Abort a batch\n");
 	fprintf(stderr, "\t-?           Help\n");
 	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
 }
@@ -54,12 +55,12 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 	kstatus_t 	krc;
 	
 	/* clear global flag vars */
-	start = commit = 0;
+	create = submit = abort = 0;
 
-        while ((c = getopt(argc, argv, "SC?h")) != EOF) {
+        while ((c = getopt(argc, argv, "SCA?h")) != EOF) {
                 switch (c) {
-		case 'S':
-			start = 1;
+		case 'C':
+			create = 1;
 			if (ka->ka_batch) {
 				fprintf(stderr,
 					"*** Active batch already exists\n");
@@ -67,11 +68,20 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 				return(-1);
 			}
 			break;
-		case 'C':
-			commit = 1;
+		case 'S':
+			submit = 1;
 			if (!ka->ka_batch) {
 				fprintf(stderr,
-					"*** No active batch to Commit\n");
+					"*** No active batch to Submit\n");
+				CMD_USAGE(ka);
+				return(-1);
+			}
+			break;
+		case 'A':
+			abort = 1;
+			if (!ka->ka_batch) {
+				fprintf(stderr,
+					"*** No active batch to Abort\n");
 				CMD_USAGE(ka);
 				return(-1);
 			}
@@ -84,16 +94,16 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 		}
         }
 	
-	if (!start && !commit) {
+	if (!create && !submit && !abort) {
                         fprintf(stderr,
-				"*** Must Start or Commit\n");
+				"*** Must Create, Submit, or Abort\n");
 			CMD_USAGE(ka);
 			return(-1);
 	}
 	
-	if (start && commit) {
+	if ((create + submit + abort) != 1) {
                         fprintf(stderr,
-				"*** Can't Start and Commit together\n");
+				"*** Only one Create, Submit or Abort\n");
 			CMD_USAGE(ka);
 			return(-1);
 	}
@@ -105,22 +115,33 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 		return(-1);
 	}
 
-	if (start) {
+	if (create) {
 		ka->ka_batch = ki_create(kts, KBATCH_T);
 		if (!ka->ka_batch) {
-			printf("Batch start failed\n");
+			printf("Batch Start failed\n");
 			return(-1);
 		}
-	} else {
+	} else if (submit) {
 		krc = ki_submitbatch(kts, ka->ka_batch);
-		ka->ka_batch = NULL;
 		
-		if(krc != K_OK) {
+		if (krc == K_OK) {
+			ka->ka_batch = NULL;
+		} else {
 			printf("Batch commit failed: %s\n", ki_error(krc));
 			return(-1);
 		}
+	} else  {
+		krc = ki_abortbatch(kts, ka->ka_batch);
+		ka->ka_batch = NULL;
+
+		if (krc == K_OK) {
+			ka->ka_batch = NULL;
+		} else {
+			printf("Batch abort failed: %s\n", ki_error(krc));
+			return(-1);
+		}
 	}
-	
+
 	return(0);
 }
 

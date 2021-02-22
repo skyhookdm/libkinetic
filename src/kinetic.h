@@ -13,11 +13,8 @@
  * License for more details.
  *
  */
-
-
 #ifndef __KINETIC_INTERFACE_H
 #define __KINETIC_INTERFACE_H
-
 
 #include "kinetic_types.h"
 
@@ -60,6 +57,7 @@ int ki_close(int ktd);
 void *ki_create(int ktd, ktype_t kt);
 int   ki_clean(void *p);
 int   ki_destroy(void *p);
+int   ki_valid(void *p);
 
 // Kinetic synchronous I/O interfaces
 kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);

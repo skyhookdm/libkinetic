@@ -34,6 +34,9 @@ typedef enum ktype {
 	KT_LAST,	
 } ktype_t;
 
+/* Initial batch id for each Session */
+#define KFIRSTBID 1000
+
 // ------------------------------
 // Type aliases for protocol
 

@@ -52,6 +52,14 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	struct kresult_message kmreq;	/* Intermediate resp representation */
 	kpdu_t pdu;			/* Unpacked PDU structure */
 
+	if (!ckio) {
+		debug_printf("del: kio ptr required");
+		return(K_EINVAL);
+	}
+
+	/* Clear the callers kio, ckio */
+	*ckio = NULL;
+
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
@@ -64,6 +72,13 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	rc = ki_validate_kv(kv, verck, &ses->ks_l);
 	if (rc < 0) {
 		debug_printf("del: kv invalid");
+		return(K_EINVAL);
+	}
+
+	/* Validate the passed in kb, if any */
+	rc =  ki_validate_kb(kb, KMT_PUT);
+	if (kb && (rc < 0)) {
+		debug_printf("put: kb invalid");
 		return(K_EINVAL);
 	}
 
@@ -92,7 +107,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	 * A reference is made to the kcfg_hkey ptr in the kmreq. This
 	 * reference needs to be removed before destroying kmreq.  The
 	 * protobuf code will try to clean up this ptr which is an outside
-	 * unfreeable ptr.  See below at dex_req:
+	 * unfreeable ptr.  See below at dex_kmreq:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
 	msg_hdr.kmh_atype = KA_HMAC;
@@ -180,8 +195,8 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu,  (uint8_t *)kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base);
-	debug_printf("d_del_generic: PDU(x%2x, %d, %d)\n",
-	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+	debug_printf("del: PDU(x%2x, %d, %d)\n",
+		     pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen);
 
 	/* Some batch accounting */
 	if (kb) {
@@ -293,9 +308,7 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kb_t *kb;			/* Set to KB passed in orig aio call */
 	kpdu_t pdu;			/* Unpacked PDU Structure */
 	kstatus_t krc;			/* Returned status */
-	kcmdhdr_t cmd_hdr;		/* Unpacked Batch Command header */
 	struct kiovec *kiov;		/* Message KIO vector */
-	struct kresult_message kmbat;	/* Intermediate resp representation */
 	struct kresult_message kmresp;	/* Intermediate resp representation */
 
 	/* Setup in case of an error return */
@@ -349,6 +362,9 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 
 	/* Special case a batch del handling */
 	if (kb) {
+		krc = K_OK;
+
+#ifdef KBATCH_SEQTRACKING
 		/* 
 		 * Batch receives only the sendmsg KIO back, no resp.
 		 * Therefore the rest of this del routine is not needed 
@@ -377,7 +393,8 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 		}
 		
 		destroy_message(kmbat.result_message);
-		
+#endif /* KBATCH_SEQTRACKING */
+
 		/* normal exit, jump past all response handling */
 		goto dex;
 	}

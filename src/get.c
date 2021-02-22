@@ -51,6 +51,11 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	struct kresult_message kmreq;	/* Intermediate req representation */
 	kpdu_t pdu;			/* Unpacked PDU structure */
 	
+	if (!ckio) {
+		debug_printf("get: kio ptr required");
+		return(K_EINVAL);
+	}
+
 	/* Clear the callers kio, ckio */
 	*ckio = NULL;
 	
@@ -202,8 +207,8 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, (uint8_t *)kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base);
-	debug_printf("g_get_generic: PDU(x%2x, %d, %d)\n",
-	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+	debug_printf("get: PDU(x%2x, %d, %d)\n",
+		     pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen);
 
 	/* Send the request */
 	if (ktli_send(ktd, kio) < 0) {

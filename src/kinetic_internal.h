@@ -137,8 +137,10 @@ typedef struct kb {
 	uint32_t	kb_ops;		/* Batch Ops count */
 	uint32_t	kb_dels;	/* Batch Delete Ops count */
 	uint32_t	kb_bytes;	/* Batch total bytes */ 
+	pthread_mutex_t	kb_m;		/* Mutex protecting this structure */
+#ifdef KBATCH_SEQTRACKING
 	LIST		*kb_seqs;	/* the batch ops, perserved as seq# */
-	pthread_mutex_t  kb_m;		/* mutex protecting this structure */
+#endif
 } kb_t;
 
 typedef struct kiter {
@@ -156,12 +158,13 @@ typedef struct kiter {
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
 
-int ki_valid(void *p);
 int ki_validate_kv(kv_t *kv, int versck, klimits_t *lim);
 int ki_validate_range(krange_t *kr, klimits_t *lim);
+int ki_validate_kb(kb_t *kb, kmtype_t msg_type);
 int ki_validate_glog(kgetlog_t *glrq);
 int ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp);
 
 int b_batch_addop(kb_t *kb, kcmdhdr_t *kc);
+kstatus_t b_startbatch(int ktd, kbatch_t *kb);
 
 #endif /* _KINET_INT_H */

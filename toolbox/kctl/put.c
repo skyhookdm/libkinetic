@@ -297,6 +297,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	kv->kv_val[0].kiov_len  = ka->ka_vallen;
 
 	if (ka->ka_verbose) {
+		printf("Batch:           %p\n", (bat?ka->ka_batch:NULL));
 		printf("Compare & Swap:  %s\n", cmpswp?"Enabled":"Disabled");
 		printf("Version:         %s\n", exists?(char *)kv->kv_ver:"");
 		printf("New Version:     %s\n", (char *)kv->kv_newver);

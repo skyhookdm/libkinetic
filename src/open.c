@@ -209,7 +209,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	memcpy(&ks->ks_ch, &cmd_hdr, sizeof(kcmdhdr_t));
 
 	/* Init session next batch id counter and active batches */
-	ks->ks_bid  = 1000;
+	ks->ks_bid  = KFIRSTBID;
 	ks->ks_bats = 0;
 
  oex1:

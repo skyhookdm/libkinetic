@@ -34,6 +34,7 @@
 kstatus_t g_get_aio_complete(int ktd, struct kio *kio, void **cctx);
 kstatus_t p_put_aio_complete(int ktd, struct kio *kio, void **cctx);
 kstatus_t d_del_aio_complete(int ktd, struct kio *kio, void **cctx);
+kstatus_t b_batch_aio_complete(int ktd, struct kio *kio, void **cctx);
 
 kstatus_t
 ki_aio_complete(int ktd, kio_t *ckio, void **cctx)
@@ -55,8 +56,10 @@ ki_aio_complete(int ktd, kio_t *ckio, void **cctx)
 		ks = g_get_aio_complete(ktd, kio, cctx);
 		break;
 		
+	case KMT_STARTBAT:
 	case KMT_ABORTBAT:
 	case KMT_ENDBAT:
+		ks = g_get_aio_complete(ktd, kio, cctx);
 		break;
 	case KMT_PUSHP2P:
 		break;
