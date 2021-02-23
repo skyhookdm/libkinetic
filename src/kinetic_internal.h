@@ -30,6 +30,7 @@
 
 #define KI_MALLOC(_l)     malloc((_l))
 #define KI_REALLOC(_p,_l) realloc((_p),(_l))
+//	debug_printf("KI_FREE(%p)\n", (_p));
 #define KI_FREE(_p) {	    \
 	free((_p));         \
 	(_p) = UNALLOC_VAL; \
@@ -106,25 +107,6 @@
 	: 0								\
 )
 
-#if 0
-// some forward declarations of what's in kerrors.c
-extern const char *ki_error_msgs[];
-enum ki_error_type {
-	KI_ERR_NOMSG   = 0, /* 0x00  0 */
-	KI_ERR_MALLOC     ,
-	KI_ERR_BADSESS    ,
-	KI_ERR_INVARGS    ,
-	KI_ERR_MSGPACK    ,
-	KI_ERR_MSGUNPACK  , /* 0x05  5 */
-	KI_ERR_CMDUNPACK  ,
-	KI_ERR_NOCMD      ,
-	KI_ERR_CREATEREQ  ,
-	KI_ERR_RECVMSG    ,
-	KI_ERR_RECVPDU    , /* 0x10 10 */
-	KI_ERR_PDUMSGLEN  ,
-	KI_ERR_BATCH      ,
-};
-#endif
 /**
  * This is the internal structure for managing a batch across many API calls.
  * It is meant to be completely opaque to the caller. The kbatch_t type

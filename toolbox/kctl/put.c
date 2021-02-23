@@ -30,6 +30,8 @@
 /* used to dumpprint cache policy */
 extern char *ki_cpolicy_label[];
 extern char *ki_status_label[];
+int kctl_do_put(int ktd, struct kargs *ka, kv_t *kv,  uint32_t sum,
+	    kcachepolicy_t cpolicy, int bat, int cas);
 
 #define CMD_USAGE(_ka) kctl_put_usage(_ka)
 
@@ -43,6 +45,7 @@ kctl_put_usage(struct kargs *ka)
 	fprintf(stderr, "\t-c           Compare and swap [no]\n");
 	fprintf(stderr, "\t-f filename  Construct a value from a file\n");
 	fprintf(stderr, "\t-z len       Construct a length len value of 0s\n");
+	fprintf(stderr, "\t-n count     Number of key copies to make [0]\n");
 	fprintf(stderr, "\t-p [wt|wb|f] Cache policy:\n");
 	fprintf(stderr, "\t             writethrough, writeback, flush [wb]\n");
 	fprintf(stderr, "\t-s sum       Value CRC32 sum (8 hex digits) [0] \n");
@@ -71,18 +74,15 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
  	extern char     *optarg;
         extern int	optind, opterr, optopt;
         char		c, *cp, *filename=NULL;
-	int 		cmpswp=0, exists=0, zlen=0, bat=0, fd;
-	uint32_t	sum = 0;
+	int 		count=0, cas=0, zlen=0, bat=0, rc, fd, i;
+	uint32_t	sum=0;
 	struct stat	st;
-	char		newver[VERLEN]; 	// holds hex representation of
-						// one int: "0x00000000"
 	kcachepolicy_t	cpolicy = KC_WB;
 	kv_t		*kv;
-	struct kiovec	kv_key[1]  = {{0, 0}};
+	struct kiovec	kv_key[2] = {{0, 0},{0, 0}};
 	struct kiovec	kv_val[1]  = {{0, 0}};
-	kstatus_t 	krc;
 
-        while ((c = getopt(argc, argv, "bcf:h?p:s:z:")) != EOF) {
+        while ((c = getopt(argc, argv, "bcf:h?n:p:s:z:")) != EOF) {
                 switch (c) {
 		case 'b':
 			bat = 1;
@@ -93,7 +93,8 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			}				
 			break;
 		case 'c':
-			cmpswp = 1;
+			cas = 1;
+			break;
 		case 'f':
 			filename = optarg;
 			if (zlen) {
@@ -101,6 +102,21 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}				
+			break;
+		case 'n':
+			count = strtol(optarg, &cp, 0);
+			if (!cp || *cp != '\0') {
+				fprintf(stderr, "**** Invalid count %s\n",
+				       optarg);
+				CMD_USAGE(ka);
+				return(-1);
+			}
+			if (count > 1000000) {
+				fprintf(stderr, "**** Count too large %s\n",
+				       optarg);
+				CMD_USAGE(ka);
+				return(-1);
+			}
 			break;
 		case 'p':
 			if (strlen(optarg) > 2) {
@@ -255,6 +271,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	kv->kv_key    = kv_key;
 	kv->kv_keycnt = 1;
+
 	kv->kv_val    = kv_val;
 	kv->kv_valcnt = 1;
 	
@@ -269,6 +286,41 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
  
 	kv->kv_key[0].kiov_base = ka->ka_key;
 	kv->kv_key[0].kiov_len  = ka->ka_keylen;
+
+	if (count) {
+		/* Need to loop around to create the key copies required */
+		char suffix[] = "1234567890";
+
+		/* Utilize the second vector element for the suffix */
+		kv->kv_keycnt = 2;
+		kv->kv_key[1].kiov_base = suffix;
+
+		/* Loop through changing the keyname and calling put */
+		for(i=0; i<count; i++) {
+			kv->kv_key[1].kiov_len = sprintf(suffix, ".%06d", i);
+			rc = kctl_do_put(ktd, ka, kv, sum, cpolicy, bat, cas);
+			if (rc < 0) {
+				break;
+			}
+		}
+	} else {
+		/* "One ping only, please. Aye aye Captain." */
+		rc = kctl_do_put(ktd, ka, kv, sum, cpolicy, bat, cas);
+	}
+
+	free(ka->ka_val);
+	ki_destroy(kv);
+	return(rc);
+}
+
+int
+kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
+	    kcachepolicy_t cpolicy, int bat, int cas)
+{
+	int	  exists=0, i;
+	kstatus_t krc;
+	char	  newver[VERLEN]; 	// holds hex representation of
+					// one int: "0x00000000"
 
 	/* Get the key's version if it exists and then increment the version */
 	krc = ki_getversion(ktd, kv);
@@ -285,40 +337,62 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		sprintf(newver, "0x%08x", 0);
 	}
 	
-	kv->kv_newver = newver;
+	kv->kv_newver	 = newver;
 	kv->kv_newverlen = VERLEN;
-	kv->kv_disum = &sum;
-	kv->kv_disumlen = sizeof(sum);
-	kv->kv_ditype = KDI_CRC32;
-	kv->kv_cpolicy = cpolicy;
+	kv->kv_disum	 = &sum;
+	kv->kv_disumlen	 = sizeof(sum);
+	kv->kv_ditype	 = KDI_CRC32;
+	kv->kv_cpolicy	 = cpolicy;
+	kv->kv_metaonly	 = 0;
 
 	/* Hang the value */
 	kv->kv_val[0].kiov_base = ka->ka_val;
 	kv->kv_val[0].kiov_len  = ka->ka_vallen;
 
 	if (ka->ka_verbose) {
+		printf ("Key:             ");
+		for(i=0; i<kv->kv_keycnt; i++)
+			asciidump(kv->kv_key[i].kiov_base,
+				  kv->kv_key[i].kiov_len);
+		printf("\n");
 		printf("Batch:           %p\n", (bat?ka->ka_batch:NULL));
-		printf("Compare & Swap:  %s\n", cmpswp?"Enabled":"Disabled");
+		printf("Compare & Swap:  %s\n", cas?"Enabled":"Disabled");
 		printf("Version:         %s\n", exists?(char *)kv->kv_ver:"");
 		printf("New Version:     %s\n", (char *)kv->kv_newver);
 		printf("DI Sum:          %08x\n", *(uint32_t *)kv->kv_disum);
 		printf("DI Type:         CRC32\n");
-		printf("Cache Policy:    %s\n", 
+		printf("Cache Policy:    %s\n\n",
 		       ki_cpolicy_label[kv->kv_cpolicy]);
 	}
 	
-        if (cmpswp)
+        if (cas)
 		krc = ki_cas(ktd, (bat?ka->ka_batch:NULL), kv);
 	else
 		krc = ki_put(ktd, (bat?ka->ka_batch:NULL), kv);
+
+	/* return the key the way we found it */
+	kv->kv_ver	 = NULL;
+	kv->kv_verlen	 = 0;
+	kv->kv_newver	 = NULL;
+	kv->kv_newverlen = 0;
+	kv->kv_disum	 = NULL;
+	kv->kv_disumlen	 = 0;
+	kv->kv_ditype	 = 0;
+	kv->kv_cpolicy	 = 0;
+	kv->kv_metaonly	 = 0;
+
+	(kv->destroy_protobuf)(kv);
+	kv->destroy_protobuf	= NULL;
+	kv->kv_protobuf		= NULL;
+
+	kv->kv_val[0].kiov_base = NULL;
+	kv->kv_val[0].kiov_len  = 0;
 	
 	if (krc != K_OK) {
 		fprintf(stderr, "%s: %s: %s\n",
 			ka->ka_cmdstr, ka->ka_key, ki_error(krc));
 		return(-1);
 	}
-
-	ki_destroy(kv);
 	return(0);
 }
 

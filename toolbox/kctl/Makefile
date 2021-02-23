@@ -22,6 +22,7 @@ CFLAGS =	-g -I$(BUILDDIR)/include -Wall
 LDFLAGS =	-L$(BUILDDIR)/lib
 LIBRL = 	-Bstatic -lreadline -Bdynamic
 LDLIBS = 	$(LIBRL) -lkinetic -lpthread -lssl -lcrypto
+SANITY =	Sanity.kctl.out
 
 all:		$(KCTL)
 
@@ -33,6 +34,10 @@ install: all
 	/usr/bin/install -c -m 755 $(KCTL) $(BUILDDIR)/bin
 
 clean:
-	rm -rf a.out $(KCTL) *.o
+	rm -rf a.out $(KCTL) *.o Sanity.kctl.out
+
+sanity:
+	stdbuf -oL -eL ./Sanity.kctl  > ./Sanity.kctl.out  2>&1
+	cmp ./Sanity.kctl.out ./Sanity.kctl.verified
 
 $(OBJS): kctl.h

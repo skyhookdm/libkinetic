@@ -32,13 +32,17 @@
 
 // macros that use the log level
 #if LOGLEVEL >= LOGLEVEL_DEBUG
-	#define debug_fprintf(...) fprintf(__VA_ARGS__)
+	#define debug_fprintf(...) 				\
+		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
+		fprintf(__VA_ARGS__)
 #else
 	#define debug_fprintf(...) {}
 #endif
 
 #if LOGLEVEL >= LOGLEVEL_INFO
-	#define info_fprintf(...) fprintf(__VA_ARGS__)
+	#define info_fprintf(...) 				\
+		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
+		fprintf(__VA_ARGS__)
 #else
 	#define info_fprintf(...) {}
 #endif
@@ -167,6 +171,5 @@ struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt,
 int ki_rangefree(krange_t *kr);
 
 const char *ki_error(kstatus_t ks);
-
 
 #endif // __KINETIC_INTERFACE_H

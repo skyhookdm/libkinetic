@@ -196,6 +196,7 @@ typedef struct kv {
 	size_t          kv_disumlen;
 	kditype_t       kv_ditype;
 	kcachepolicy_t  kv_cpolicy;
+	uint32_t	kv_metaonly;
 
 	/* NOTE: currently, this also frees kv_data */
 	void        *kv_protobuf;

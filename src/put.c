@@ -450,8 +450,11 @@ pex:
 		KI_FREE(kio->kio_recvmsg.km_msg);
 	}
 
-	/* sendmsg always exists here and may have a variable PDU_VAL */
-	for (i=0; i < kio->kio_sendmsg.km_cnt; i++) {
+	/*
+	 * sendmsg always exists here and has a PDU_VAL but the value vector 
+	 * elements are the callers and cannot be freed
+	 */
+	for (i=0; i < KM_CNT_NOVAL; i++) {
 		KI_FREE(kio->kio_sendmsg.km_msg[i].kiov_base);
 	}
 	KI_FREE(kio->kio_sendmsg.km_msg);

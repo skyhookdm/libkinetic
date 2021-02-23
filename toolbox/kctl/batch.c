@@ -64,7 +64,6 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 			if (ka->ka_batch) {
 				fprintf(stderr,
 					"*** Active batch already exists\n");
-				CMD_USAGE(ka);
 				return(-1);
 			}
 			break;
@@ -73,7 +72,6 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 			if (!ka->ka_batch) {
 				fprintf(stderr,
 					"*** No active batch to Submit\n");
-				CMD_USAGE(ka);
 				return(-1);
 			}
 			break;
@@ -82,7 +80,6 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 			if (!ka->ka_batch) {
 				fprintf(stderr,
 					"*** No active batch to Abort\n");
-				CMD_USAGE(ka);
 				return(-1);
 			}
 			break;

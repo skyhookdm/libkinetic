@@ -11,6 +11,7 @@
 
 int  i_iterinit(int ktd, kiter_t *kit);
 void i_iterdestroy(kiter_t *kit);
+extern char *ki_ktype_label[];
 
 /*
  * This module implements the Kinetic Typed Buffer (KTB) infrastructure.
@@ -120,6 +121,11 @@ ki_create(int ktd, ktype_t t)
 	void *p;
 	uint32_t l = sizeof(ktb_t) + ktb_buf_len(t);
 	
+	if ((t <= KT_NONE) || (t >= KT_LAST)) {
+		debug_printf("create: bad type\n");
+		return NULL;
+	}
+
 	k =  KI_MALLOC(l);
 	if (!k) {
 		return(NULL);
@@ -132,6 +138,8 @@ ki_create(int ktd, ktype_t t)
 	k->ktb_ktd   = ktd;
 
 	p = (void *)k->ktb_buf;
+
+	debug_printf("KI_CREATE : %p (%s)\n", p, ki_ktype_label[t]);
 
 	/* additional setup is required */
 	switch(t) {
@@ -156,6 +164,7 @@ ki_clean(void *p)
 {
 	ktb_t *k;
 
+	debug_printf("KI_CLEAN  : %p\n", p);
 	if (!ktb_isvalid(p)) {
 		return(-1);
 	}
@@ -178,22 +187,17 @@ ki_destroy(void *p)
 {
 	ktb_t *k;
 
+	debug_printf("KI_DESTROY: %p\n", p);
 	if (ki_clean(p) < 0) {
 		return(-1);
 	}
 
 	k = ktb_base(p);
 
-	/* additional setup is required */
+	/* additional destruction is required */
 	switch(k->ktb_type) {
-	case KRANGE_T:
-		break;
-			
 	case KITER_T:
 		i_iterdestroy((kiter_t *)p); break;
-	case KBATCH_T:
-		//b_batchdestroy(ktd); break;
-		break;
 	default:
 		break;
 	}

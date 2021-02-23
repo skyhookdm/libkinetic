@@ -1,0 +1,210 @@
+#!./kctl -f
+#
+## Copyright 2020-2021 Seagate Technology LLC.
+#
+# This Source Code Form is subject to the terms of the Mozilla
+# Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at
+# https://mozilla.org/MP:/2.0/.
+#
+# This program is distributed in the hope that it will be useful,
+# but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+# the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+# FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+# License for more details.
+#
+########   KCTL Sanity Test
+#
+# This is a kctl script that attempts to run through a significant
+# percentage of functionality offered by kctl and libkinetic.  This is
+# is just functionality and not attempting coverage, corner cases,
+# stress or perf.
+#
+
+#
+# Do some cleanup of the Sanity key space
+yes
+del -S kctl.sanity. -E kctl.sanity.z
+
+#
+# Put Tests
+#
+# Std Put
+echo Standard put
+put kctl.sanity.put.1 "Put1.0"
+# CAS Put
+echo Compare and Swap (CAS) puts
+put -c kctl.sanity.put.1 "Put1.1"
+put -c kctl.sanity.put.1 "Put1.2"
+echo Should be version 0x00000002
+get -m kctl.sanity.put.1			# Should be version 2
+# Put from a file
+echo Put using a file as a value
+put -f /etc/hosts kctl.sanity.put.2
+# Put zero buffer
+echo Put using a 4k zero filled buffer as a value
+put -z 4096 kctl.sanity.put.3
+# Put with cache ops
+echo Puts with cache policies defined
+put -p wt kctl.sanity.put.4 "Put4-WT.0"
+put -p wb kctl.sanity.put.5 "Put5-WB"
+put -p f  kctl.sanity.put.6 "Put6-F"
+# Multiple ops
+echo Set of puts with mixed arguments
+put    -p wt                kctl.sanity.put.4 "Put4-WT.1"	# lay down a key
+put -c -p wt                kctl.sanity.put.4 "Put4-WT.1"	# CAS it
+put -f /etc/hosts -c -p f   kctl.sanity.put.6
+put -f /etc/hosts -c -p wb  kctl.sanity.put.6
+put -z 1024    -p wt        kctl.sanity.put.7
+put -z 1024 -c -p wt        kctl.sanity.put.7
+put -z 8192 -p wb           kctl.sanity.put.8 
+put    -p wb                kctl.sanity.put.9 "Put9-WB-CAS"	# lay down a key
+put -c -p wb                kctl.sanity.put.9 "Put9-WB-CAS"	# CAS it
+# Put Errs
+echo Put error case, both put and get should fail
+put -c kctl.sanity.put.10 "Put10-WB-CAS" 	# No previous key, should fail
+get kctl.sanity.put.10  			# Should fail
+# Handful of puts for Range and Delete below
+echo Do many puts in a row
+put kctl.sanity.put.10 "Put10"
+put kctl.sanity.put.11 "Put11"
+put kctl.sanity.put.12 "Put12"
+put kctl.sanity.put.13 "Put13"
+put kctl.sanity.put.14 "Put14"
+put kctl.sanity.put.15 "Put15"
+put kctl.sanity.put.16 "Put16"
+put kctl.sanity.put.17 "Put17"
+put kctl.sanity.put.18 "Put18"
+put kctl.sanity.put.19 "Put19"
+put kctl.sanity.put.20 "Put20"
+put kctl.sanity.put.21 "Put21"
+put kctl.sanity.put.22 "Put22"
+put kctl.sanity.put.23 "Put23"
+put kctl.sanity.put.24 "Put24"
+put kctl.sanity.put.25 "Put25"
+put kctl.sanity.put.26 "Put26"
+put kctl.sanity.put.27 "Put27"
+put kctl.sanity.put.28 "Put28"
+put kctl.sanity.put.29 "Put29"
+
+#
+# Get Tests
+#
+# Std get
+echo
+echo Get tests
+get kctl.sanity.put.5
+getnext kctl.sanity.put.4
+getprev kctl.sanity.put.6
+getvers kctl.sanity.put.1
+get -m kctl.sanity.put.3
+
+#
+# Range/Iter Tests
+#
+echo
+echo Range tests, start by creating 2000 keys
+put -n 2000 -z 4096 kctl.sanity.range
+# Getrange, count < 800 forces a single getrange
+# Test start, start inclusive, end, end inclusive
+echo Ranges with count < 800 to force direct ki_getrage call
+range -n 5  -S kctl.sanity.range.000010 -E kctl.sanity.range.000019
+range -n 10 -S kctl.sanity.range.000010 -e kctl.sanity.range.000019
+range -n 10 -s kctl.sanity.range.000010 -E kctl.sanity.range.000019
+range -n 10 -s kctl.sanity.range.000010 -e kctl.sanity.range.000019
+# Iter, no count forces an iter
+# Test start, start inclusive, end, end inclusive
+echo Ranges with no count forcing iter usage
+range -S kctl.sanity.range.000010 -E kctl.sanity.range.000019
+range -S kctl.sanity.range.000010 -e kctl.sanity.range.000019
+range -s kctl.sanity.range.000010 -E kctl.sanity.range.000019
+range -s kctl.sanity.range.000010 -e kctl.sanity.range.000019
+# Iter with a count, must be higher than 800
+echo Range with a count > 800 forcing the use of iter
+range -n 1700 -S kctl.sanity.range.000010 -E kctl.sanity.range.000019
+
+# Fully test iter by cycling over 2000 keys. This ensures that
+# multiple of windows are loaded. 
+range -S kctl.sanity.range -E kctl.sanity.range.002000
+#
+# Delete Tests
+#
+# Std Del
+echo Del tests
+del kctl.sanity.put.2
+# CAD Del
+echo Compare and Delete (CAD) del
+del -c kctl.sanity.put.1
+get -m kctl.sanity.put.1
+# Del with cache ops
+echo Dels with cache policy ops
+del -p wt kctl.sanity.put.4
+get -m kctl.sanity.put.4
+del -p wb kctl.sanity.put.5
+get -m kctl.sanity.put.5
+del -p f  kctl.sanity.put.6
+get -m kctl.sanity.put.6
+# Del Range
+echo dels with ranges
+del -n 5  -s kctl.sanity.put.10 -e kctl.sanity.put.19
+range -n 10 -s kctl.sanity.put.10 -e kctl.sanity.put.19
+range -n 10 -S kctl.sanity.put.10 -E kctl.sanity.put.19
+del -s kctl.sanity.put.10 -e kctl.sanity.put.19
+echo The range should fail as all keys in this range were deleted
+range -n 10 -s kctl.sanity.put.10 -e kctl.sanity.put.19
+echo This range should succeed
+range -n 10 -S kctl.sanity.put.10 -E kctl.sanity.put.19
+del -S kctl.sanity.put.10 -E kctl.sanity.put.19
+echo The range should fail as all keys in this range were deleted
+range -n 10 -S kctl.sanity.put.10 -E kctl.sanity.put.19
+# Del errs
+echo Del error cases
+del kctl.sanity.put.2
+
+#
+# Batches
+#
+# Std Batch
+echo Batch tests
+batch -C
+del -b kctl.sanity.put.8
+put -b kctl.sanity.put.10 "Put10"
+put -b kctl.sanity.put.11 "Put11"
+put -b kctl.sanity.put.12 "Put12"
+put -b kctl.sanity.put.13 "Put13"
+put -b kctl.sanity.put.14 "Put14"
+put -b kctl.sanity.put.15 "Put15"
+put -b kctl.sanity.put.16 "Put16"
+put -b kctl.sanity.put.17 "Put17"
+put -b kctl.sanity.put.18 "Put18"
+put -b kctl.sanity.put.19 "Put19"
+del -b -n 5 -s kctl.sanity.put.20 -e kctl.sanity.put.29
+batch -S
+range -n 10 -S kctl.sanity.put.10 -E kctl.sanity.put.19
+range -n 10 -S kctl.sanity.put.20 -E kctl.sanity.put.29
+# Batch Abort
+echo Batch abort
+batch -C
+del -b -S kctl.sanity.put.10 -E kctl.sanity.put.19
+batch -A
+echo Since aborted the keys should still exist
+range -n 10 -S kctl.sanity.put.10 -E kctl.sanity.put.19
+# Batch Err
+echo Batch error cases
+batch -C
+echo Double batch create should fail
+batch -C
+batch -A
+echo Batch submit with no create
+batch -S
+echo Batch abort with no create
+batch -A
+
+#
+# Info, partial info tests as most are not deterministic
+#
+echo Info tests
+info -L
+
+
+

@@ -425,7 +425,9 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		 */
 		if ((kio->kio_recvmsg.km_cnt > KIOV_VAL) &&
 		    kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base &&
-		    ((krc != K_OK) || (kio->kio_cmd == KMT_GETVERS)))
+		    ((krc != K_OK) ||
+		     (kio->kio_cmd == KMT_GETVERS) ||
+		     (kv->kv_metaonly)))
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base);
 
 		KI_FREE(kio->kio_recvmsg.km_msg);
@@ -695,6 +697,9 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	);
 
 	proto_cmd_body.has_key = extract_result;
+
+	proto_cmd_body.has_metadataonly = 1;
+	proto_cmd_body.metadataonly = cmd_data->kv_metaonly;
 
 	if (extract_result == 0) {
 		return (struct kresult_message) {

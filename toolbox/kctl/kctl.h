@@ -16,7 +16,7 @@
 #ifndef _KCTL_H
 #define _KCTL_H
 
-enum kctl_cmd {
+typedef enum kctl_cmd {
 	KCTL_NOOP = 0,
 	KCTL_GET,
 	KCTL_GETNEXT,
@@ -34,7 +34,13 @@ enum kctl_cmd {
 	KCTL_BATCH,
 	
 	KCTL_EOT // End of Table -  Must be last
-};
+} kctl_cmd_t;
+
+typedef enum kctl_input {
+	KCTL_INTERACTIVE,
+	KCTL_SCRIPT,
+	KCTL_CMDLINE,
+} kctl_input_t;
 
 struct kargs {
 	char		*ka_progname;
@@ -57,6 +63,7 @@ struct kargs {
 	uint32_t	ka_quiet;	/* output ctl */
 	uint32_t	ka_terse;	/* output ctl */
 	uint32_t	ka_verbose;	/* output ctl */
+	kctl_input_t	ka_input;	/* input mode */
 	uint32_t	ka_yes;		/* answer yes to any prompts */
 	klimits_t	ka_limits;	/* Kinetic server limits */
 };					 
