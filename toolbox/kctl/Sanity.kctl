@@ -206,5 +206,14 @@ batch -A
 echo Info tests
 info -L
 
+#
+# Cleanup, but do it as a test, large delete in a batch
+#
+batch -C
+del -b -S kctl.sanity. -E kctl.sanity.z
+batch -S
+range  -S kctl.sanity. -E kctl.sanity.z
+quit
+
 
 

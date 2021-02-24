@@ -2342,3 +2342,10 @@ Limits:
   Max Dels/Batch    : 24000
   Max Active Batches: 0
 
+kctl> batch -C
+kctl> del -b -S kctl.sanity. -E kctl.sanity.z
+**** Warning: Batch Range Delete: Range must not contain more than 24000 keys
+***DELETING Key Range [kctl.,kctl.]:unlimited
+kctl> batch -S
+kctl> range -S kctl.sanity. -E kctl.sanity.z
+kctl> quit
