@@ -53,6 +53,9 @@ struct kargs kargs = {
 	.ka_input	= KCTL_CMDLINE,
 	.ka_yes		= 0
 };
+static char kctl_vers[40];
+static uint32_t kctl_vers_num =
+	(KCTL_VERS_MAJOR*1E6) + (KCTL_VERS_MINOR*1E3) + KCTL_VERS_PATCH;
 
 extern int kctl_get(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_put(int argc, char *argv[], int kts, struct kargs *ka);
@@ -133,9 +136,13 @@ usage()
 		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
 			"help", "Show Help");
 		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
+			"echo <text>", "Print some text");
+		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
 			"env", "Show kctl environment");
 		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
 			"verbose", "Toggle verbose mode");
+		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
+			"version", "Show kctl version information");
 		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
 			"yes", "Toggle yes mode");
 		fprintf(stderr,"\t%" US_ARG_WIDTH "s%s\n",
@@ -195,6 +202,27 @@ print_args(struct kargs *ka)
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Command:", ka->ka_cmdstr);
 }
 
+void
+print_version()
+{
+	kversion_t *kver;
+
+	kver = ki_create(-1, KVERSION_T);
+	ki_version(kver);
+	
+	printf("KCTL Version: %s\n",		 kctl_vers);
+	printf("KCTL Version Number: %d\n",	 kctl_vers_num);
+	printf("Kinetic Version: %s\n",		 kver->kvn_ki_vers);
+	printf("Kinetic Version Number: %d\n",	 kver->kvn_ki_vers_num);
+	printf("Kinetic Protobuf Version: %s\n", kver->kvn_pb_kinetic_vers);
+	printf("Kinetic Git Hash: %s\n",	 kver->kvn_ki_githash);
+	printf("Protobuf C Version: %s\n",	 kver->kvn_pb_c_vers);
+	printf("Protobuf C Version Number: %d\n",kver->kvn_pb_c_vers_num);
+
+	ki_destroy(kver);
+}
+
+
 int
 main(int argc, char *argv[])
 {
@@ -203,10 +231,11 @@ main(int argc, char *argv[])
 	FILE *f;
 	char         c, *cp;
 	int          i;
-	kversion_t *kver;
 
 	kargs.ka_progname = argv[0];
-
+	sprintf(kctl_vers, "%d.%d.%d",
+		KCTL_VERS_MAJOR, KCTL_VERS_MINOR, KCTL_VERS_PATCH);
+	
 	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsu:tvVy?")) != EOF) {
 		switch (c) {
 		case 'h':
@@ -264,21 +293,7 @@ main(int argc, char *argv[])
 			break;
 
 		case 'V':
-			kver = ki_create(-1, KVERSION_T);
-			ki_version(kver);
-			printf("Kinetic Version: %s\n",
-			       kver->kvn_ki_vers);
-			printf("Kinetic Version Number: %d\n",
-			       kver->kvn_ki_vers_num);
-			printf("Kinetic Protobuf Version: %s\n",
-			       kver->kvn_pb_kinetic_vers);
-			printf("Kinetic Git Hash: %s\n",
-			       kver->kvn_ki_githash);
-			printf("Protobuf C Version: %s\n",
-			       kver->kvn_pb_c_vers);
-			printf("Protobuf C Version Number: %d\n",
-			       kver->kvn_pb_c_vers_num);
-			ki_destroy(kver);
+			print_version();
 			exit(0);
 
 		case 'y':
@@ -559,6 +574,11 @@ kctl_interactive(struct kargs *ka)
 				printf("Verbose Mode in ON\n");
 			}
 			goto next;
+		}
+
+		if (strcmp(argv[0], "version") == 0) {
+			print_version();
+		        goto next;
 		}
 
 		if (strcmp(argv[0], "yes") == 0) {

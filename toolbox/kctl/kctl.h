@@ -16,6 +16,10 @@
 #ifndef _KCTL_H
 #define _KCTL_H
 
+#define KCTL_VERS_MAJOR 1
+#define KCTL_VERS_MINOR 0
+#define KCTL_VERS_PATCH 0
+
 typedef enum kctl_cmd {
 	KCTL_NOOP = 0,
 	KCTL_GET,
