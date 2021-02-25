@@ -53,6 +53,7 @@ struct kargs kargs = {
 	.ka_input	= KCTL_CMDLINE,
 	.ka_yes		= 0
 };
+
 static char kctl_vers[40];
 static uint32_t kctl_vers_num =
 	(KCTL_VERS_MAJOR*1E6) + (KCTL_VERS_MINOR*1E3) + KCTL_VERS_PATCH;
@@ -210,14 +211,15 @@ print_version()
 	kver = ki_create(-1, KVERSION_T);
 	ki_version(kver);
 	
+	if (kctl_vers_num) /* if is just to get rid of compiler warnings */
+		sprintf(kctl_vers, "%d.%d.%d",
+		KCTL_VERS_MAJOR, KCTL_VERS_MINOR, KCTL_VERS_PATCH);
+
 	printf("KCTL Version: %s\n",		 kctl_vers);
-	printf("KCTL Version Number: %d\n",	 kctl_vers_num);
-	printf("Kinetic Version: %s\n",		 kver->kvn_ki_vers);
-	printf("Kinetic Version Number: %d\n",	 kver->kvn_ki_vers_num);
 	printf("Kinetic Protobuf Version: %s\n", kver->kvn_pb_kinetic_vers);
-	printf("Kinetic Git Hash: %s\n",	 kver->kvn_ki_githash);
+	printf("Kinetic Library Version: %s\n",	 kver->kvn_ki_vers);
+	printf("Kinetic Library Git Hash: %s\n", kver->kvn_ki_githash);
 	printf("Protobuf C Version: %s\n",	 kver->kvn_pb_c_vers);
-	printf("Protobuf C Version Number: %d\n",kver->kvn_pb_c_vers_num);
 
 	ki_destroy(kver);
 }
@@ -233,8 +235,6 @@ main(int argc, char *argv[])
 	int          i;
 
 	kargs.ka_progname = argv[0];
-	sprintf(kctl_vers, "%d.%d.%d",
-		KCTL_VERS_MAJOR, KCTL_VERS_MINOR, KCTL_VERS_PATCH);
 	
 	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsu:tvVy?")) != EOF) {
 		switch (c) {
