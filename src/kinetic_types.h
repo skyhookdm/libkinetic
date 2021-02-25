@@ -30,6 +30,7 @@ typedef enum ktype {
 	KITER_T,
 	KBATCH_T,
 	KGETLOG_T,
+	KVERSION_T,
 	/* Keep last */
 	KT_LAST,	
 } ktype_t;
@@ -326,14 +327,13 @@ struct kresult_message {
 	void              *result_message;
 };
 
-// Kinetic Status block
-#if 0
-typedef struct kstatus {
-	kstatus_code_t  ks_code;
-	char           *ks_message;
-	char           *ks_detail;
-} kstatus_t;
-#endif
-
+typedef struct kversion {
+	const char 	*kvn_pb_c_vers;
+	uint32_t 	kvn_pb_c_vers_num;
+	char 		*kvn_pb_kinetic_vers;
+	const char	*kvn_ki_githash;
+	char 		*kvn_ki_vers;
+	uint32_t 	kvn_ki_vers_num;
+} kversion_t;
 
 #endif /*  _KINETIC_TYPES_H */

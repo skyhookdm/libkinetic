@@ -111,6 +111,7 @@ struct kiovec *ki_next(kiter_t *kit);
 // for information structures
 klimits_t      ki_limits(int ktd);
 kstatus_t      ki_setclustervers(int ktd, int64_t vers);
+kstatus_t      ki_version(kversion_t *kver);
 
 // for key utilities/helpers
 

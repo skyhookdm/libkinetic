@@ -163,6 +163,7 @@ usage()
 	fprintf(stderr, "\t-y           Automatic yes to prompts [no]\n");
 	fprintf(stderr, "\t-f filename  Replace stdin with filename;\n");
 	fprintf(stderr, "\t                 forces interactive mode\n");
+	fprintf(stderr, "\t-V           Show versions\n");
 	fprintf(stderr, "\t-?           Help\n");
 	fprintf(stderr, "\nTo see available CMD OPTIONS: %s CMD -?\n",
 		kargs.ka_progname);
@@ -202,10 +203,11 @@ main(int argc, char *argv[])
 	FILE *f;
 	char         c, *cp;
 	int          i;
+	kversion_t *kver;
 
 	kargs.ka_progname = argv[0];
 
-	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsu:tvy?")) != EOF) {
+	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsu:tvVy?")) != EOF) {
 		switch (c) {
 		case 'h':
 			kargs.ka_host = optarg;
@@ -260,6 +262,24 @@ main(int argc, char *argv[])
 		case 'v':
 			kargs.ka_verbose = 1;
 			break;
+
+		case 'V':
+			kver = ki_create(-1, KVERSION_T);
+			ki_version(kver);
+			printf("Kinetic Version: %s\n",
+			       kver->kvn_ki_vers);
+			printf("Kinetic Version Number: %d\n",
+			       kver->kvn_ki_vers_num);
+			printf("Kinetic Protobuf Version: %s\n",
+			       kver->kvn_pb_kinetic_vers);
+			printf("Kinetic Git Hash: %s\n",
+			       kver->kvn_ki_githash);
+			printf("Protobuf C Version: %s\n",
+			       kver->kvn_pb_c_vers);
+			printf("Protobuf C Version Number: %d\n",
+			       kver->kvn_pb_c_vers_num);
+			ki_destroy(kver);
+			exit(0);
 
 		case 'y':
 			kargs.ka_yes = 1;
