@@ -30,33 +30,35 @@ extern char *ki_ktype_label[];
 
 /*
  * This module implements the Kinetic Typed Buffer (KTB) infrastructure.
- * While KTB is an interal structure, there are a handful of access 
- * functions that will be used by callers. All instances of Kinetic data 
- * types used in the Kinetic API must created and destroyed by KTB's exported 
- * functions. This includes both opaque and non-opaque data structures, 
- * the full list is in ktype_t.  For example, a key value data structure(kv_t), 
- * needed for a ki_get(), is required to be created by this module  
- * and ultimately destroyed by this module.  The need for this was driven 
- * by a zero or near zero copy policy instituted in the Kinetic API. This means 
- * that internal allocated buffers containing keys, kv meta data, log data etc, 
- * are passed directly back to the caller. The caller has no way of knowing 
- * how to deallocate these buffers. By formalizing these Kinetic data structures 
- * requiring the callers to create and destroy them, permits the library the 
- * opportunity to hide and perform the details of cleaning up these internal 
- * buffers. The callers are still allowed to hang their own buffers on these
- * structures once created, but the API will not accept base structures not 
- * created via this module. Callers are still responsible for buffers they 
- * allocate and hang on these managed structures. This creates a sound rule
- * that what the API allocates, the API is responsible for deallocating 
- * and conversely what the caller allocates, the caller is responsible for 
- * deallocating.  
- * There is one exception to this rule, values.  Value buffers, either 
+ * While KTB is an interal structure, there are a handful of access
+ * functions that will be used by callers. All instances of Kinetic data
+ * types used in the Kinetic API signatures must created and destroyed
+ * by KTB's exported functions. This includes both opaque and non-opaque
+ * data structures, the full list is in ktype_t.  For example, a key
+ * value data structure(kv_t), needed for a ki_get(), is required to be
+ * created by this module and ultimately destroyed by this module.  The
+ * need for this was driven by a zero or near zero copy policy instituted
+ * in this Kinetic API. To avoid copying data into user provided structures
+ * means that internal allocated buffers containing keys, kv meta data,
+ * log data etc, are passed directly back to the caller. The caller has
+ * no way of knowing how to deallocate these buffers, as they may be
+ * regions of a much karger freeable buffer. By formalizing these Kinetic
+ * data structures, requiring the callers to create and destroy them,
+ * permits the library the opportunity to hide and perform the details
+ * of cleaning up these internal buffers. The callers are still allowed
+ * to hang their own buffers on these structures once created, but the
+ * API will not accept base structures not created via this module.
+ * Callers are still responsible for buffers they allocate and hang on
+ * these managed structures. This creates a sound rule that what the
+ * API allocates, the API is responsible for deallocating and conversely
+ * what the caller allocates, the caller is responsible for deallocating.
+ * There is one exception to this rule, values.  Value buffers, either
  * allocated by the caller or the library, must be deallocated by the caller.
- * Values received from the API are returned as a single freeable ptr and 
- * must be deallocated by the caller. 
+ * Values received from the API are returned as a single freeable ptr and
+ * must be deallocated by the caller.
  *
  * The KTB infrastructure is hidden from the caller and should never be
- * exploited by the caller. 
+ * exploited by the caller.
  */
 
 /* Yields the 8 byte string "KTBUF\0\0\0" */
@@ -68,13 +70,13 @@ extern char *ki_ktype_label[];
 
 /*
  * Kinetic Typed Buffer data structure.
- * This is the variable sized buffer that contains the metadata as well as 
- * client requested data structure. Note that ktb_buf[] is an ISO C99 
- * flexible array member and is the ptr to the user requested structure. 
- * All operations after ki_create use that returned ptr as the primary param. 
- * The base ktb ptr is calculated using this caller provided ptr. The 
+ * This is the variable sized buffer that contains the metadata as well as
+ * client requested data structure. Note that ktb_buf[] is an ISO C99
+ * flexible array member and is the ptr to the user requested structure.
+ * All operations after ki_create use that returned ptr as the primary param.
+ * The base ktb ptr is calculated using this caller provided ptr. The
  * ktb is fully validated by examining the magic number and the type.
- * This is done before any operation is attempted.  
+ * This is done before any operation is attempted.
  */
 typedef struct ktb {
 	/* These elements are the management info for the buffer. */
@@ -119,7 +121,7 @@ ktb_buf_len(ktype_t t)
 	case KGETLOG_T:
 		return((uint32_t)sizeof(kgetlog_t));
 	case KVERSION_T:
-		return((uint32_t)sizeof(kgetlog_t));
+		return((uint32_t)sizeof(kversion_t));
 	default:
 		return(0);
 	}
