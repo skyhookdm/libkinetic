@@ -178,14 +178,14 @@ ki_create(int ktd, ktype_t t)
  * This cleans the data structure for re-use, p is a ptr returned from a
  * previous ki_create call. p continues to be valid after this call.
  */
-int
+kstatus_t
 ki_clean(void *p)
 {
 	ktb_t *k;
 
 	debug_printf("KI_CLEAN  : %p\n", p);
 	if (!ktb_isvalid(p)) {
-		return(-1);
+		return(K_EINVAL);
 	}
 
 	k = ktb_base(p);
@@ -194,21 +194,21 @@ ki_clean(void *p)
 		(k->ktb_destroy)(k->ktb_ctx);
 	}
 
-	return(0);
+	return(K_OK);
 }
 
 /*
  * completely cleans and then frees up the buffer, p is a ptr returned from a
  * previous ki_create call. p is no longer valid after this call. 
  */ 
-int
+kstatus_t
 ki_destroy(void *p)
 {
 	ktb_t *k;
 
 	debug_printf("KI_DESTROY: %p\n", p);
 	if (ki_clean(p) < 0) {
-		return(-1);
+		return(K_EINVAL);
 	}
 
 	k = ktb_base(p);
@@ -225,10 +225,10 @@ ki_destroy(void *p)
 
 	KI_FREE(k);
 
-	return(0);
+	return(K_OK);
 }
 
-int
+uint32_t
 ki_valid(void *p)
 {
 	return (ktb_isvalid(p));

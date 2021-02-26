@@ -59,9 +59,9 @@ int ki_close(int ktd);
 
 // Kinetic Type Interfaces
 void *ki_create(int ktd, ktype_t kt);
-int   ki_clean(void *p);
-int   ki_destroy(void *p);
-int   ki_valid(void *p);
+kstatus_t ki_clean(void *p);
+kstatus_t ki_destroy(void *p);
+uint32_t  ki_valid(void *p);
 
 // Kinetic synchronous I/O interfaces
 kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);
