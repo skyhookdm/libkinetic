@@ -11,13 +11,19 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
 # License for more details.
 #
-BUILDDIR =	../../build
+# IBUILDDIR is necessary for the install target
+# as you can override BUILDDIR with you env
+IBUILDDIR =	../../build
+BUILDDIR =	$(IBUILDDIR)
 BUILDINC =	$(BUILDDIR)/include
 BUILDLIB =	$(BUILDDIR)/lib
 BUILDBIN =	$(BUILDDIR)/bin
+BUILDSRC =	$(BUILDDIR)/src
+BUILDMAN =	$(BUILDDIR)/man
 
 SRCS = 		kctl.c util.c info.c get.c put.c del.c	\
 		range.c batch.c
+HDRS =		kctl.h
 OBJS =		$(SRCS:.c=.o)
 DEPS = 		$(SRCS:.c=.d)
 
@@ -32,29 +38,48 @@ CFLAGS =	-g -Wall
 LDFLAGS =	-L$(BUILDLIB)
 STATIC = 	-Wl,-Bstatic
 DYNAMIC =	-Wl,-Bdynamic
+
+# By default this make statically links against libkinetic
+# removing the STATIC var below permits dynamic linking, but
+# the shared libs will need to be installed or LD_LIBRARY_PATH
+# used to locate the shared libs
 LDLIBS = 	-lreadline 				\
 		$(STATIC) -lkinetic 			\
 		$(DYNAMIC) -lpthread -lssl -lcrypto
-SANITY =	Sanity.kctl.out
+
+SANITY =	Sanity.kctl
+SANITYO =	Sanity.kctl.out
+SANITYV =	Sanity.kctl.verified
 
 all:		$(KCTL)
 
 $(KCTL):	$(OBJS) $(KCTLDEPS)
 		$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
 
-install: all
-	/bin/mkdir -p $(BUILDDIR)/bin
-	/usr/bin/install -c -m 755 $(KCTL) $(BUILDDIR)/bin
+install: $(KCTL) $(SRCS) $(HDRS) $(SANITY) $(SANITYV) Makefile
+	mkdir -p $(BUILDBIN)
+	mkdir -p $(BUILDSRC)/kctl
+	/usr/bin/install -c -m 755  $(KCTL) $(BUILDBIN)/kctl
+	for f in $(SRCS) $(HDRS); do					\
+		/usr/bin/install -c -m 644 $${f} $(BUILDSRC)/kctl;	\
+	done
+	sed 's?$(IBUILDDIR)?../..?g' Makefile > $(BUILDSRC)/kctl/Makefile
+	/usr/bin/install -c -m 755  $(SANITY) $(BUILDSRC)/kctl/$(SANITY)
+	/usr/bin/install -c -m 644  $(SANITYV) $(BUILDSRC)/kctl/$(SANITYV)
+	touch install
 
 clean:
-	rm -rf a.out $(KCTL) *.[od] Sanity.kctl.out
+	rm -rf a.out $(KCTL) *.[od] Sanity.kctl.out install
 
 clobber: clean
 	rm -rf *.d
 
+# The sanity target only works if you have a kineticd server
+# running locally. The stdbuf utility is used to interleave
+# stdout and stderr to get a consistent comparable output file.
 sanity:
-	stdbuf -oL -eL ./Sanity.kctl  > ./Sanity.kctl.out  2>&1
-	cmp ./Sanity.kctl.out ./Sanity.kctl.verified
+	stdbuf -oL -eL ./$(SANITY) > $(SANITYO) 2>&1
+	cmp $(SANITYO) $(SANITYV)
 
 $(OBJS) $(DEPS):
 

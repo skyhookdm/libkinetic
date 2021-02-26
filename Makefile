@@ -35,9 +35,28 @@ CC      =	gcc
 CFLAGS  =	-g -I$(BUILDDIR)/include
 LDFLAGS =	-L$(BUILDDIR)/lib
 
+DISTFILES = 				\
+	bin/kctl			\
+	include/kinetic			\
+	include/protobuf-c		\
+	lib/libkinetic.a		\
+	lib/libkinetic.so		\
+	lib/libkinetic.so.1		\
+	lib/libkinetic.so.1.0.0		\
+	src				\
+
 all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(LGTEST) $(TBDIR) $(TESTDIR)
 
 test: $(TESTDIR)
+
+dist: all
+	@(								\
+	cd $(BUILDDIR);						\
+	V=`$(KCTL) -V | grep "Library Vers" | awk '{print $$4}'`;	\
+	T=libkinetic-dev_$${V}_amd64.tgz;				\
+	echo Creating Distribution tarfile in $(BUILDDIR)/$${T};	\
+	tar -cvzf $${T} $(DISTFILES)				\
+	)
 
 $(BUILDDIR):
 	@mkdir -p $(BUILDDIR)
@@ -64,6 +83,7 @@ $(LGTEST): FORCE
 	(cd $(GTESTDIR); BUILDDIR=$(BUILDDIR) bazel build gtest)
 	/usr/bin/install -c -m 755 $(GTESTDIR)/bazel-bin/libgtest.a $(BUILDLIB)
 
+# The sanity target only works if you have a kineticd server running locally.
 sanity:
 	(cd $(KCTLDIR); make all sanity)
 
