@@ -15,7 +15,9 @@ TLD :=		$(shell pwd)
 BUILDDIR =	$(TLD)/build
 BUILDINC =	$(BUILDDIR)/include
 BUILDLIB =	$(BUILDDIR)/lib
+BUILDBIN =	$(BUILDDIR)/bin
 
+KCTLDIR     =	$(TLD)/toolbox/kctl
 LISTDIR     =	$(TLD)/vendor/list
 PROTOBUFDIR =	$(TLD)/vendor/protobuf-c
 GTESTDIR    =	$(TLD)/vendor/googletest
@@ -27,6 +29,7 @@ LPROTOBUF =	$(BUILDLIB)/libprotobuf-c.so
 LLIST     =	$(BUILDLIB)/liblist.a
 LKINETIC  =	$(BUILDLIB)/libkinetic.a
 LGTEST    =	$(BUILDLIB)/libgtest.a
+KCTL	  =	$(BUILDBIN)/kctl
 
 CC      =	gcc
 CFLAGS  =	-g -I$(BUILDDIR)/include
@@ -61,11 +64,17 @@ $(LGTEST): FORCE
 	(cd $(GTESTDIR); BUILDDIR=$(BUILDDIR) bazel build gtest)
 	/usr/bin/install -c -m 755 $(GTESTDIR)/bazel-bin/libgtest.a $(BUILDLIB)
 
+sanity:
+	(cd $(KCTLDIR); make all sanity)
+
 clean:	protobufclean listclean kineticclean gtestclean toolboxclean testclean
 	rm -rf $(BUILDDIR)
 
 protobufclean:
 	(cd $(PROTOBUFDIR);  [ -f ./Makefile ] && make clean; true)
+
+kctlclean:
+	(cd $(KCTLDIR); make clean)
 
 listclean:
 	(cd $(LISTDIR); make clean)

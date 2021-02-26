@@ -11,8 +11,18 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
 # License for more details.
 #
-KINETIC =	libkinetic.a
 BUILDDIR =	../build
+BUILDINC =	$(BUILDDIR)/include
+BUILDLIB =	$(BUILDDIR)/lib
+BUILDBIN =	$(BUILDDIR)/bin
+
+KINETIC =	libkinetic.a
+KINETICSO = 	libkinetic.so
+KINETICSOV = 	$(KINETICSO).1
+KINETICSOVL = 	$(KINETICSOV).0.0
+
+BUILDLIB_KINETIC = $(BUILDLIB)/$(KINETIC)
+
 PROTOBUF_C =	kinetic.pb-c.c
 PROTOBUF =	kinetic.pb-c.o
 PROTODIR =	protocol
@@ -22,7 +32,6 @@ OBJS =		ktli.o ktli_socket.o ktli_session.o protocol_interface.o\
 		aio.o util.o validate.o labels.o error.o ktb.o version.o\
 		$(PROTOBUF)
 GITHASH	=	githash.h
-GITHASHMSG =	"/* This file is GENERATED. Do not edit. Must only be included in version.c. */"
 
 INC_KPUB =	kinetic.h kinetic_types.h protocol_types.h
 
@@ -32,48 +41,75 @@ INC_PRIV =	kio.h ktli.h ktli_session.h  \
 		kinetic.h kinetic_internal.h \
 		session.h
 
-CFLAGS =	-g -I$(BUILDDIR)/include -I. -Wall
+CFLAGS =	-g -I$(BUILDDIR)/include -I. -Wall -fpic -Wl,-export-dynamic
 LDFLAGS =	-L$(BUILDDIR)/lib
 LDLIBS =	-llist -lprotobuf-c
 
+CP =		/bin/cp
+LN =		/bin/ln
 MKDIR =		/bin/mkdir
 INSTALL = 	/usr/bin/install
 
-all:	$(KINETIC)
+all:	gen_githash $(KINETICSOVL)
 
 test:	test/src/test_hmac.c $(OBJS)
 	$(MKDIR) -p test/bin
 	$(CC) $(CFLAGS) -o test/bin/test_hmac test/src/test_hmac.c $(OBJS) $(LDFLAGS) $(LDLIBS) -lssl -lcrypto -lpthread
 
-install: all
+install:  gen_githash $(BUILDLIB_KINETIC)
+
+$(BUILDLIB_KINETIC): $(KINETICSOVL)
 	$(MKDIR) -p $(BUILDDIR)/include/kinetic
 	$(MKDIR) -p $(BUILDDIR)/include/kinetic/protocol
 	$(MKDIR) -p $(BUILDDIR)/lib
 	$(INSTALL) -D -m 644 $(INC_KPUB) $(BUILDDIR)/include/kinetic
 	$(INSTALL) -D -m 644 $(INC_PPUB) $(BUILDDIR)/include/kinetic/protocol
-	$(INSTALL) -D -m 755 $(KINETIC)  $(BUILDDIR)/lib
+	$(INSTALL) -D -m 755 $(KINETIC) $(BUILDDIR)/lib
+	$(INSTALL) -D -m 755 $(KINETICSOVL) $(BUILDDIR)/lib
+	$(CP) -a $(KINETICSOV) $(BUILDDIR)/lib
+	$(CP) -a $(KINETICSO) $(BUILDDIR)/lib
 
-$(KINETIC):	$(GITHASH) $(OBJS)
+$(KINETIC):	$(OBJS)
 	ld -r -o $(KOBJ) $(OBJS) $(LDFLAGS) $(LDLIBS)
 	ar -crs $@ $(KOBJ)
 
-$(GITHASH): FORCE
-	@( hash=`git log | head -n 1 | awk '{print $$2}'`;		\
+$(KINETICSOVL): $(KINETIC)
+	gcc -shared -Wl,-soname,$(KINETICSOV) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	$(LN) -fs ./$(KINETICSOVL) $(KINETICSOV)
+	$(LN) -fs ./$(KINETICSOV) $(KINETICSO)
+
+#
+# This forces the recreation githash.h, if necessary.
+# This file creates a char string variable that holds the current
+# top git log hash value.  The var is used in version to identify
+# the source from whence it came.
+#
+GH_COMMENT = \
+/* This file is GENERATED. Do not edit. Must only be included in version.c. */
+GH_VAR = static const char ki_githash[] = \"%s\";
+gen_githash: FORCE
+	@(								\
+	hash=`git log | head -n 1 | awk '{print $$2}'`;			\
 	grep $$hash githash.h >/dev/null 2>&1;				\
-	[ $$? \!= 0 ] && 						\
-		printf "/* This file is GENERATED. Do not edit. Must only be included in version.c. */\nstatic const char ki_githash[] = \"%s\";\n" $$hash > githash.h;									\
+	if [ $$? \!= 0 ]; then 						\
+		echo Generating $(GITHASH);				\
+		printf "$(GH_COMMENT)\n$(GH_VAR)\n" $$hash > $(GITHASH);\
+	fi;								\
 	exit 0;								\
 	)
 
 clean:
-	rm -rf $(KINETIC) a.out *.o
+	rm -rf $(KINETIC) $(KINETICSO) $(KINETICSOV) $(KINETICSOVL) $(GITHASH) a.out *.o
 
 
 $(OBJS): $(INC_KPUB) $(INC_PPUB) $(INC_PRIV)
 
 version.o: $(GITHASH)
 
+$(GITHASH):
+
 $(PROTOBUF): $(PROTODIR)/$(PROTOBUF_C)
 	$(CC) $(CFLAGS)   -c -o $@ $<
 
+.PHONY: FORCE
 FORCE:
