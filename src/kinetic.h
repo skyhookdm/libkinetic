@@ -54,7 +54,7 @@
 
 // ------------------------------
 // The API
-int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac);
+int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *pass);
 int ki_close(int ktd);
 
 // Kinetic Type Interfaces
