@@ -18,6 +18,7 @@ BUILDLIB =	$(BUILDDIR)/lib
 BUILDBIN =	$(BUILDDIR)/bin
 
 KCTLDIR     =	$(TLD)/toolbox/kctl
+BKVDIR     =	$(TLD)/toolbox/bkv
 LISTDIR     =	$(TLD)/vendor/list
 PROTOBUFDIR =	$(TLD)/vendor/protobuf-c
 GTESTDIR    =	$(TLD)/vendor/googletest
@@ -36,14 +37,14 @@ CFLAGS  =	-g -I$(BUILDDIR)/include
 LDFLAGS =	-L$(BUILDDIR)/lib
 
 DISTFILES = 				\
-	bin/kctl			\
-	include/kinetic			\
-	include/protobuf-c		\
-	lib/libkinetic.a		\
-	lib/libkinetic.so		\
-	lib/libkinetic.so.1		\
-	lib/libkinetic.so.1.0.0		\
-	src				\
+	./bin/kctl			\
+	./include/kinetic		\
+	./include/protobuf-c		\
+	./lib/libkinetic.a		\
+	./lib/libkinetic.so		\
+	./lib/libkinetic.so.1		\
+	./lib/libkinetic.so.1.0.0	\
+	./src				\
 
 all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(LGTEST) $(TBDIR) $(TESTDIR)
 
@@ -51,11 +52,12 @@ test: $(TESTDIR)
 
 dist: all
 	@(								\
-	cd $(BUILDDIR);						\
+	cd $(BUILDDIR);							\
+	A=`/usr/bin/arch`;						\
 	V=`$(KCTL) -V | grep "Library Vers" | awk '{print $$4}'`;	\
-	T=libkinetic-dev_$${V}_amd64.tgz;				\
-	echo Creating Distribution tarfile in $(BUILDDIR)/$${T};	\
-	tar -cvzf $${T} $(DISTFILES)				\
+	D=libkinetic-dev_$${V}_$${A};					\
+	echo Creating Distribution tarfile in $(BUILDDIR)/$${D}.tgz;	\
+	tar -czf $${D}.tgz --xform "s,^\.,$${D}," $(DISTFILES)		\
 	)
 
 $(BUILDDIR):
@@ -86,6 +88,7 @@ $(LGTEST): FORCE
 # The sanity target only works if you have a kineticd server running locally.
 sanity:
 	(cd $(KCTLDIR); make all sanity)
+	(cd $(BKVDIR);  make all sanity)
 
 clean:	protobufclean listclean kineticclean gtestclean toolboxclean testclean
 	rm -rf $(BUILDDIR)

@@ -12,7 +12,7 @@
 # License for more details.
 #
 BUILDDIR =	../../build
-DIRS = 		kctl
+DIRS = 		kctl bkv
 BINDIR =	$(BUILDDIR)/bin
 CFLAGS =	-g -I$(BUILDDIR)/include
 LDFLAGS =	-L$(BUILDDIR)/lib

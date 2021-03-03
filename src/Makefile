@@ -30,10 +30,11 @@ KOBJ = 		kinetic.o
 OBJS =		ktli.o ktli_socket.o ktli_session.o protocol_interface.o\
 		open.o getlog.o get.o put.o del.o range.o batch.o iter.o\
 		aio.o util.o validate.o labels.o error.o ktb.o version.o\
+		basickv.o						\
 		$(PROTOBUF)
 GITHASH	=	githash.h
 
-INC_KPUB =	kinetic.h kinetic_types.h protocol_types.h
+INC_KPUB =	kinetic.h kinetic_types.h protocol_types.h basickv.h
 
 INC_PPUB =	protocol/kinetic.pb-c.h
 
@@ -69,7 +70,7 @@ $(BUILDLIB_KINETIC): $(KINETICSOVL)
 	$(CP) -a $(KINETICSOV) $(BUILDDIR)/lib
 	$(CP) -a $(KINETICSO) $(BUILDDIR)/lib
 
-$(KINETIC):	$(OBJS)
+$(KINETIC):	links $(OBJS)
 	ld -r -o $(KOBJ) $(OBJS) $(LDFLAGS) $(LDLIBS)
 	ar -crs $@ $(KOBJ)
 
@@ -77,6 +78,17 @@ $(KINETICSOVL): $(KINETIC)
 	gcc -shared -Wl,-soname,$(KINETICSOV) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
 	$(LN) -fs ./$(KINETICSOVL) $(KINETICSOV)
 	$(LN) -fs ./$(KINETICSOV) $(KINETICSO)
+
+#
+# This is specifically for basickv. basickv.h is the only exported include
+# that includes kinetic.h.  The proper include directive is
+#   #include <kinetic/kinetic.h>
+# This will not work in library src directory but is required for external
+# usage.  So a link is added to allow basickv to build.
+links:
+	rm -f ./kinetic
+	ln -s . ./kinetic
+	touch links
 
 #
 # This forces the recreation githash.h, if necessary.
@@ -99,7 +111,7 @@ gen_githash: FORCE
 	)
 
 clean:
-	rm -rf $(KINETIC) $(KINETICSO) $(KINETICSOV) $(KINETICSOVL) $(GITHASH) a.out *.o
+	rm -rf $(KINETIC) $(KINETICSO) $(KINETICSOV) $(KINETICSOVL) $(GITHASH) a.out links *.o
 
 
 $(OBJS): $(INC_KPUB) $(INC_PPUB) $(INC_PRIV)

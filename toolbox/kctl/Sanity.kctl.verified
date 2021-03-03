@@ -13,8 +13,8 @@ kctl> echo Should be version 0x00000002
 Should be version 0x00000002
 kctl> get -m kctl.sanity.put.1
 Key(kctl.sanity.put.1)
-Version:   000000 30 78 30 30 30 30 30 30  30 32 00                 |  0x00000002. 
-Checksum:  000000 00 00 00 00                                       |  .... 
+Version:   00000000 30 78 30 30 30 30 30 30 30 32 00                 |  0x00000002.
+Checksum:  00000000 00 00 00 00                                      |  ....
 Algorithm: CRC32
 kctl> echo Put using a file as a value
 Put using a file as a value
@@ -90,8 +90,8 @@ Key(kctl.sanity.put.1)
 Version: 0x00000002
 kctl> get -m kctl.sanity.put.3
 Key(kctl.sanity.put.3)
-Version:   000000 30 78 30 30 30 30 30 30  30 30 00                 |  0x00000000. 
-Checksum:  000000 00 00 00 00                                       |  .... 
+Version:   00000000 30 78 30 30 30 30 30 30 30 30 00                 |  0x00000000.
+Checksum:  00000000 00 00 00 00                                      |  ....
 Algorithm: CRC32
 kctl> echo
 

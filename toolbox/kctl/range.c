@@ -86,6 +86,13 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 			reverse = 1;
 			break;
 		case 'n':
+			if (optarg[0] == '-') {
+				fprintf(stderr, "*** Negative count %s\n",
+				       optarg);
+				CMD_USAGE(ka);
+				return(-1);
+			}
+
 			count = strtol(optarg, &cp, 0);
 			if (!cp || *cp != '\0' || count==0) {
 				fprintf(stderr, "*** Invalid count %s\n",

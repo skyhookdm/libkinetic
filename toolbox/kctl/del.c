@@ -45,8 +45,6 @@ kctl_del_usage(struct kargs *ka)
 	fprintf(stderr, "\t-S KEY       Start Key in the range, inclusive\n");
 	fprintf(stderr, "\t-e KEY       End Key in the range, non inclusive\n");
 	fprintf(stderr, "\t-E KEY       End Key in the range, inclusive\n");
-	fprintf(stderr, "\t-A           Show keys as modified ascii string\n");
-	fprintf(stderr, "\t-X           Show keys as hex and ascii\n");
 	fprintf(stderr, "\t-?           Help\n");
 
 	// R"foo(....)foo" is a non escape char evaluated string literal 
@@ -131,6 +129,14 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
+
+			if (optarg[0] == '-') {
+				fprintf(stderr, "*** Negative count %s\n",
+				       optarg);
+				CMD_USAGE(ka);
+				return(-1);
+			}
+
 			count = strtol(optarg, &cp, 0);
 			if (!cp || *cp != '\0') {
 				fprintf(stderr, "**** Invalid count %s\n",
