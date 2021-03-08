@@ -592,7 +592,6 @@ ktli_send(int kts, struct kio *kio)
 	}
 
 	/* initialize unused kio elements */
-	kio->kio_state = KIO_NEW;
 	kio->kio_errno = 0;
 	kio->kio_sendmsg.km_status = 0;
 	kio->kio_sendmsg.km_errno = 0;
@@ -618,6 +617,7 @@ ktli_send(int kts, struct kio *kio)
 
 	/* preserve the Q back pointer  */
 	kio->kio_qbp = list_element_curr(sq->ktq_list);
+	kio->kio_state = KIO_NEW;
 
 	/* wake up the sender */
 	pthread_cond_signal(&sq->ktq_cv);
@@ -748,6 +748,7 @@ ktli_receive(int kts, struct kio *kio)
 		}
 	} else {
 		errno = ENOENT;
+		debug_printf("Attempted receveive on a non ready KIO\n");
 		rc = -1;
 	}
 
@@ -1051,7 +1052,7 @@ ktli_drain_match(int kts, struct kio *kio)
 	return(rc);
 }
 /**
- * int ktli_pol (int kts, struct ktli_config *cf)
+ * int ktli_config (int kts, struct ktli_config *cf)
  *
  * This function returns the session config structure
  *
@@ -1085,6 +1086,7 @@ ktli_sender(void *p)
 	struct ktli_queue *rq;
 	struct ktli_queue *cq;
 	struct kio *kio, **lkio;
+	enum kio_state state;	 	/* Temp state var */
 
 	assert(p);
 
@@ -1148,6 +1150,7 @@ ktli_sender(void *p)
 					     kio->kio_seq);
 
 			/*
+			 * PREEMPIVELY Q
 			 * If a response is needed, pre-emptively place
 			 * this KIO on the rq to avoid a race with the
 			 * receiver. Of course if there is an error I will
@@ -1182,24 +1185,41 @@ ktli_sender(void *p)
 
 			kio->kio_sendmsg.km_status = rc;
 			kio->kio_sendmsg.km_errno = errno;
+			/*
+			 * Although on the rq, setting the state outside of
+			 * rq lock is probably OK as the receiver code
+			 * only looks for its existence on the rq to match
+			 * with inbound KIO.  The SENT state is really for
+			 * debugging and completeness.
+			 */
 			kio->kio_state = KIO_SENT;
 			debug_printf("ktli: Sent Kio: %p: Seq %ld\n",
 				     kio, kio->kio_seq);
 
 			/* Handle the REQONLY case with the error case */
 			if (rc < 0 || KIOF_ISSET(kio, KIOF_REQONLY)) {
+				/*
+				 * Tortured logic here.
+				 * Three possible KIOs can get here:
+				 *    1. Failed REQUEST
+				 *    2. Failed REQONLY
+				 *    3. Successful REQONLY
+				 * First handle both Failed REQUEST & REQONLY
+				 */
 				if (rc < 0) {
 					debug_printf("KTLI Send Error\n");
-					kio->kio_state = KIO_FAILED;
+					state = KIO_FAILED;
 				}
 
+				/*
+				 * Since REQONLY are not queued on rq
+				 * pop the Failed REQUEST kio off the rq.
+				 */
 				if (!KIOF_ISSET(kio, KIOF_REQONLY)) {
-					/* If on the rq, dequeue it.
-					 * Why is it on the rq? See com above.
-					 * Should only search when err and
-					 * not REQONLY.
-					 * list_traverse defaults to starting
-					 * the traverse at the front */
+					/*
+					 * Why is it on the rq? See
+					 * PREEMPIVELY Q comment above.
+					 */
 					pthread_mutex_lock(&rq->ktq_m);
 					(void)list_setcurr(rq->ktq_list,
 							   kio->kio_qbp);
@@ -1210,28 +1230,17 @@ ktli_sender(void *p)
 					   clear the Q back pointer  */
 					kio->kio_qbp = NULL;
 					
-#if 0
-					rc = list_traverse(rq->ktq_list,
-							   kio, ktli_kiomatch,
-							   LIST_ALTR);
-					if (rc != LIST_EXTENT &&
-					    rc != LIST_EMPTY) {
-						/* Found the requested kio */
-						lkio = (struct kio **)list_remove_curr(rq->ktq_list);
-						KTLI_FREE(lkio);
-					}
-#endif
-					
 					/* leave the list ready for an insert */
 					(void)list_mvrear(rq->ktq_list);
 					pthread_mutex_unlock(&rq->ktq_m);
 				} else if (rc >= 0) {
-					/* Successful REQONLY */
-					kio->kio_state = KIO_RECEIVED;
+					/* This is the Successful REQONLY */
+					state = KIO_RECEIVED;
 				}
 
 				/*
-				 * In either case hang it on the completed Q
+				 * In any case: error REQONLY/REQRESP or
+				 * ok REQONLY, hang it on the completed Q
 				 */
 				pthread_mutex_lock(&cq->ktq_m);
 				(void)list_mvrear(cq->ktq_list);
@@ -1240,13 +1249,13 @@ ktli_sender(void *p)
 
 				/* preserve the Q back pointer  */
 				kio->kio_qbp = list_element_curr(cq->ktq_list);
+				kio->kio_state = state;
 
 				pthread_cond_broadcast(&cq->ktq_cv);
 				pthread_mutex_unlock(&cq->ktq_m);
 
 				continue;
 			}
-
 
 			/* Success  signal the receiver */
 			pthread_mutex_lock(&rq->ktq_m);
@@ -1462,7 +1471,6 @@ ktli_recvmsg(int kts)
 	}
 
 	/* hang response onto the kio */
-	kio->kio_state = KIO_RECEIVED;
 	kio->kio_recvmsg.km_status = 0;
 	kio->kio_recvmsg.km_errno = 0;
 	kio->kio_recvmsg.km_cnt = KM_CNT_WITHVAL;
@@ -1475,6 +1483,8 @@ ktli_recvmsg(int kts)
 
 	/* preserve the Q back pointer  */
 	kio->kio_qbp = list_element_curr(cq->ktq_list);
+	kio->kio_state = KIO_RECEIVED;
+	assert(kio->kio_qbp);
 
 	/* Let everyone know there is a new completed  kio */
 	pthread_cond_broadcast(&cq->ktq_cv);
@@ -1670,7 +1680,6 @@ ktli_receiver(void *p)
 				lkio = (struct kio **)list_remove_curr(rq->ktq_list);
 				kio = *lkio;
 				KTLI_FREE(lkio);  /* created by the list */
-				kio->kio_state = KIO_TIMEOUT;
 				kio->kio_errno = ETIMEDOUT;
 
 				/* Not on a Q, clear the back pointer */
@@ -1692,6 +1701,7 @@ ktli_receiver(void *p)
 
 				/* preserve the Q back pointer  */
 				kio->kio_qbp = list_element_curr(cq->ktq_list);
+				kio->kio_state = KIO_TIMEOUT;
 
 				pthread_cond_broadcast(&cq->ktq_cv);
 				pthread_mutex_unlock(&cq->ktq_m);
