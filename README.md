@@ -2,6 +2,33 @@
 
 Prototype of kinetic re-design
 
+## Build
+### Prequisites
+#### Ubuntu
+- sudo apt install build-essential libssl-dev libreadline-dev pkg-config
+
+#### Google Protobuf v2.6.1
+- wget https://github.com/google/protobuf/releases/download/v2.6.1/protobuf-2.6.1.tar.gz
+- tar xzf protobuf-2.6.1.tar.gz
+- cd protobuf-2.6.1
+- sudo ./configure
+- sudo make
+- sudo make check
+- sudo make install
+- sudo ldconfig
+
+
+#### Bazel
+- sudo apt install curl gnupg
+- curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
+- sudo mv bazel.gpg /etc/apt/trusted.gpg.d/
+- echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/
+sources.list.d/bazel.list
+- sudo apt update && sudo apt install bazel
+
+### Build
+- make
+- make dist
 
 ## API Overview
 
