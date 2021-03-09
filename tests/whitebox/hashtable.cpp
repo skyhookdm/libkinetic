@@ -20,6 +20,15 @@
 
 namespace TestHelpers {
 
+    // ------------------------------
+    // Constants to be used anywhere that is needed
+
+    extern const struct kiovec empty_kiov = (struct kiovec) {
+        .kiov_len  = 0,
+        .kiov_base = nullptr,
+    };
+
+
     /** ------------------------------
      * KVEntry Functions
      **/
@@ -28,46 +37,35 @@ namespace TestHelpers {
      * Initializes member attributes to "empty" defaults.
      * Use the builder-like setters to set only the desired variables
      */
+    KVEntry::KVEntry(kv_t *preset_data) {
+        entry_data = preset_data;
+    }
+
     KVEntry::KVEntry() {
-        entry_data   = (kv_t *) malloc(sizeof(kv_t));
+        entry_data = (kv_t *) malloc(sizeof(kv_t));
+        memset(entry_data, 0, sizeof(kv_t));
 
-        if (entry_data != nullptr) {
-            struct kiovec *ptr_empty_kiov = (struct kiovec *) &empty_kiov;
+        entry_data->kv_key    = (struct kiovec *) malloc(sizeof(struct kiovec));
+        entry_data->kv_keycnt = 1;
 
-            *entry_data = (kv_t) {
-                /*
-                .kv_key       = ptr_empty_kiov        ,
-                .kv_keycnt    = 1                     ,
-                .kv_val       = ptr_empty_kiov        ,
-                .kv_valcnt    = 1                     ,
-                */
-                .kv_key       = nullptr               ,
-                .kv_keycnt    = 0                     ,
-                .kv_val       = nullptr               ,
-                .kv_valcnt    = 0                     ,
-                .kv_ver       = nullptr               ,
-                .kv_verlen    = 0                     ,
-                .kv_newver    = nullptr               ,
-                .kv_newverlen = 0                     ,
-                .kv_disum     = nullptr               ,
-                .kv_disumlen  = 0                     ,
-                .kv_ditype    = (kditype_t) 0         ,
-                .kv_cpolicy   = (kcachepolicy_t) KC_WB,
-            };
-        }
+        entry_data->kv_val    = (struct kiovec *) malloc(sizeof(struct kiovec));
+        entry_data->kv_valcnt = 1;
     }
 
     // builder-style setters
     KVEntry* KVEntry::set_key(char *key_name) {
-        size_t key_len  = strlen(key_name);
-        char *entry_key = (char *) malloc(sizeof(char) * key_len);
+        size_t  key_len   = strlen(key_name);
+        char   *entry_key = (char *) malloc(sizeof(char) * key_len);
 
         // return nullptr if malloc failed, or copy key name data into entry_key
         if (entry_key == nullptr) { return nullptr; }
         strncpy(entry_key, key_name, key_len);
 
-        entry_data->kv_key    = ki_keycreate((void *) entry_key, key_len);
         entry_data->kv_keycnt = 1;
+        *(entry_data->kv_key) = (struct kiovec) {
+            .kiov_base = (void *) entry_key,
+            .kiov_len  =          key_len  ,
+        };
 
         return this;
     }
@@ -82,8 +80,11 @@ namespace TestHelpers {
         if (entry_val == nullptr) { return nullptr; }
         memcpy(entry_val, val_data, val_len);
 
-        entry_data->kv_val    = ki_keycreate(entry_val, val_len);
         entry_data->kv_valcnt = 1;
+        *(entry_data->kv_val) = (struct kiovec) {
+            .kiov_base = (void *) entry_val,
+            .kiov_len  =          val_len,
+        };
 
         return this;
     }
@@ -157,18 +158,46 @@ namespace TestHelpers {
         return this->put_entry(new_entry);
     }
 
+    KVEntry* HashTable::getversion_entry(KVEntry *kv_entry) {
+        kv_entry->op_status = ki_getversion(kconn_descriptor, kv_entry->entry_data);
+
+        return kv_entry;
+    }
+
+    KVEntry* HashTable::getnext_entry(KVEntry *kv_entry) {
+        KVEntry *next_entry = new KVEntry();
+
+        next_entry->op_status = ki_getnext(
+            kconn_descriptor      ,
+            kv_entry->entry_data  ,
+            next_entry->entry_data
+        );
+
+        return next_entry;
+    }
+
+    KVEntry* HashTable::getprev_entry(KVEntry *kv_entry) {
+        KVEntry *prev_entry = new KVEntry();
+
+        prev_entry->op_status = ki_getprev(
+            kconn_descriptor      ,
+            kv_entry->entry_data  ,
+            prev_entry->entry_data
+        );
+
+        return prev_entry;
+    }
+
     KVEntry* HashTable::get_entry(KVEntry *kv_entry) {
-        kv_entry->op_status    = (kstatus_t *) malloc(sizeof(kstatus_t));
-        *(kv_entry->op_status) = ki_get(kconn_descriptor, kv_entry->entry_data);
+        kv_entry->op_status = ki_get(kconn_descriptor, kv_entry->entry_data);
 
         return kv_entry;
     }
 
     KVEntry* HashTable::del_entry(KVEntry *kv_entry) {
         kbatch_t *batch_info = nullptr;
-        kv_entry->op_status  = (kstatus_t *) malloc(sizeof(kstatus_t));
         
-        *(kv_entry->op_status) = ki_del(
+        kv_entry->op_status = ki_del(
             kconn_descriptor    ,
             batch_info          ,
             kv_entry->entry_data
@@ -179,9 +208,8 @@ namespace TestHelpers {
 
     KVEntry* HashTable::put_entry(KVEntry *kv_entry) {
         kbatch_t *batch_info = nullptr;
-        kv_entry->op_status  = (kstatus_t *) malloc(sizeof(kstatus_t));
         
-        *(kv_entry->op_status) = ki_put(
+        kv_entry->op_status = ki_put(
             kconn_descriptor    ,
             batch_info          ,
             kv_entry->entry_data

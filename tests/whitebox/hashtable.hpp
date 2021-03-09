@@ -25,11 +25,6 @@ extern "C" {
 
 namespace TestHelpers {
 
-    const struct kiovec empty_kiov = (struct kiovec) {
-        .kiov_len  = 0,
-        .kiov_base = nullptr,
-    };
-
     struct Buffer {
         size_t  len;
         void   *data;
@@ -37,11 +32,12 @@ namespace TestHelpers {
 
     struct KVEntry {
         // Member variables
-        kstatus_t      *op_status;
-        kv_t           *entry_data;
+        kstatus_t  op_status;
+        kv_t      *entry_data;
 
         // Constructors
         KVEntry();
+        KVEntry(kv_t *preset_data);
 
         // builder-style setters
         KVEntry* set_key(char *key_name);
@@ -68,6 +64,9 @@ namespace TestHelpers {
         KVEntry* del_key(char *key_name);
         KVEntry* put_keyval(char *key_name, void *val_data, size_t val_len);
 
+        KVEntry* getversion_entry(KVEntry *kv_entry);
+        KVEntry* getnext_entry(KVEntry *kv_entry);
+        KVEntry* getprev_entry(KVEntry *kv_entry);
         KVEntry* get_entry(KVEntry *kv_entry);
         KVEntry* del_entry(KVEntry *kv_entry);
         KVEntry* put_entry(KVEntry *kv_entry);
