@@ -60,32 +60,25 @@ namespace TestHelpers {
 
 
     // ------------------------------
-    // KeyValHelper
-    KeyValHelper::KeyValHelper() {}
+    // TestHashTable
+    TestHashTable::TestHashTable() {}
 
-    void KeyValHelper::test_getversion(int conn_descriptor, kstatus_t exp_status,
-                                       kv_t *actual, kv_t *expected) {
-        kstatus_t get_cmd_status = ki_getversion(conn_descriptor, actual);
-        // getkey_helper->print_keyval();
+    void TestHashTable::getversion_expect(KVEntry *input, KVEntry *expected) {
+        KVEntry *actual = this->get_entry(input);
 
-        ASSERT_EQ(get_cmd_status, exp_status);
+        ASSERT_EQ(actual->op_status, expected->op_status);
+        this->validate_keyval(actual->entry_data, expected->entry_data);
+    }
 
+    // TODO: this is how it should look; do the same for test_getprev
+    void TestHashTable::test_getnext(KVEntry *input, KVEntry *expected) {
+        KVEntry *actual = this->getnext_entry(input);
+
+        ASSERT_EQ(actual->op_status, expected->op_status);
         this->validate_keyval(actual, expected);
     }
 
-    void KeyValHelper::test_getnext(int conn_descriptor, kstatus_t exp_status,
-                                    kv_t *actual, kv_t *actual_next,
-                                    kv_t *expected, kv_t *expected_next) {
-        kstatus_t get_cmd_status = ki_getnext(conn_descriptor, actual, actual_next);
-        // getkey_helper->print_keyval();
-
-        ASSERT_EQ(get_cmd_status, exp_status);
-
-        this->validate_keyval(actual, expected);
-        this->validate_keyval(actual_next, expected_next);
-    }
-
-    void KeyValHelper::test_getprev(int conn_descriptor, kstatus_t exp_status,
+    void TestHashTable::test_getprev(int conn_descriptor, kstatus_t exp_status,
                                     kv_t *actual, kv_t *actual_prev,
                                     kv_t *expected, kv_t *expected_prev) {
         kstatus_t get_cmd_status = ki_getprev(conn_descriptor, actual, actual_prev);
@@ -97,7 +90,7 @@ namespace TestHelpers {
         this->validate_keyval(actual_prev, expected_prev);
     }
 
-    void KeyValHelper::test_getkey(int conn_descriptor, kstatus_t exp_status,
+    void TestHashTable::test_getkey(int conn_descriptor, kstatus_t exp_status,
                                    kv_t *actual, kv_t *expected) {
         kstatus_t get_cmd_status = ki_get(conn_descriptor, actual);
         // getkey_helper->print_keyval();
@@ -107,7 +100,7 @@ namespace TestHelpers {
         this->validate_keyval(actual, expected);
     }
 
-    void KeyValHelper::test_putkey(int conn_descriptor, kstatus_t exp_status,
+    void TestHashTable::test_putkey(int conn_descriptor, kstatus_t exp_status,
                                    kv_t *actual, kv_t *expected) {
         kbatch_t *batch_info     = NULL;
         kstatus_t put_cmd_status = ki_put(conn_descriptor, batch_info, actual);
@@ -118,7 +111,7 @@ namespace TestHelpers {
         this->validate_keyval(actual, expected);
     }
 
-    void KeyValHelper::test_delkey(int conn_descriptor, kstatus_t exp_status,
+    void TestHashTable::test_delkey(int conn_descriptor, kstatus_t exp_status,
                                    kv_t *actual, kv_t *expected) {
         kbatch_t *batch_info = nullptr;
         kstatus_t del_cmd_status = ki_cad(conn_descriptor, batch_info, actual);
@@ -129,7 +122,7 @@ namespace TestHelpers {
         this->validate_keyval(actual, expected);
     }
 
-    void KeyValHelper::validate_bytes(void *actual_bytes  , size_t actual_len,
+    void TestHashTable::validate_bytes(void *actual_bytes  , size_t actual_len,
                                       void *expected_bytes, size_t expected_len,
                                       const char *failure_msg) {
         EXPECT_EQ(actual_len, expected_len) << failure_msg;
@@ -144,7 +137,7 @@ namespace TestHelpers {
         }
     }
 
-    void KeyValHelper::validate_kiovec(struct kiovec *actual  , size_t actualcnt,
+    void TestHashTable::validate_kiovec(struct kiovec *actual  , size_t actualcnt,
                                        struct kiovec *expected, size_t expectedcnt,
                                        const char *failure_msg) {
         EXPECT_EQ(actualcnt, expectedcnt) << failure_msg;
@@ -168,7 +161,7 @@ namespace TestHelpers {
         }
     }
 
-    void KeyValHelper::validate_keyval(kv_t *actual, kv_t *expected) {
+    void TestHashTable::validate_keyval(kv_t *actual, kv_t *expected) {
         // this->print_keyval(actual);
 
         // validate key and value data
@@ -207,7 +200,7 @@ namespace TestHelpers {
         );
     }
 
-    void KeyValHelper::print_bytes(struct kiovec *keyval_fragments, size_t keyval_fragmentcnt) {
+    void TestHashTable::print_bytes(struct kiovec *keyval_fragments, size_t keyval_fragmentcnt) {
         if (!keyval_fragments || !keyval_fragmentcnt) { return; }
 
         // calculate and print the total length
@@ -225,7 +218,7 @@ namespace TestHelpers {
         }
     }
 
-    void KeyValHelper::print_bytes_as_hex(void *data, size_t datalen) {
+    void TestHashTable::print_bytes_as_hex(void *data, size_t datalen) {
         if (data == nullptr or !datalen) { return; }
 
         uint8_t *data_alias = (uint8_t *) data;
@@ -234,7 +227,7 @@ namespace TestHelpers {
         }
     }
 
-    void KeyValHelper::print_integrity_type(kditype_t ditype) {
+    void TestHashTable::print_integrity_type(kditype_t ditype) {
         switch (ditype) {
             case KDI_INVALID:
                 fprintf(stdout, "KDI_INVALID (%d)", ditype);
@@ -270,7 +263,7 @@ namespace TestHelpers {
         }
     }
 
-    void KeyValHelper::print_cachepolicy(kcachepolicy_t cpolicy) {
+    void TestHashTable::print_cachepolicy(kcachepolicy_t cpolicy) {
         switch (cpolicy) {
             case KC_INVALID:
                 fprintf(stdout, "KC_INVALID (%d)", cpolicy);
@@ -294,7 +287,7 @@ namespace TestHelpers {
         }
     }
 
-    void KeyValHelper::print_keyval(kv_t *keyval_data) {
+    void TestHashTable::print_keyval(kv_t *keyval_data) {
         fprintf(stdout, "Key Data ");
         print_bytes(keyval_data->kv_key, keyval_data->kv_keycnt);
         fprintf(stdout, "\n");

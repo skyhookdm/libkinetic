@@ -22,24 +22,8 @@
 
 #include <gtest/gtest.h>
 
-extern "C" {
-    #include <kinetic/kinetic.h>
-}
-
 #include "../kfixtures.hpp"
 #include "../hashtable.hpp"
-
-namespace KFixtures {
-    struct TestKVEntry : KVEntry {
-        TestKVEntry(kv_t *kv_data, kstatus_t *expected_status
-    };
-
-    // For `test_getkey_doesnotexist`
-    char key_str[] = "-ForSureThisisAUniqueKeyName-";
-
-    // For test
-
-} // namespace KFixtures
 
 namespace TestHelpers {
     struct KeyValVersion {
@@ -53,21 +37,24 @@ namespace TestHelpers {
         Buffer serialize();
     };
 
-    struct KeyValHelper {
-        KeyValHelper();
+    struct TestKVEntry : KVEntry {
+        TestKVEntry(kv_t *kv_data, kstatus_t *expected_status
+    };
 
-        void test_getversion(int, kstatus_t exp_status, kv_t *actual, kv_t *expected);
-        void test_getnext(int, kstatus_t exp_status,
-                          kv_t *actual,   kv_t *actual_next,
-                          kv_t *expected, kv_t *expected_next);
+    // For `test_getkey_doesnotexist`
+    // char key_str[] = "-ForSureThisisAUniqueKeyName-";
 
-        void test_getprev(int, kstatus_t exp_status,
-                          kv_t *actual,   kv_t *actual_prev,
-                          kv_t *expected, kv_t *expected_prev);
+    // For test
 
-        void test_getkey(int, kstatus_t exp_status, kv_t *actual, kv_t *expected);
-        void test_putkey(int, kstatus_t exp_status, kv_t *actual, kv_t *expected);
-        void test_delkey(int, kstatus_t exp_status, kv_t *actual, kv_t *expected);
+    struct TestHashTable : HashTable {
+        TestHashTable();
+
+        void getversion_expect(KVEntry *input, KVEntry *expected);
+        void    getnext_expect(KVEntry *input, KVEntry *expected);
+        void    getprev_expect(KVEntry *input, KVEntry *expected);
+        void        get_expect(KVEntry *input, KVEntry *expected);
+        void        put_expect(KVEntry *input, KVEntry *expected);
+        void        del_expect(KVEntry *input, KVEntry *expected);
 
         void validate_bytes(void *actual_bytes, size_t actual_len,
                             void *expected_bytes, size_t expected_len,

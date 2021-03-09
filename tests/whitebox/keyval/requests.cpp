@@ -20,14 +20,7 @@
 #include <inttypes.h>
 #include <sys/types.h>
 
-#include <gtest/gtest.h>
-
-extern "C" {
-    #include <kinetic/kinetic.h>
-}
-
-#include "../kfixtures.hpp"
-#include "../hashtable.hpp"
+// helper.hpp has a handful of includes needed here
 #include "helper.hpp"
 
 using TestHelpers::Buffer;
@@ -39,12 +32,10 @@ namespace KFixtures {
     class KeyValTest: public ::testing::Test {
         protected:
             int conn_descriptor;
-            TestHelpers::KeyValHelper *keyval_helper;
-            TestHelpers::HashTable    *keyval_kstore;
+            TestHelpers::TestHashTable *keyval_kstore;
 
             KeyValTest() {
                 this->conn_descriptor = -1;
-                this->keyval_helper   = new TestHelpers::KeyValHelper();
             }
 
             void SetUp() override {
@@ -67,7 +58,7 @@ namespace KFixtures {
                 }
 
                 // Initialize keyval_kstore once we have a connection descriptor
-                this->keyval_kstore = new TestHelpers::HashTable(
+                this->keyval_kstore = new TestHelpers::TestHashTable(
                     this->conn_descriptor
                 );
             }
@@ -81,8 +72,18 @@ namespace KFixtures {
 
 
     // ------------------------------
-    // Read-only Test Cases
-    TEST_F(KeyValTest, test_getkey_doesnotexist) {
+    // Test Fixtures below:
+    // * get_noexists
+    // * get_exists
+    // * getversion_noexists
+    // * getversion_exists
+    // * getnext_noexists
+    // * getnext_exists
+    // * getprev_noexists
+    // * getprev_exists
+
+
+    TEST_F(KeyValTest, test_get_noexist) {
         // Prepare inputs
         char key_str[] = "-ForSureThisisAUniqueKeyName-";
 
@@ -98,7 +99,7 @@ namespace KFixtures {
         validate_status(kv_entry->op_status, (kstatus_t) K_ENOTFOUND);
     }
 
-    TEST_F(KeyValTest, test_getkey_exists_simple) {
+    TEST_F(KeyValTest, test_get_exists) {
         // Prepare inputs
         char key_str[] = "pak";
 
