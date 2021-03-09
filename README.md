@@ -1,6 +1,6 @@
-# kinetic-prototype
+# libkinetic
 
-Prototype of kinetic re-design
+Client library for connecting to, and communicating with, a kinetic server.
 
 ## Build
 ### Prequisites
