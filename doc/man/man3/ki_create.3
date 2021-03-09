@@ -1,0 +1,234 @@
+.\"
+.\" Copyright 2020-2021 Seagate Technology LLC.
+.\"
+.\" %%%LICENSE_START(VERBATIM)
+.\" This Source Code Form is subject to the terms of the Mozilla
+.\" Public License, v. 2.0. If a copy of the MPL was not
+.\" distributed with this file, You can obtain one at
+.\" https://mozilla.org/MP:/2.0/.
+.\"
+.\" This program is distributed in the hope that it will be useful,
+.\" but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+.\" the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+.\" FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+.\" License for more details.
+.\" %%%LICENSE_END
+
+
+.TH KINETIC 3 2021-02-26 "Seagate Technologies LLC" "Kinetic Programmer's Model"
+.SH NAME
+ki_create, ki_clean, ki_destroy, ki_valid \- Kinetic data structure management routines
+.SH SYNOPSIS
+cc [
+.I flags 
+]
+.IR files
+.B -lkinetic 
+[ 
+.IR libraries
+]
+.PP
+.B #include <kinetic.h>
+.PP
+.BI "void *    ki_create(int " ktd ", ktype_t " kt );
+.PP
+.BI "kstatus_t ki_clean(void *" p );
+.PP
+.BI "kstatus_t ki_destroy(void *" p );
+.PP
+.BI "kstatus_t ki_valid(void *" p );
+.PP
+.SH DESCRIPTION
+These routines provide for the management of kinetic data structures used in
+the Kinetic API. All kinetic data structures used in that API must be
+allocated with
+.BR ki_create ()
+and freed with
+.BR ki_destroy ().
+The maganged data structures can be used across multiple kinetic API calls
+by cleaning the structures with
+.BR ki_clean ().
+They can also be validated as a kinetic managed data structure via
+.BR ki_valid ().
+
+.PP
+The
+.BR ki_create ()
+routine takes a valid kinetic transport descriptor in
+.IR ktd
+and a kinetic type in
+.IR kt .
+It then returns a pointer to a buffer of type
+.IR kt .
+Valid types are defined in the enum
+.IR ktype_t .
+
+.PP
+Some valid values of
+.IR ktype_t
+are:
+.B
+.nf
+	KV_T
+	KRANGE_T
+	KITER_T
+	KBATCH_T
+	KGETLOG_T
+	KVERSION_T
+.fi
+.PP
+The
+.BR ki_destroy ()
+routine takes a valid pointer that was returned by
+.BR ki_create ()
+in
+.IR p .
+A
+.BR ki_clean()
+is internally called to free up any internal buffers and then the
+entire data structure is freed.  After this call the kinetic data
+structure pointed to with
+.IR p
+is no longer accessible.
+.PP
+The
+.BR ki_clean ()
+routine takes a valid pointer that was returned by
+.BR ki_create ()
+in
+.IR p .
+This routine performs internal buffer management on this structure
+ensuring that any allocated internal buffers are freed. After this call
+the kinetic data structure pointed to with
+.IR p
+is ready to be used in another API routine.
+.PP
+The
+.BR ki_valid ()
+is a boolean routine that takes a pointer in
+.IR p
+and returns either true or false as to whether the provided
+pointer was created by
+.BR ki_create ().
+.PP
+A simple usage implementation might look like this:
+.PP
+.in +4n
+.EX
+void
+print_version(int ktd)
+{
+	kversion_t *kver;
+	
+	kver = ki_create(ktd, KVERSION_T);
+	if (ki_valid(kver)) {
+		ki_version(kver);
+	
+		printf("Kinetic Version: %s\n", kver->kvn_ki_vers);
+
+		ki_destroy(kver);
+	}	
+}
+.EE
+.in
+.SH MEMORY ALLOCATION
+The need for these APIs was driven by a zero or near zero copy policy
+instituted in this Kinetic API. To avoid copying data into user provided
+structures implies that internal allocated buffers containing keys,
+kv meta data, log data etc, are passed directly back to the caller.
+The caller has no way of knowing how to deallocate these buffers,
+as they may be regions of a much larger freeable buffer. By formalizing
+these Kinetic data structures, requiring the callers to create and
+destroy them, the library has the opportunity to hide and perform the details
+of cleaning up these internal buffers. It is for this reason that the
+API will not accept base structures not created via these routines.
+Callers are still responsible for buffers they allocate and hang on
+these managed structures. This creates a sound rule that what the
+API allocates, the API is responsible for deallocating and conversely
+what the caller allocates, the caller is responsible for deallocating.
+.PP
+There is one exception to this rule, values.  Value buffers, either
+allocated by the caller or the library, must be deallocated by the caller.
+Values received from the API are returned as a single freeable ptr and
+must be deallocated by the caller.
+.SH RETURN VALUE
+The 
+.BR ki_create ()
+routine returns a pointer to an allocate structure of type
+.IR kt .
+If the the functions fails it returns NULL.
+.PP
+The routines
+.BR ki_destroy ()
+.BR ki_clean ()
+both return K_OK for success or a valid kerror code for an error. 
+.PP The 
+.BR ki_valid ()
+routine returns either true(1) or false(0) depending on whether the
+passed pointer is a valid kinetic data structure or not.
+.SH ATTRIBUTES
+For an explanation of the terms used in this section, see
+.BR attributes (7).
+.TS
+allbox;
+lbw19 lb lb
+l l l.
+Interface	Attribute	Value
+T{
+.BR ki_create ()
+.BR ki_destroy ()
+.BR ki_clean ()
+.BR ki_valid ()
+T}	Thread safety	MT-Safe
+.TE
+.SH NOTES
+None.
+.SH SEE ALSO
+kinetic(7),
+kinetic-aio(7)
+.PP
+ki_open(3),
+ki_close(3)
+.PP
+ki_create(3),
+ki_clean(3),
+ki_destroy(3),
+ki_valid(3)
+.PP
+ki_put(3),
+ki_cas(3),
+ki_del(3),
+ki_cad(3),
+ki_get(3),
+ki_getnext(3),
+ki_getprev(3),
+ki_getversion(3),
+ki_getrange(3),
+ki_start(3),
+ki_next(3)
+.PP
+ki_abortbatch(3),
+ki_submitbatch(3),
+ki_aio_abortbatch(3),
+ki_aio_submitbatch(3),
+.PP
+ki_aio_put(3),
+ki_aio_cas(3),
+ki_aio_del(3),
+ki_aio_cad(3),
+ki_aio_get(3),
+ki_aio_getnext(3),
+ki_aio_getprev(3),
+ki_aio_getversion(3),
+ki_aio_complete(3),
+ki_poll(3)
+.PP
+kki_getlog(3),
+ki_limits(3),
+ki_version(3),
+ki_error(3)
+.SH AUTHOR
+Philip Kufeldt (philip.kufeldt@seagate.com), Seagate Technologies LLC
+
+Aldrin Montana (aldrin.montana@seagate.com), Seagate Technologies LLC
+

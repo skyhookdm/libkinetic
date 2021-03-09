@@ -99,7 +99,7 @@ struct kio {
 	void 		*kio_cctx;
 	kv_t		*kio_ckv;
         kv_t		*kio_caltkv;
-	kb_t		*kio_cbid;
+	kb_t		*kio_ckb;
 };
 
 

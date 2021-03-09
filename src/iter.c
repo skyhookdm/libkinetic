@@ -32,43 +32,64 @@
 
 /*
  * The kinetic iterator. 
- * An iterator must be created (ki_create) before it can be used. Once 
- * created it can be used many times before it is destroyed (ki_destroy). 
+ * The type kiter_t is opaque and managed completely by libkinetic.
+ *
+ * An iterator must be created (ki_create) before it can be used. Once
+ * created it can be used many times before it is destroyed (ki_destroy).
  * Although a given iterator can be used many times, it can not be shared
  * and used simultaneously.
  *
- * An iterator is started by calling ki_iterstart with a valid range to 
- * iterate though. The provided range is copied for internal use. As for the
+ * An iterator is started by calling ki_start with a valid iterator (kiter_t)
+ * and a valid range (krange_t) to iterate though. The provided range is
+ * copied for internal use and is no longer needed by the iterator. As for the
  * range, the kinetic iterator honors start and end keys, but also
- * honors the abscence of these keys.  If these keys not provided, the first 
- * legal key and last legal key are substituted. The Kinetic iterator also 
+ * honors the abscence of these keys.  If these keys not provided, the first
+ * legal key and last legal key are substituted. The Kinetic iterator also
  * honors the inclusive flags for both the start and end keys. Key counts
  * from 1 to infinity are also supported.  NOTE: Currently reverse is NOT
- * supported. Successive calls to ki_iterstart reset the iterator to the 
- * new range provided. ki_iterstart always returns the first key. 
+ * supported. Successive calls to ki_start reset the iterator to the
+ * new range provided. ki_iterstart always returns the first key.
  *
- * The boolean ki_iterdone must always be called on each iteration to check 
- * all boundary conditions. If true the iteration is complete. 
+ * ki_next incrments the iterator to the next key in the sequence.
  *
- * ki_iternext returns the next key in the sequence. 
+ * If ki_start or ki_next return a non-NUll value the iterator continues.
  *
  * An example would be:
  *	struct kiovec   *k;
  *	krange_t	kr;
  *	kiter_t		*kit;
  *
- *	for (k = ki_iterstart(kit, &kr); 
- * 	     !ki_iterdone(kit) && k;  k = ki_iternext(kit)) {
+ *	kit = ki_create(ktd, KITER_T);
+ *
+ *	for (k = ki_start(kit, &kr); k; k = ki_next(kit)) {
+ * 		// do something with k
  *	}
+ *
+ *	ki_destroy(kit);
+ *
+ * Since ki_getrange is server limited to retrieve < 1000 keys at a time,
+ * this iterator uses a key range window to permit ranges that exceed that
+ * limit. The window is initially filled in ki_start and then when that
+ * window is depleted by subsequent calls to ki_next the next window in
+ * the range is retieved.  Right the code will experience latency spikes
+ * each time the window is depleted and a synchronous call to ki_getrange
+ * is made.  The code has been written to support AIO when it is available.
+ * there are 2 windows defined in kiter_t. This will allow the aio getrange
+ * call to be made before the window is depleted and then when it is emptied
+ * the AIO call can be completed. This will allow the round trip RPC to occur
+ * in the background, hiding the latency.
  */
 
-/* This iscalled by ki_create to init the kiter */
+/**
+ *  this is called by ki_create to init the kiter
+ */
 int
-i_iterinit(int ktd, kiter_t *kit)
+i_iterinit(int ktd, kiter_t *ckit)
 {
 	int rc;
 	ksession_t *ses;
 	struct ktli_config *cf;
+	struct kiter *kit = (struct kiter *)ckit;
 
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
@@ -77,221 +98,208 @@ i_iterinit(int ktd, kiter_t *kit)
 	}
 	ses = (ksession_t *)cf->kcfg_pconf;
 
-	kit->ki_ktd   = ktd;
-	kit->ki_range = NULL;
-	kit->ki_curr  = 0;
-	kit->ki_count = 0;
+	kit->ki_rreq  = ki_create(kit->ki_ktd, KRANGE_T);
+	kit->ki_rwin1 = ki_create(kit->ki_ktd, KRANGE_T);
+	kit->ki_rwin2 = ki_create(kit->ki_ktd, KRANGE_T);
+
+	if (!kit->ki_rreq || !kit->ki_rwin1 || !kit->ki_rwin2) {
+		/* Something failed clean it up. Destroy just returns on NULL */
+		ki_destroy(kit->ki_rreq);
+		kit->ki_rreq = NULL;
+
+		ki_destroy(kit->ki_rwin1);
+		kit->ki_rwin1 = NULL;
+
+		ki_destroy(kit->ki_rwin2);
+		kit->ki_rwin2 = NULL;
+
+		return(-1);
+	}
+
+	kit->ki_ktd	= ktd;
+	kit->ki_curwin	= NULL;
+	kit->ki_curkey	= 0;
+	kit->ki_seenkeys= 0;
 	kit->ki_maxkeyreq = ses->ks_l.kl_rangekeycnt;
-	kit->ki_boundary = NULL;
+	kit->ki_kio	= NULL;
 	
 	return(0);
 }
 
-/* this is called by ki_destroy */
 void
-i_iterdestroy(kiter_t *kit)
+i_rangeclean(krange_t *kr)
 {
-	krange_t * kr;
+	if (kr) {
+		ki_keydestroy(kr->kr_keys, kr->kr_keyscnt);
+
+		ki_keydestroy(kr->kr_start, kr->kr_startcnt);
+
+		ki_keydestroy(kr->kr_end, kr->kr_endcnt);
+
+		memset(kr, 0, sizeof(krange_t));
+	}
+}
+
+/**
+ *  this is called by ki_destroy
+ */
+void
+i_iterdestroy(kiter_t *ckit)
+{
+	struct kiter *kit = (struct kiter *)ckit;
+
 	if (!kit)
 		return;
 
-	kr = kit->ki_range;
-	
-	if (kit->ki_boundary) {
-		/* 
-		 * corner case when a multiple ki_range iter presents an even 
-		 * multiple of the ki_maxkeyreq number of keys. Normally the 
-		 * boundary key is freed after ki_range call boundary is
-		 * crossed. if its hit but never crosses we miss the free. 
-		 * handle it here. 
-		 */
-		ki_keydestroy(kit->ki_boundary, 1);
-	}
+	i_rangeclean(kit->ki_rreq);
+	i_rangeclean(kit->ki_rwin1);
+	i_rangeclean(kit->ki_rwin2);
 
-	ki_keydestroy(kr->kr_keys,  kr->kr_keyscnt);
-	ki_keydestroy(kr->kr_start, kr->kr_startcnt);
-	ki_keydestroy(kr->kr_end,   kr->kr_endcnt);
-	ki_destroy(kr);	
+	ki_destroy(kit->ki_rreq);
+	kit->ki_rreq = NULL;
+
+	ki_destroy(kit->ki_rwin1);
+	kit->ki_rwin1 = NULL;
+
+	ki_destroy(kit->ki_rwin2);
+	kit->ki_rwin2 = NULL;
+
 	return;
 }
 
+/**
+ * An iter is restartable with a new range.
+ */
 struct kiovec *
-ki_start(kiter_t *kit, krange_t *kr)
-{
-	kstatus_t krc; 
-	if (!kit || !kr || !kr->kr_count)
-		return(NULL);
-
-	/* Cleanup the old range and boundary keys if any */
-	ki_destroy(kit->ki_range);
-	ki_keydestroy(kit->ki_boundary, 1);
-	kit->ki_boundary = NULL;
-
-	/* Copy the passed in range */
-	kit->ki_range = ki_rangedup(kit->ki_ktd, kr);
-	if (!kit->ki_range)
-		return(NULL);
-
-	/* Start at the 0th key */
-	kit->ki_curr = 0;
-
-	/* Do NOT change the inclusive flags use as is from caller */
-	
-	/* for the iterator we always try to grab the most keys as possible */
-	if (kit->ki_range->kr_count < 0) {
-		/* Infinity - all keys in range */
-		kit->ki_range->kr_count = KVR_COUNT_INF;
-		kit->ki_count = KVR_COUNT_INF;
-	} else if (kit->ki_range->kr_count <= kit->ki_maxkeyreq) {
-		/* Less keys than a single ki_range call can provide */
-		kit->ki_count = kit->ki_range->kr_count;
-	} else {
-		/* Multiple ki_range calls needed, so so large as possible */
-		kit->ki_count = kit->ki_range->kr_count;
-		kit->ki_range->kr_count = kit->ki_maxkeyreq;
-	}
-
-	/* Load the first batch of keys */
-	krc = ki_getrange(kit->ki_ktd, kit->ki_range);
-	if (krc !=  K_OK)
-		return(NULL);
-
-	/* for an iter of size 1 */
-	if (kit->ki_curr == (kit->ki_range->kr_keyscnt - 1)) {
-		/* Last key - handle boundary condition */
-		kit->ki_boundary = ki_keydupf(&kit->ki_range->kr_keys[kit->ki_curr], 1);
-		if (!kit->ki_boundary) {
-			return(NULL);
-		}
-		if (kit->ki_count > 0) kit->ki_count--;
-		return(kit->ki_boundary);
-	}
-
-	if (kit->ki_count > 0) kit->ki_count--;
-	return(&kit->ki_range->kr_keys[kit->ki_curr]);
-}
-
-int
-ki_done(kiter_t *kit)
+ki_start(kiter_t *ckit, krange_t *ckr)
 {
 	kstatus_t krc;
-	krange_t *kr;
+	struct kiter *kit = (struct kiter *)ckit;
 
-	if (!kit || !kit->ki_range)
-		/* error = done */
-		return(1);
-
-	/* shorthand var */
-	kr = kit->ki_range;
-
-	if (!kr->kr_keyscnt) {
-		/* 
-		 * Last range call to fill the cache came up empty, 
-		 * so the iter is done
-		 */
-		return(1);
+	/* All of these should already exist */
+	if (!kit          || !ckr            || !ckr->kr_count ||
+	    !kit->ki_rreq || !kit->ki_rwin1  || !kit->ki_rwin2) {
+		return(NULL);
 	}
+
+	/* Clean the ranges */
+	i_rangeclean(kit->ki_rreq);
+	i_rangeclean(kit->ki_rwin1);
+	i_rangeclean(kit->ki_rwin2);
+
+	/*
+	 * Make a copy of the callers KR,
+	 * hence forward not dependent on that KRs lifecycle
+	 * This is the guiding reference range for the life of the iteration
+	 */
+	if (ki_rangecpy(kit->ki_rreq, ckr) == NULL) {
+		return(NULL);
+	}
+
+	/* Set the current window to window 1 */
+	kit->ki_curwin = kit->ki_rwin1;
+
+	/* Setup the first getrange call to use the caller provided range */ 
+	if (ki_rangecpy(kit->ki_curwin, kit->ki_rreq) == NULL) {
+		return(NULL);
+	}
+
+	/* Set the range count appropriately */
+	if ((kit->ki_rreq->kr_count == KVR_COUNT_INF) ||
+	    (kit->ki_rreq->kr_count > kit->ki_maxkeyreq)) {
+		kit->ki_curwin->kr_count = kit->ki_maxkeyreq;
+	}
+
+	/* Fill the window */
+	krc = ki_getrange(kit->ki_ktd, kit->ki_curwin);
+	if ((krc != K_OK) || (!kit->ki_curwin->kr_count)) {
+		return(NULL);
+	}
+
+	kit->ki_curkey = 0;
+	kit->ki_seenkeys = 1;
+	return(&kit->ki_curwin->kr_keys[kit->ki_curkey]);
+}
+
+/**
+ * Increment an iter to the next key
+ */
+struct kiovec *
+ki_next(kiter_t *ckit)
+{
+	uint32_t keysleft;
+	kstatus_t krc;
+	krange_t *curwin;
+	struct kiovec *lastkey;
+	struct kiter *kit = (struct kiter *)ckit;
+
+	if (!kit || !kit->ki_rreq || !kit->ki_rwin1 || !kit->ki_rwin1)
+		return(NULL);
 	
-	kit->ki_curr++;
-	if (kit->ki_curr < kr->kr_keyscnt) {
-		/* More keys available = not done */
-		return(0);
+	/* Check the keys seen against the requested count */
+	if ((kit->ki_rreq->kr_count != KVR_COUNT_INF) &&
+	    (kit->ki_seenkeys >= kit->ki_rreq->kr_count)) {
+		/* The range count has been exhausted, return */
+		return(NULL);
 	}
 
 	/* 
-	 * no more keys in current range cache, need to adjust the 
-	 * range and refill the cache
-	 *
-	 *  Move last key in cache to new start key
+	 * NOTE: when ki_aio_getrange becomes available it is here
+	 * that the the async call be made toward the end of the current
+	 * window range. Then when the current window range is exhausted
+	 * the getrange call can be completed.  This will smooth out
+	 * the latency spike in the iter process by getting windows in
+	 * background.
 	 */
-	ki_keydestroy(kr->kr_start,  kr->kr_startcnt);
-	kr->kr_start    = ki_keydupf(&kr->kr_keys[kit->ki_curr-1], 1);
-	kr->kr_startcnt = 1;
 
-	/* Need to clear the inclusive start field as to not repeat keys */
-	KR_FLAG_CLR(kr, KRF_ISTART);
+	/* to reduce code lengths */
+	curwin = kit->ki_curwin;
 
-	/* Now that we have copied the last key, free the existing cache */
-	ki_keydestroy(kr->kr_keys,  kr->kr_keyscnt);
-	kr->kr_keys    = NULL;
-	kr->kr_keyscnt = 0;
+	/* bump the curkey to look at next key */
+	kit->ki_curkey++;
 
-	/* for the iterator we always try to grab the most keys as possible */
-	if (kit->ki_count < 0) {
-		/* Infinity - all keys in range */
-		kr->kr_count  = KVR_COUNT_INF;
-		kit->ki_count = KVR_COUNT_INF;
-	} else if (kit->ki_count <= kit->ki_maxkeyreq) {
-		/* Ask for what's left with a single ki_range call*/
-		kr->kr_count = kit->ki_count;
-		printf("Sub range call: %d\n",  kit->ki_count);
-	} else {
-		/* Multiple ki_range calls needed, so large as possible */
-		kr->kr_count = kit->ki_maxkeyreq;
-	}
+	/* Check the current window count */
+	if (kit->ki_curkey >= curwin->kr_keyscnt) {
+		/* Current window exhuasted, need a new window */
 
-	/* Load the next batch of keys */
-	krc = ki_getrange(kit->ki_ktd, kr);
-	if (krc != K_OK)
-		/* no more keys to get = done */
-		return(1);
+		/* Make a copy of the last key before freeing the keys */
+		lastkey = ki_keydupf(&curwin->kr_keys[curwin->kr_keyscnt-1], 1);
 
-	/* kr_keyscnt could be 0 from a successful range call 
-	   catch next time through */
-	
-	/* reset curr for this new batch */
-	kit->ki_curr = 0; 
+		/* Clean up the start key and the keys buffer, keep the endkey */
+		ki_keydestroy(curwin->kr_start, curwin->kr_startcnt);
+		ki_keydestroy(curwin->kr_keys, curwin->kr_keyscnt);
 
-	return(0); /* not done */
-}
+		/* Use the last key for the start window range */
+		curwin->kr_start = lastkey;
+		curwin->kr_startcnt = 1;
+		curwin->kr_keys = NULL;
+		curwin->kr_keyscnt = 0;
 
-struct kiovec *
-ki_next(kiter_t *kit)
-{
-	krange_t *kr;
-	
-	if (!kit || !kit->ki_range)
-		return(NULL);
+		/* Clear the inclusive start field to not repeat keys */
+		KR_FLAG_CLR(curwin, KRF_ISTART);
 
-	/* shorthand var */
-	kr = kit->ki_range;
+		/*
+		 * Set the range count appropriately, remember kr_count
+		 * could be -1 (KVR_COUNT_INF), in that case keysleft will
+		 * be a neg number but the first clause should catch that
+		 * case and not use keysleft.
+		 */
+		keysleft = kit->ki_rreq->kr_count - kit->ki_seenkeys;
+		if ((kit->ki_rreq->kr_count == KVR_COUNT_INF) ||
+		    (keysleft > kit->ki_maxkeyreq)) {
+			kit->ki_curwin->kr_count = kit->ki_maxkeyreq;
+		} else {
+			kit->ki_curwin->kr_count = keysleft;
+		}
 
-	/* There is a boundary condition.
-	 * The keys returned are directly out of the keys cache in the range.
-	 * They are returned as just ptrs to the keys in the cache and not
-	 * copies of the key. This is to reduce data allocations and copies. 
-	 * This is OK as the cache lasts until the last key is reached and 
-	 * ki_iterdone is called. Then it is freed in preparation to refill. 
-	 * the keys cache. However, C 'for' loops will call ki_iternext and 
-	 * then ki_iterdone before handing control to the users code. So on 
-	 * the last key in the cache it will be freed before the user can use 
-	 * it. So for this boundary case the last key is dup-ed and the copy 
-	 * returned back. 
-	 * Logic: If ki_curr equals the last key we copy it, if ki_curr equals 
-	 * 0 we free it. The destory code will also free it if set.
-	 */
-	if ((kit->ki_curr == 0) && kit->ki_boundary) {
-		/* first key of a new batch, boundary key not needed */
-		ki_keydestroy(kit->ki_boundary, 1);
-		kit->ki_boundary = NULL;
-	}
-
-	if (kit->ki_curr == kr->kr_keyscnt - 1) {
-		/* Last key - handle boundary condition */
-		kit->ki_boundary = ki_keydupf(&kr->kr_keys[kit->ki_curr], 1);
-		if (!kit->ki_boundary) {
+		/* Fill the window */
+		krc = ki_getrange(kit->ki_ktd, curwin);
+		if ((krc !=  K_OK) || (!curwin->kr_count)) {
 			return(NULL);
 		}
-		if (kit->ki_count > 0) kit->ki_count--;
-		return(kit->ki_boundary);
+		kit->ki_curkey = 0;
 	}
 
-	if (kit->ki_curr < kr->kr_keyscnt) {
-		/* Still keys in the cache, just return the key */
-		if (kit->ki_count > 0) kit->ki_count--;
-		return(&kr->kr_keys[kit->ki_curr]);
-	} else {
-		/* No more keys, ki_iterdone will catch it and return true */
-		return(NULL);
-	}
+	kit->ki_seenkeys++;
+	return(&kit->ki_curwin->kr_keys[kit->ki_curkey]);
 }

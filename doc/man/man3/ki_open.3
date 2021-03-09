@@ -1,0 +1,205 @@
+.\"
+.\" Copyright 2020-2021 Seagate Technology LLC.
+.\"
+.\" %%%LICENSE_START(VERBATIM)
+.\" This Source Code Form is subject to the terms of the Mozilla
+.\" Public License, v. 2.0. If a copy of the MPL was not
+.\" distributed with this file, You can obtain one at
+.\" https://mozilla.org/MP:/2.0/.
+.\"
+.\" This program is distributed in the hope that it will be useful,
+.\" but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+.\" the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+.\" FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+.\" License for more details.
+.\" %%%LICENSE_END
+
+
+.TH KINETIC 3 2021-02-26 "Seagate Technologies LLC" "Kinetic Programmer's Model"
+.SH NAME
+ki_open, ki_close \- Open or close a connection with a kinetic server
+.SH SYNOPSIS
+cc [
+.I flags 
+]
+.IR files
+.B -lkinetic 
+[ 
+.IR libraries
+]
+.PP
+.B #include <kinetic.h>
+.PP
+.BI "int ki_open(char *" host ", char *" port ", uint32_t " usetls ", int64_t " id ", char *" pass ");"
+.PP
+.BI "int ki_close(int " ktd ");"
+.PP
+.SH DESCRIPTION
+These routines provide for the management of kinetic storage server
+connections.  A connection must be opened before most kinetic API calls are
+made.  This connection should be closed when the caller no longer needs it or is
+exiting. Multiple connections with the same or different kinetic servers is
+permitted. 
+.P
+The  
+.BR ki_create ()
+routine accepts the following options:
+.TP
+.IR host
+A null terminated character string that specifies either a numerical network
+address  (for IPv4, numbers-and-dots notation as supported by
+.BR inet_aton(3) ;
+for IPv6, hexadecimal strings format as supported by
+.BR inet_pton(3) )
+, a network hostname or a FQDN, whose network addresses are looked up
+and resolved. Ex. "192.168.1.1", "kinetic1.seagate.com"
+
+.TP
+.IR port
+A null terminated character string that specifies either service name or a
+service port number.  If this argument is a service name (see
+.BR services(5) )
+, it is translated to the corresponding binary port number.  If it is a
+service number, the string number will be converted to the corresponding
+binary representation.	Ex. "kietic", "8123"
+
+.TP
+.IR usetls
+A boolean to indicate if TLS should be utilized to encrypt/protect the
+connection.
+
+.TP
+.IR id
+This is the identity used for all the requests made. An id has priveleges that
+permit or deny various acccesses.
+
+.TP
+.IR pass
+A null terminated character string which specifies the password for the
+.IR id
+specified above.
+.PP
+A Kinetic Transport Descriptor (ktd) is returned as an integer. This
+descriptor is used for most other kinetic API routines.
+.PP
+The  
+.BR ki_close ()
+routine accepts a single integer in
+.IR ktd
+which identifies a connection to close. Once closed, the connection can no
+longer be used and the
+.IR ktd
+is meaningless.
+.PP
+A simple usage implementation might look like this:
+.PP
+.in +4n
+.EX
+int
+open_server()
+{
+	kversion_t *kver;
+	
+	ktd = ki_open("kdrive1.seagate.com", "8123", 0, 1, "qwerty");
+	if (ktd < 0) {
+		fprintf(stderr, "Connection Failed\n");
+		return(-1);
+	}
+	
+	kver = ki_create(ktd, KVERSION_T);
+	if (ki_valid(kver)) {
+		ki_version(kver);
+	
+		printf("Kinetic Version: %s\n", kver->kvn_ki_vers);
+
+		ki_destroy(kver);
+	}
+
+	return(ktd);
+}
+
+void
+close_server(int ktd)
+{
+	ki_close(ktd);
+}
+
+.EE
+.in
+.SH MEMORY ALLOCATION
+Provided connections are opened and closed, there are no caller requirements
+for memory management. 
+.PP
+.SH RETURN VALUE
+The 
+.BR ki_open ()
+routine returns an integer that represent the connection and will used for
+future API calls. Upon failure -1 is returned.
+.PP
+.BR ki_close ()
+routine returns a zero for success and -1 for failure. 
+.PP
+.SH ATTRIBUTES
+For an explanation of the terms used in this section, see
+.BR attributes (7).
+.TS
+allbox;
+lbw19 lb lb
+l l l.
+Interface	Attribute	Value
+T{
+.BR ki_open ()
+.BR ki_close ()
+T}	Thread safety	MT-Safe
+.TE
+.SH NOTES
+IPV6 is not currently supported.  TLS is not currently supported. 
+.SH SEE ALSO
+kinetic(7),
+kinetic-aio(7)
+.PP
+ki_open(3),
+ki_close(3)
+.PP
+ki_create(3),
+ki_clean(3),
+ki_destroy(3),
+ki_valid(3)
+.PP
+ki_put(3),
+ki_cas(3),
+ki_del(3),
+ki_cad(3),
+ki_get(3),
+ki_getnext(3),
+ki_getprev(3),
+ki_getversion(3),
+ki_getrange(3),
+ki_start(3),
+ki_next(3)
+.PP
+ki_abortbatch(3),
+ki_submitbatch(3),
+ki_aio_abortbatch(3),
+ki_aio_submitbatch(3),
+.PP
+ki_aio_put(3),
+ki_aio_cas(3),
+ki_aio_del(3),
+ki_aio_cad(3),
+ki_aio_get(3),
+ki_aio_getnext(3),
+ki_aio_getprev(3),
+ki_aio_getversion(3),
+ki_aio_complete(3),
+ki_poll(3)
+.PP
+kki_getlog(3),
+ki_limits(3),
+ki_version(3),
+ki_error(3)
+.SH AUTHOR
+Philip Kufeldt (philip.kufeldt@seagate.com), Seagate Technologies LLC
+
+Aldrin Montana (aldrin.montana@seagate.com), Seagate Technologies LLC
+

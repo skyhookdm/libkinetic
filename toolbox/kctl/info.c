@@ -61,7 +61,7 @@ kctl_info(int argc, char *argv[], int kts, struct kargs *ka)
 	extern char     *optarg;
         extern int	optind, opterr, optopt;
         char		c;
-	kgetlog_t 	glog;
+	kgetlog_t 	*glog;
 	kstatus_t 	krc;
 	kgltype_t	glt[10];
 	
@@ -70,9 +70,13 @@ kctl_info(int argc, char *argv[], int kts, struct kargs *ka)
 	ops = temps = utils = all = most = 0;
 
 	/* setup the glog and types vector */
-	memset((void *)&glog, 0, sizeof(kgetlog_t));
-	glog.kgl_type = glt;
-	glog.kgl_typecnt = 0;
+	if (!(glog = ki_create(kts, KGETLOG_T))) {
+		fprintf(stderr, "*** Memory Failure\n");
+		return (-1);
+	}
+
+	glog->kgl_type = glt;
+	glog->kgl_typecnt = 0;
 	
         while ((c = getopt(argc, argv, "acCLMmOTUh?")) != EOF) {
                 switch (c) {
@@ -86,31 +90,31 @@ kctl_info(int argc, char *argv[], int kts, struct kargs *ka)
 			break;
 		case 'c':
 			config = 1;
-			glog.kgl_type[glog.kgl_typecnt++] = KGLT_CONFIGURATION;
+			glog->kgl_type[glog->kgl_typecnt++] = KGLT_CONFIGURATION;
 			break;
 		case 'C':
 			capacity = 1;
-			glog.kgl_type[glog.kgl_typecnt++] = KGLT_CAPACITIES;
+			glog->kgl_type[glog->kgl_typecnt++] = KGLT_CAPACITIES;
 			break;
 		case 'L':
 			limits = 1;
-			glog.kgl_type[glog.kgl_typecnt++] = KGLT_LIMITS;
+			glog->kgl_type[glog->kgl_typecnt++] = KGLT_LIMITS;
 			break;
 		case 'M':
 			msgs = 1;
-			glog.kgl_type[glog.kgl_typecnt++] = KGLT_MESSAGES;
+			glog->kgl_type[glog->kgl_typecnt++] = KGLT_MESSAGES;
 			break;
 		case 'O':
 			ops = 1;
-			glog.kgl_type[glog.kgl_typecnt++] = KGLT_STATISTICS;
+			glog->kgl_type[glog->kgl_typecnt++] = KGLT_STATISTICS;
 			break;
 		case 'T':
 			temps = 1;
-			glog.kgl_type[glog.kgl_typecnt++] = KGLT_TEMPERATURES;
+			glog->kgl_type[glog->kgl_typecnt++] = KGLT_TEMPERATURES;
 			break;
 		case 'U':
 			utils = 1;
-			glog.kgl_type[glog.kgl_typecnt++] = KGLT_UTILIZATIONS;
+			glog->kgl_type[glog->kgl_typecnt++] = KGLT_UTILIZATIONS;
 			break;
 		case 'h':
                 case '?':
@@ -136,26 +140,26 @@ kctl_info(int argc, char *argv[], int kts, struct kargs *ka)
 	 */
 	if (most) {
 		config = capacity = limits = ops = temps = utils = 1;
-		glog.kgl_typecnt = 0;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_CONFIGURATION;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_CAPACITIES;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_LIMITS;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_STATISTICS;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_TEMPERATURES;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_UTILIZATIONS;
+		glog->kgl_typecnt = 0;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_CONFIGURATION;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_CAPACITIES;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_LIMITS;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_STATISTICS;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_TEMPERATURES;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_UTILIZATIONS;
 	}
 
 	/* Set all types */ 
 	if (all) {
 		config = capacity = limits = msgs = ops = temps = utils = 1;
-		glog.kgl_typecnt = 0;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_CONFIGURATION;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_CAPACITIES;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_LIMITS;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_MESSAGES;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_STATISTICS;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_TEMPERATURES;
-		glog.kgl_type[glog.kgl_typecnt++] = KGLT_UTILIZATIONS;
+		glog->kgl_typecnt = 0;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_CONFIGURATION;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_CAPACITIES;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_LIMITS;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_MESSAGES;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_STATISTICS;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_TEMPERATURES;
+		glog->kgl_type[glog->kgl_typecnt++] = KGLT_UTILIZATIONS;
 	}
 	
 	/* Shouldn't be any other args */
@@ -166,14 +170,14 @@ kctl_info(int argc, char *argv[], int kts, struct kargs *ka)
 	}
 
 	/* Get the log */
-	krc = ki_getlog(kts, &glog);
+	krc = ki_getlog(kts, glog);
 	
 	if (krc != K_OK) {
 		printf("GetLog failed: %s\n", ki_error(krc));
 		return(-1);
 	}
 
-	kctl_dump(&glog);
+	kctl_dump(glog);
 	
 	return(0);
 }

@@ -21,18 +21,14 @@ BUILDBIN =	$(BUILDDIR)/bin
 BUILDSRC =	$(BUILDDIR)/src
 BUILDMAN =	$(BUILDDIR)/man
 
-SRCS = 		kctl.c util.c info.c get.c put.c del.c	\
-		range.c batch.c
-HDRS =		kctl.h
+SRCS = 		bkv.c get.c put.c del.c exists.c util.c limits.c
+HDRS =		bkv.h
 OBJS =		$(SRCS:.c=.o)
 DEPS = 		$(SRCS:.c=.d)
 
-#	ping.o cluster.o lock.o acl.o  \
-#	histogram.o
+LIBDEPS =	$(BUILDLIB)/libkinetic.a
 
-KCTLDEPS =	$(BUILDLIB)/libkinetic.a
-
-KCTL=		kctl
+BKV=		bkv
 CPPFLAGS = 	-I$(BUILDINC)
 CFLAGS =	-g -Wall
 LDFLAGS =	-L$(BUILDLIB)
@@ -47,29 +43,27 @@ LDLIBS = 	-lreadline 				\
 		$(STATIC) -lkinetic 			\
 		$(DYNAMIC) -lpthread -lssl -lcrypto
 
-SANITY =	Sanity.kctl
-SANITYO =	Sanity.kctl.out
-SANITYV =	Sanity.kctl.verified
+SANITY =	Sanity.bkv
+SANITYO =	Sanity.bkv.out
+SANITYV =	Sanity.bkv.verified
 
-all:		$(KCTL)
+all:		$(BKV)
 
-$(KCTL):	$(OBJS) $(KCTLDEPS)
+$(BKV):		$(OBJS) $(LIBDEPS)
 		$(CC) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
 
-install: $(KCTL) $(SRCS) $(HDRS) $(SANITY) $(SANITYV) Makefile
+install: $(BKV) $(SRCS) $(HDRS) Makefile
 	mkdir -p $(BUILDBIN)
-	mkdir -p $(BUILDSRC)/kctl
-	/usr/bin/install -c -m 755  $(KCTL) $(BUILDBIN)/kctl
+	mkdir -p $(BUILDSRC)/bkv
+	/usr/bin/install -c -m 755 $(BKV) $(BUILDBIN)/bkv
 	for f in $(SRCS) $(HDRS); do					\
-		/usr/bin/install -c -m 644 $${f} $(BUILDSRC)/kctl;	\
+		/usr/bin/install -c -m 644 $${f} $(BUILDSRC)/bkv;	\
 	done
-	sed 's?$(IBUILDDIR)?../..?g' Makefile > $(BUILDSRC)/kctl/Makefile
-	/usr/bin/install -c -m 755  $(SANITY) $(BUILDSRC)/kctl/$(SANITY)
-	/usr/bin/install -c -m 644  $(SANITYV) $(BUILDSRC)/kctl/$(SANITYV)
+	sed 's?$(IBUILDDIR)?../..?g' Makefile > $(BUILDSRC)/bkv/Makefile
 	touch install
 
 clean:
-	rm -rf a.out $(KCTL) *.[od] $(SANITYO) install
+	rm -rf a.out $(BKV) *.[od] $(SANITYO) install
 
 clobber: clean
 	rm -rf *.d
@@ -80,7 +74,7 @@ clobber: clean
 sanity:
 	stdbuf -oL -eL ./$(SANITY) > $(SANITYO) 2>&1
 	cmp $(SANITYO) $(SANITYV)
-	@echo "*** KCTL Sanity Success"
+	@echo "*** BKV Sanity Success"
 
 $(OBJS) $(DEPS):
 

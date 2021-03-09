@@ -38,19 +38,24 @@ struct kresult_message create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
 
 
 kstatus_t
-g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
-		  kmtype_t msg_type, void *cctx, kio_t **ckio)
+g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
+		  void *cctx, kio_t **ckio)
 {
-	int rc, verck;
-	kstatus_t krc;
-	struct kio *kio;		/* Passed pack KIO */
-	ksession_t *ses;		/* KTLI Session ptr  */
-	kmsghdr_t msg_hdr;
-	kcmdhdr_t cmd_hdr;
-	struct ktli_config *cf;		/* KTLI configuration */
+	int rc, n, verck;		/* return code, temp, version check */
+	kstatus_t krc;			/* Kinetic return code */
+	struct kio *kio;		/* Built and returned KIO */
+	ksession_t *ses;		/* KTLI Session info  */
+	kmsghdr_t msg_hdr;		/* Unpacked message header */ 
+	kcmdhdr_t cmd_hdr;		/* Unpacked Command header */
+	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kresult_message kmreq;	/* Intermediate req representation */
-	kpdu_t pdu;			/* Unpacked PDU Structure */
+	kpdu_t pdu;			/* Unpacked PDU structure */
 	
+	if (!ckio) {
+		debug_printf("get: kio ptr required");
+		return(K_EINVAL);
+	}
+
 	/* Clear the callers kio, ckio */
 	*ckio = NULL;
 	
@@ -155,7 +160,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	KIOF_SET(kio, KIOF_REQRESP);	/* Normal RPC KIO */
 
 	kio->kio_ckv	= kv;		/* Hang the callers kv */
-	kio->kio_caltkv	= altkv;	/* Hang the callers altkv */
+	kio->kio_caltkv	= altkv;	/* Hang the callers altkv, if any */
 	kio->kio_cctx	= cctx;		/* Hang the callers context */
 
 	/* 
@@ -164,9 +169,8 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	 * See kio.h (previously in message.h) for more details.
 	 */
 	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(
-		sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt
-	);
+	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
+	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 
 	if (!kio->kio_sendmsg.km_msg) {
 		debug_printf("get: sendmesg alloc");
@@ -177,12 +181,12 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	/* Allocate the Packed PDU buffer, packing occurs later */
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = KI_MALLOC(KP_PLENGTH);
-	if (!kio->kio_sendmsg.km_msg) {
+
+	if (!kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base) {
 		debug_printf("get: sendmesg PDU alloc");
 		krc = K_ENOMEM;
 		goto gex_kmmsg;
 	}
-
 
 	/* pack the message and hang it on the kio */
 	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
@@ -203,8 +207,8 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
 	pdu.kp_vallen = 0;
 	PACK_PDU(&pdu, (uint8_t *)kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base);
-	debug_printf("g_get_generic: PDU(x%2x, %d, %d)\n",
-	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
+	debug_printf("get: PDU(x%2x, %d, %d)\n",
+		     pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen);
 
 	/* Send the request */
 	if (ktli_send(ktd, kio) < 0) {
@@ -234,6 +238,11 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv,
 	return(K_OK);
 
 	/* Error Exit. */
+
+	/* gex_kmmsg_val:
+	 * Nothing to do as get KV are just keys no values
+	 */
+
  gex_kmmsg_msg:
 	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
@@ -302,7 +311,6 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 			return(K_EINTERNAL);
 		}
 	}
-
 	
 	/* 
 	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO 
@@ -317,6 +325,15 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 
 	/* Got a RECEIVED KIO, validate and decode */
 	
+	/*
+	 * Grab the original KVs sent in from the caller. 
+	 * Although these are not directly passed back in the complete, 
+	 * the caller should have maintained them across the originating 
+	 * aio call and the complete.
+	 */
+	kv = kio->kio_ckv;
+	altkv = kio->kio_caltkv;
+
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
@@ -326,8 +343,11 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 	}
 	UNPACK_PDU(&pdu, ((uint8_t *)(kiov->kiov_base)));
 
-	/* Does the PDU match what was given in the recvmsg */
-		kiov = kio->kio_recvmsg.km_msg;
+	/* 
+	 * Does the PDU match what was given in the recvmsg
+	 * Value is always there even if len = 0 
+	 */
+	kiov = kio->kio_recvmsg.km_msg;
 	if ((pdu.kp_msglen != kiov[KIOV_MSG].kiov_len) ||
 	    (pdu.kp_vallen != kiov[KIOV_VAL].kiov_len))    {
 		debug_printf("get: PDU decode");
@@ -335,21 +355,14 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		goto gex;
 	}
 
-	// unpack the message; KIOV_MSG may contain both msg and value
-	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base, pdu.kp_msglen);
+	// unpack the message; 
+	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base,
+					kiov[KIOV_MSG].kiov_len);
 	if (kmresp.result_code == FAILURE) {
 		debug_printf("get: msg unpack");
 		krc = K_EINTERNAL;
 		goto gex;
 	}
-
-	/*
-	 * Grab the original KVs sent in from the caller. Although these are 
-	 * not directly passed back in the complete, the caller should have 
-	 * maintained them across the originating aio call and the complete.
-	 */
-	kv = kio->kio_ckv;
-	altkv = kio->kio_caltkv;
 
 	/*
 	 * Grab the value and hang it on either the kv or altkv as approriate
@@ -394,6 +407,10 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
  gex:
 	/* depending on errors the recvmsg may or may not exist */
 	if (kio->kio_recvmsg.km_msg) {
+		/* 
+		 * Dont use a generic kiov destroy loop, because KIOV_VAL 
+		 * may need to be retained and returned to caller
+		 */
 		if ((kio->kio_recvmsg.km_cnt > KIOV_PDU) &&
 		    kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base)
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
@@ -402,10 +419,15 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		    kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base)
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
 
-		/* Leave the value buffer for the caller if K_OK */
+		/* 
+		 * In most cases leave the value buffer for the caller.
+		 * Free it if: there was an error or the command was GETVERS 
+		 */
 		if ((kio->kio_recvmsg.km_cnt > KIOV_VAL) &&
 		    kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base &&
-		    krc != K_OK)
+		    ((krc != K_OK) ||
+		     (kio->kio_cmd == KMT_GETVERS) ||
+		     (kv->kv_metaonly)))
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base);
 
 		KI_FREE(kio->kio_recvmsg.km_msg);
@@ -474,272 +496,9 @@ g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
 	return(ks);
 }
 
-#if 0
-kstatus_t
-g_get_generic(int ktd, kv_t *kv,  kv_t *altkv, kmtype_t msg_type)
-{
-	int rc, verck, n;
-	kstatus_t krc;
-	struct kio *kio;
-	struct kiovec *kiov;
-	struct ktli_config *cf;
-	uint8_t ppdu[KP_PLENGTH];
-	kpdu_t pdu;
-	kpdu_t rpdu;
-	kmsghdr_t msg_hdr;
-	kcmdhdr_t cmd_hdr;
-	ksession_t *ses;
-	struct kresult_message kmreq, kmresp;
-
-	/* Get KTLI config */
-	rc = ktli_config(ktd, &cf);
-	if (rc < 0) { return kstatus_err(K_EREJECTED, KI_ERR_BADSESS, "get: ktli config"); }
-
-	ses = (ksession_t *) cf->kcfg_pconf;
-
-	/* Validate command */
-	switch (msg_type) {
-	case KMT_GETNEXT:
-	case KMT_GETPREV:
-		if (!altkv) {
-			return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: validation");
-		}
-		/* no break here, all cmds need a kv ptr, so fall through */
-
-	case KMT_GET:
-	case KMT_GETVERS:
-		if (!kv) {
-			return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: validation");
-		}
-		break;
-
-	default:
-		return kstatus_err(K_EREJECTED, KI_ERR_INVARGS, "get: bad command");
-	}
-
-	/* Validate the passed in kv and if necessary the altkv */
-	/* verck=0 to ignore version field in the check */
-	rc = ki_validate_kv(kv, (verck=0), &ses->ks_l);
-	if (rc < 0) {
-		return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: invalid kv");
-	}
-
-	if (altkv) {
-		/* verck=0 to ignore version field in the check */
-		rc = ki_validate_kv(altkv, (verck=0), &ses->ks_l);
-		if (rc < 0) {
-			return kstatus_err(K_EINVAL, KI_ERR_INVARGS, "get: invalid kv");
-		}
-	}
-
-	/* 
-	 * create the kio structure; on failure, 
-	 * nothing malloc'd so we just return 
-	 */
-	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
-	if (!kio) {
-		return kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get: kio");
-	}
-	memset(kio, 0, sizeof(struct kio));
-
-	/*
-	 * Setup msg_hdr
-	 * One thing to note here is that although the msg hdr is being setup
-	 * it is too early to complete. The msg hdr will ultimately have a
-	 * HMAC cryptographic checksum of the requests command bytes, so that
-	 * server can authenticate and authorize the request. The command
-	 * bytes don't actually get finalized until a ktli_send is initiated.
-	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
-	 * used later on to calculate the actual HMAC which will then be hung
-	 * of the kmh_hmac field. A reference is made to the kcfg_hkey ptr
-	 * in the kmreq. This reference needs to be removed before freeing
-	 * kmreq. See below at gex_req:
-	 */
-	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
-	msg_hdr.kmh_id    = cf->kcfg_id;
-	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
-
-	/* Setup cmd_hdr */
-	memcpy((void *) &cmd_hdr, (void *) &ses->ks_ch, sizeof(cmd_hdr));
-	cmd_hdr.kch_type  = msg_type;
-
-	kmreq = create_getkey_message(&msg_hdr, &cmd_hdr, kv);
-	if (kmreq.result_code == FAILURE) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_CREATEREQ, "get: request");
-		goto gex_req;
-	}
-
-	/* Setup the KIO */
-	kio->kio_cmd            = msg_type;
-	kio->kio_flags		= KIOF_INIT;
-	KIOF_SET(kio, KIOF_REQRESP);		/* Normal RPC */
-
-	/* 
-	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
-	 * is for the protobuf message. There is no value.
-	 * See kio.h (previously in message.h) for more details.
-	 */
-	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
-	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
-	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
-	if (!kio->kio_sendmsg.km_msg) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_MALLOC, "get: request");
-		goto gex_kio;
-	}
-
-	/* Hang the Packed PDU buffer, packing occurs later */
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
-	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len = KP_PLENGTH;
-
-	/* pack the message and hang it on the kio */
-	/* PAK: Error handling */
-	/* success: rc = 0; failure: rc = 1 (see enum kresult_code) */
-	enum kresult_code pack_result = pack_kinetic_message(
-		(kproto_msg_t *) kmreq.result_message,
-		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
-		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len)
-	);
-
-	if (pack_result == FAILURE) {
-		errno = K_EINTERNAL;
-		krc   = kstatus_err(errno, KI_ERR_MSGPACK, "get: pack msg");
-		goto gex_sendmsg;
-	}
-
-	/* Now that the message length is known, setup the PDU */
-	pdu.kp_magic  = KP_MAGIC;
-	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
-	pdu.kp_vallen = 0;
-	PACK_PDU(&pdu, ppdu);
-	debug_printf("g_get_generic: PDU(x%2x, %d, %d)\n",
-	       pdu.kp_magic, pdu.kp_msglen ,pdu.kp_vallen);
-
-	/* Send the request */
-	ktli_send(ktd, kio);
-	debug_printf("Sent Kio: %p\n", kio);
-	
-	/* Wait for the response */
-	do {
-		/* wait for something to come in */
-		ktli_poll(ktd, 0);
-
-		/* Check to see if it our response; this populates kio_recvmsg */
-		rc = ktli_receive(ktd, kio);
-		if (rc < 0) {
-			/* Not our response, so try again */
-			if (errno == ENOENT) {
-				continue;
-			} else {
-				/* PAK: need to exit, receive failed */
-				krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVMSG,
-						  "get: recvmsg");
-				goto gex_sendmsg;
-			}
-		}
-
-		/* Got our response */
-		break;
-	} while (1);
-
-	/* extract the return PDU */
-	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
-	if (kiov->kiov_len != KP_PLENGTH) {
-		krc = kstatus_err(K_EINTERNAL, KI_ERR_RECVPDU, "get: extract PDU");
-		goto gex_recvmsg;
-	}
-	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
-
-	/* Does the PDU match what was given in the recvmsg */
-	kiov = kio->kio_recvmsg.km_msg;
-	if ((rpdu.kp_msglen != kiov[KIOV_MSG].kiov_len) ||
-	    (rpdu.kp_vallen != kiov[KIOV_VAL].kiov_len))    {
-		    krc = kstatus_err(K_EINTERNAL, KI_ERR_PDUMSGLEN,
-				      "get: parse pdu");
-		goto gex_recvmsg;
-	}
-
-	// unpack the message; KIOV_MSG may contain both msg and value
-	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base, rpdu.kp_msglen);
-	if (kmresp.result_code == FAILURE) {
-		errno = K_EINTERNAL;
-		krc   = kstatus_err(errno, KI_ERR_MSGUNPACK, "get: unpack msg");
-		goto gex_resp;
-	}
-
-	/*
-	 * Grab the value and hang it on either the kv or altkv as approriate
-	 * Also extract the kv data from response
-	 * On extraction failure, both the response and request need to be 
-	 * cleaned up
-	 */
-	switch (msg_type) {
-	case KMT_GET:
-		kv->kv_val[0].kiov_base = kiov[KIOV_VAL].kiov_base;
-		kv->kv_val[0].kiov_len  = kiov[KIOV_VAL].kiov_len;
-
-		/* falls through to KMT_GETVERS to extract command data */
-
-	case KMT_GETVERS:
-		krc = extract_getkey(&kmresp, kv);
-		//if (krc.ks_code != K_OK) { kv->destroy_protobuf(kv); }
-
-		break;
-
-	case KMT_GETNEXT:
-	case KMT_GETPREV:
-		altkv->kv_val[0].kiov_base = kiov[KIOV_VAL].kiov_base;
-		altkv->kv_val[0].kiov_len  = kiov[KIOV_VAL].kiov_len;
-
-		krc = extract_getkey(&kmresp, altkv);
-		break;
-
-	default:
-		debug_printf("get: should not get here\n");
-		assert(0);
-		break;
-	}
-
-	/* clean up */
- gex_resp:
-	destroy_message(kmresp.result_message);
-
- gex_recvmsg:
-
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
-	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
-	/*
-	 * This is for the caller to free as it is hung on the kv->kv_val
-	 * 	KI_FREE(kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base);
-	 */
-	KI_FREE(kio->kio_recvmsg.km_msg);
-
- gex_sendmsg:
-
-	/* sendmsg.km_msg[0] Not allocated, static */
-	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
-	KI_FREE(kio->kio_sendmsg.km_msg);
-
- gex_req:
-	/*
-	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that
-	 * was made in kmreq before calling destroy.
-	 * See 'Setup msg_hdr' comment above for details.
-	 */
-	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
-	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len = 0;
-
-	destroy_message(kmreq.result_message);
-
- gex_kio:
-	KI_FREE(kio);
-
-	return (krc);
-}
-
-#endif
 
 /**
+ * kstatus_t
  * ki_aio_get(int ktd, kv_t *kv, void *cctx, kio_t **kio)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -763,6 +522,7 @@ ki_aio_get(int ktd, kv_t *key, void *cctx, kio_t **ckio)
 
 
 /**
+ * kstatus_t
  * ki_get(int ktd, kv_t *kv)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -781,7 +541,33 @@ ki_get(int ktd, kv_t *key)
 	return(g_get_generic(ktd, key, NULL, KMT_GET));
 }
 
+
 /**
+ * kstatus_t
+ * ki_aio_getnext(int ktd, kv_t *kv, kv_t *next, void *cctx, kio_t **kio)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
+ * 		have either a 0 or a valid ditype in it to start with
+ *  cctx	caller provided context, completely opaque to this call
+ *		passed back to the caller in the complete call
+ *  ckio 	returned back KIO ptr
+ *
+ * Initiate getting the value specified by the given key.
+ *
+ */
+kstatus_t
+ki_aio_getnext(int ktd, kv_t *key, kv_t *next, void *cctx, kio_t **ckio)
+{
+	return(g_get_aio_generic(ktd, key, next, KMT_GET, cctx, ckio));
+}
+
+
+/**
+ * kstatus_t
  * ki_getnext(int ktd, kv_t *kv, kv_t *next)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -803,7 +589,33 @@ ki_getnext(int ktd, kv_t *key, kv_t *next)
 	return(g_get_generic(ktd, key, next, KMT_GETNEXT));
 }
 
+
 /**
+ * kstatus_t
+ * ki_aio_getnext(int ktd, kv_t *kv, kv_t *prev, void *cctx, kio_t **kio)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
+ * 		have either a 0 or a valid ditype in it to start with
+ *  cctx	caller provided context, completely opaque to this call
+ *		passed back to the caller in the complete call
+ *  ckio 	returned back KIO ptr
+ *
+ * Initiate getting the value specified by the given key.
+ *
+ */
+kstatus_t
+ki_aio_getprev(int ktd, kv_t *key, kv_t *prev, void *cctx, kio_t **ckio)
+{
+	return(g_get_aio_generic(ktd, key, prev, KMT_GET, cctx, ckio));
+}
+
+
+/**
+ * kstatus_t
  * ki_getprev(int ktd, kv_t *key, kv_t *prev)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -825,7 +637,33 @@ ki_getprev(int ktd, kv_t *key, kv_t *prev)
 	return(g_get_generic(ktd, key, prev, KMT_GETPREV));
 }
 
+
 /**
+ * kstatus_t
+ * ki_aio_getvers(int ktd, kv_t *kv, void *cctx, kio_t **kio)
+ *
+ *  kv		kv_key must contain a fully populated kiovec array
+ *		kv_val must contain a zero-ed kiovec array of cnt 1
+ * 		kv_vers and kv_verslen are optional
+ * 		kv_disum and kv_disumlen are optional.
+ *		kv_ditype is returned by the server, but it should
+ * 		have either a 0 or a valid ditype in it to start with
+ *  cctx	caller provided context, completely opaque to this call
+ *		passed back to the caller in the complete call
+ *  ckio 	returned back KIO ptr
+ *
+ * Initiate getting the value specified by the given key.
+ *
+ */
+kstatus_t
+ki_aio_getvers(int ktd, kv_t *key, void *cctx, kio_t **ckio)
+{
+	return(g_get_aio_generic(ktd, key, NULL, KMT_GET, cctx, ckio));
+}
+
+
+/**
+ * kstatus_t
  * ki_getversion(int ktd, kv_t *kv)
  *
  *  kv		kv_key must contain a fully populated kiovec array
@@ -859,6 +697,9 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	);
 
 	proto_cmd_body.has_key = extract_result;
+
+	proto_cmd_body.has_metadataonly = 1;
+	proto_cmd_body.metadataonly = cmd_data->kv_metaonly;
 
 	if (extract_result == 0) {
 		return (struct kresult_message) {

@@ -36,7 +36,7 @@ kctl_get_usage(struct kargs *ka)
 	);
 
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-a           use AIO where possible\n");	
+	fprintf(stderr, "\t-m           Get only the metadata\n");
 	fprintf(stderr, "\t-A           Dumps key/value as ascii w/escape seqs\n");
 	fprintf(stderr, "\t-X           Dumps key/value as both hex and ascii\n");
 	fprintf(stderr, "\t-?           Help\n");
@@ -52,13 +52,26 @@ kctl_get_usage(struct kargs *ka)
 	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
 }
 
+extern const char *ki_ditype_label[];
+extern const int ki_ditype_max;
+
+const char *
+kctl_ditype_str(int d)
+{
+	if ((d > 0) && (d <= ki_ditype_max))
+		return (ki_ditype_label[d]);
+	else
+		return (ki_ditype_label[0]);
+}
+
+
 int
 kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 {
 	extern char   *optarg;
 	extern int     optind, opterr, optopt;
 	char           c, *rkey;
-	int            hdump = 0, adump = 0, aio = 0, kctl_status = 0;
+	int            hdump = 0, adump = 0, meta = 0, kctl_status = 0;
 
 	kv_t           *kv;
 	struct kiovec  kv_key[1]  = {{0, 0}};
@@ -72,10 +85,10 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	kv_t          *pkv;
 
 	// This while loop can return early because there are no allocs to manage
-	while ((c = getopt(argc, argv, "aAXh?")) != EOF) {
+	while ((c = getopt(argc, argv, "mAXh?")) != EOF) {
 		switch (c) {
-		case 'a':
-			aio = 1;
+		case 'm':
+			meta = 1;
 			break;
 			
 		case 'A':
@@ -143,10 +156,11 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		fprintf(stderr, "*** Memory Failure\n");
 		return (-1);
 	}
-	kv->kv_key    = kv_key;
-	kv->kv_keycnt = 1;
-	kv->kv_val    = kv_val;
-	kv->kv_valcnt = 1;
+	kv->kv_key	= kv_key;
+	kv->kv_keycnt	= 1;
+	kv->kv_val	= kv_val;
+	kv->kv_valcnt	= 1;
+	kv->kv_metaonly	= meta;
 
 	rkv = ki_create(ktd, KV_T);	
 	if (!rkv) {
@@ -172,33 +186,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	switch (ka->ka_cmd) {
 	case KCTL_GET:
 		pkv = kv; 
-		if (!aio) {
-			krc = ki_get(ktd, kv);
-			break;
-		}
-
-		/* AIO Case */
-		kio_t *kio;
-		void  *ctx = (void *)kv;
-			
-		krc = ki_aio_get(ktd, kv, NULL, &kio);
-		if (krc != K_OK) {
-			break;
-		}
-
-		/* Wait for a response */
-		do {
-			/* Poll timed out, poll again */
-			if (ki_poll(ktd, 100) < 1) continue;
-
-			krc = ki_aio_complete(ktd, kio, &ctx);
-			if (krc == K_EAGAIN) continue;
-
-			/* Found the key or an error occurred, time to go */
-			break;
-			
-		} while (1);	
-				
+		krc = ki_get(ktd, kv);
 		break;
 
 	case KCTL_GETNEXT:
@@ -273,6 +261,33 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		printf("%s\n", (pkv->kv_ver ? (char *) pkv->kv_ver : "N/A"));
 
 		kctl_status = (-1);
+		goto kctl_gex;
+	}
+
+	if (meta) {
+		if (adump) {
+			printf("Version:   ");
+			asciidump(pkv->kv_ver, pkv->kv_verlen);
+			printf("\nChecksum:  ");
+			asciidump(pkv->kv_disum, pkv->kv_disumlen);
+			printf("\nAlgorithm: ");
+			printf("%s\n", kctl_ditype_str(pkv->kv_ditype));
+		} else if (hdump) {
+			printf("Version:   ");
+			hexdump(pkv->kv_ver, pkv->kv_verlen);
+			printf("Checksum:  ");
+			hexdump(pkv->kv_disum, pkv->kv_disumlen);
+			printf("Algorithm: ");
+			printf("%s\n", kctl_ditype_str(pkv->kv_ditype));
+		} else {
+		/* raw */
+			printf("Version:   ");
+			hexdump(pkv->kv_ver, pkv->kv_verlen);
+			printf("Checksum:  ");
+			hexdump(pkv->kv_disum, pkv->kv_disumlen);
+			printf("Algorithm: ");
+			printf("%s\n", kctl_ditype_str(pkv->kv_ditype));
+		}
 		goto kctl_gex;
 	}
 

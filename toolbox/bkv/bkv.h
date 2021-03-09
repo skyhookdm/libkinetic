@@ -13,63 +13,47 @@
  * License for more details.
  *
  */
-#ifndef _KCTL_H
-#define _KCTL_H
+#ifndef _BKV_H
+#define _BKV_H
 
-#define KCTL_VERS_MAJOR 1
-#define KCTL_VERS_MINOR 0
-#define KCTL_VERS_PATCH 0
+#define BKV_VERS_MAJOR 1
+#define BKV_VERS_MINOR 0
+#define BKV_VERS_PATCH 0
 
-typedef enum kctl_cmd {
-	KCTL_NOOP = 0,
-	KCTL_GET,
-	KCTL_GETNEXT,
-	KCTL_GETPREV,
-	KCTL_GETVERS,
-	KCTL_RANGE,
-	KCTL_PUT,
-	KCTL_DEL,
-	KCTL_GETLOG,
-	KCTL_SETCLUSTERV,
-	KCTL_SETLOCKPIN,
-	KCTL_LOCK,
-	KCTL_UNLOCK,
-	KCTL_ACL,
-	KCTL_BATCH,
-	
-	KCTL_EOT // End of Table -  Must be last
-} kctl_cmd_t;
+typedef enum bkv_cmd {
+	BKV_NOOP = 0,
+	BKV_GET,
+	BKV_GETN,
+	BKV_PUT,
+	BKV_PUTN,
+	BKV_DEL,
+	BKV_EXISTS,
+	BKV_LIMITS,
 
-typedef enum kctl_input {
-	KCTL_INTERACTIVE,
-	KCTL_SCRIPT,
-	KCTL_CMDLINE,
-} kctl_input_t;
+	BKV_EOT // End of Table -  Must be last
+} bkv_cmd_t;
 
-struct kargs {
-	char		*ka_progname;
-	enum kctl_cmd	ka_cmd;		/* KCTL_GETLOG, KCTL_GET */
-	char		*ka_cmdstr;     /* ex. "info", "get" */
-	char		*ka_key;	/* raw unencoded key buffer */
-	size_t		ka_keylen;	/* raw unencoded key buffer len */
-	char		*ka_val;	/* raw unencoded value buffer */
-	size_t		ka_vallen;	/* raw unencoded value buffer len */
-	int64_t		ka_user;	/* connection user ID  */
-	char		*ka_hkey;	/* connection user ID password */
-	char		*ka_host;	/* connection host  */
-	char 		*ka_port;	/* connection port, ex "8123", */
-					/* 8443 (TLS), "kinetic" */
-	uint32_t	ka_usetls;	/* connection boolean to use TLS */
-	uint32_t	ka_timeout;	/* connection timeout */
-	int64_t		ka_clustervers;	/* Client cluster version number, */
-					/* must match server cluster version */
-	kbatch_t	*ka_batch;	/* holds global batch ptr */
-	uint32_t	ka_quiet;	/* output ctl */
-	uint32_t	ka_terse;	/* output ctl */
-	uint32_t	ka_verbose;	/* output ctl */
-	kctl_input_t	ka_input;	/* input mode */
-	uint32_t	ka_yes;		/* answer yes to any prompts */
-	klimits_t	ka_limits;	/* Kinetic server limits */
+typedef enum bkv_input {
+	BKV_INTERACTIVE,
+	BKV_SCRIPT,
+	BKV_CMDLINE,
+} bkv_input_t;
+
+struct bargs {
+	char		*ba_progname;
+	enum bkv_cmd	ba_cmd;		/* BKV_GETLOG, BKV_GET */
+	char		*ba_cmdstr;     /* ex. "put", "get" */
+	char		*ba_key;	/* raw unencoded key buffer */
+	size_t		ba_keylen;	/* raw unencoded key buffer len */
+	char		*ba_val;	/* raw unencoded value buffer */
+	size_t		ba_vallen;	/* raw unencoded value buffer len */
+	bkvs_open_t     ba_cinfo;	/* connection info */
+	uint32_t	ba_quiet;	/* output ctl */
+	uint32_t	ba_terse;	/* output ctl */
+	uint32_t	ba_verbose;	/* output ctl */
+	bkv_input_t	ba_input;	/* input mode */
+	uint32_t	ba_yes;		/* answer yes to any prompts */
+	bkv_limits_t	ba_limits;	/* BKV server limits */
 };					 
 
 /**
@@ -102,4 +86,4 @@ extern void asciidump(const void*, size_t);
  */
 extern void * asciidecode(const void* , size_t, void**, size_t *);
 
-#endif // _KCTL_H
+#endif // _BKV_H

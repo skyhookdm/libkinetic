@@ -155,6 +155,9 @@ ki_validate_range(krange_t *kr, klimits_t *lim)
 	if (!kr)
 		return (-1);
 
+	// Make sure it is a valid KTB
+	if (!ki_valid(kr)) { return (-1); }
+
 	/* check the start & end key */
 	if (kr->kr_start) {
 		for (len=0, i=0; i<kr->kr_startcnt; i++)
@@ -187,6 +190,45 @@ ki_validate_range(krange_t *kr, klimits_t *lim)
 	return (0);
 }
 
+/**
+ * ki_validate_kb(kb_t *kb)
+ *
+ *  kb 	contains the user passed in kb_t
+ *
+ * Validate that the user is asking for valid information. The type array
+ * in the glrq may only have valid log types and they may not be repeated.
+ *
+ */
+int
+ki_validate_kb(kb_t *kb, kmtype_t msg_type)
+{
+	/* Check for range structure */
+	if (!kb)
+		return (-1);
+
+	// Make sure it is a valid KTB
+	if (!ki_valid(kb)) { return (-1); }
+
+	switch(msg_type) {
+	case KMT_STARTBAT:
+		break;
+
+	case KMT_ENDBAT:
+	case KMT_ABORTBAT:
+	case KMT_PUT:
+	case KMT_DEL:
+		if (kb->kb_bid >= KFIRSTBID) /* Likely valid Batch ID */
+			break;
+
+		return(-1);
+
+	default:
+		return(-1);
+	}
+
+	return(0);
+}
+
 
 /**
  * ki_validate_getlog(kgetlog_t *glrq)
@@ -208,6 +250,9 @@ ki_validate_glog(kgetlog_t *glrq)
 	/* Check the the requested types */
 	if (!glrq || !glrq->kgl_type || !glrq->kgl_typecnt)
 		return(-1);
+
+	// Make sure it is a valid KTB
+	if (!ki_valid(glrq)) { return (-1); }
 
 	/*
 	 * PAK: what if LOG and MESSAGES are set? does log use messages

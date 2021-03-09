@@ -30,6 +30,7 @@
 
 #define KI_MALLOC(_l)     malloc((_l))
 #define KI_REALLOC(_p,_l) realloc((_p),(_l))
+//	debug_printf("KI_FREE(%p)\n", (_p));
 #define KI_FREE(_p) {	    \
 	free((_p));         \
 	(_p) = UNALLOC_VAL; \
@@ -106,25 +107,6 @@
 	: 0								\
 )
 
-#if 0
-// some forward declarations of what's in kerrors.c
-extern const char *ki_error_msgs[];
-enum ki_error_type {
-	KI_ERR_NOMSG   = 0, /* 0x00  0 */
-	KI_ERR_MALLOC     ,
-	KI_ERR_BADSESS    ,
-	KI_ERR_INVARGS    ,
-	KI_ERR_MSGPACK    ,
-	KI_ERR_MSGUNPACK  , /* 0x05  5 */
-	KI_ERR_CMDUNPACK  ,
-	KI_ERR_NOCMD      ,
-	KI_ERR_CREATEREQ  ,
-	KI_ERR_RECVMSG    ,
-	KI_ERR_RECVPDU    , /* 0x10 10 */
-	KI_ERR_PDUMSGLEN  ,
-	KI_ERR_BATCH      ,
-};
-#endif
 /**
  * This is the internal structure for managing a batch across many API calls.
  * It is meant to be completely opaque to the caller. The kbatch_t type
@@ -137,19 +119,34 @@ typedef struct kb {
 	uint32_t	kb_ops;		/* Batch Ops count */
 	uint32_t	kb_dels;	/* Batch Delete Ops count */
 	uint32_t	kb_bytes;	/* Batch total bytes */ 
+	pthread_mutex_t	kb_m;		/* Mutex protecting this structure */
+#ifdef KBATCH_SEQTRACKING
 	LIST		*kb_seqs;	/* the batch ops, perserved as seq# */
-	pthread_mutex_t  kb_m;		/* mutex protecting this structure */
+#endif
 } kb_t;
+
+typedef struct kiter {
+	int       ki_ktd;
+	krange_t *ki_rreq; 	/* Original Caller Request Range */
+	krange_t *ki_rwin1;	/* Range Window 1 */
+	krange_t *ki_rwin2;	/* Range Window 2 - UNUSED until AIO */
+	krange_t *ki_curwin;	/* Current Range Window */
+	uint32_t  ki_curkey;	/* Current key index */
+	int32_t   ki_seenkeys;	/* Total keys returned to caller */
+	uint32_t  ki_maxkeyreq; /* Max count of keys per request */
+	kio_t    *ki_kio;	/* kio for async getrange - UNUSED until AIO */
+} ki_t;
 
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
 
-int ki_valid(void *p);
 int ki_validate_kv(kv_t *kv, int versck, klimits_t *lim);
 int ki_validate_range(krange_t *kr, klimits_t *lim);
+int ki_validate_kb(kb_t *kb, kmtype_t msg_type);
 int ki_validate_glog(kgetlog_t *glrq);
 int ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp);
 
 int b_batch_addop(kb_t *kb, kcmdhdr_t *kc);
+kstatus_t b_startbatch(int ktd, kbatch_t *kb);
 
 #endif /* _KINET_INT_H */

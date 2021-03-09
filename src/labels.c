@@ -102,3 +102,24 @@ const char *ki_cpolicy_label[] = {
 	/* 0x03  3 */ "Flush",
 };
 const int ki_cpolicy_max = 3;
+
+const char *ki_ditype_label[] = {
+	/* 0x00  0 */ "No Policy Defined",
+	/* 0x01  1 */ "SHA1",
+	/* 0x02  2 */ "SHA2",
+	/* 0x03  3 */ "SHA3",
+	/* 0x04  4 */ "CRC32C",
+	/* 0x05  5 */ "CRC64",
+	/* 0x06  6 */ "CRC32",
+};
+const int ki_ditype_max = 6;
+
+char *ki_ktype_label[] = {
+	"KT_NONE",
+	"KV_T",
+	"KRANGE_T",
+	"KITER_T",
+	"KBATCH_T",
+	"KGETLOG_T",
+};
+const int ki_ktype_max = 5;

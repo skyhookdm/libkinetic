@@ -19,14 +19,13 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-
 /** 
  * Dump a buffer in both hex. Sample output:
-00000000 6C 61 73 66 6A 6C 61 73 64 6A 6C 61 6A 73 51 49  |  lasfjlasdjlajsQI
-00000010 51 49 51 49 09 09 09 09 09 6C 46 4C 6A 66 73 64  |  QIQI.....lFLjfsd
-00000020 6C 66 6A 61 6C 73 66 20 64 6C 6B 73 6A 66 6C 73  |  lfjalsf dlksjfls
-00000030 6A 66 6C 6B 6A 73 20 6C 6B 6A 73 66 6C 6A 6C 6B  |  jflkjs lkjsfljlk
-00000040 61 73 64 66 6B 6C 39 33 30 72 20 35 75 67 6A 67  |  asdfkl930r 5ugjg
+00000000 6C 61 73 66 6A 6C 61 73 64 6A 6C 61 6A 73 51 49  |  lasfjlasdjlajsQI 
+00000010 51 49 51 49 09 09 09 09 09 6C 46 4C 6A 66 73 64  |  QIQI.....lFLjfsd 
+00000020 6C 66 6A 61 6C 73 66 20 64 6C 6B 73 6A 66 6C 73  |  lfjalsf dlksjfls 
+00000030 6A 66 6C 6B 6A 73 20 6C 6B 6A 73 66 6C 6A 6C 6B  |  jflkjs lkjsfljlk 
+00000040 61 73 64 66 6B 6C 39 33 30 72 20 35 75 67 6A 67  |  asdfkl930r 5ugjg 
 00000050 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  |  ................
 Last line repeated 3 time(s)
 00000090 00 00 00 00 00 00 00 00 00 00 00 00              |  ................
@@ -37,14 +36,14 @@ hexdump(const void* data, size_t size)
 	char offset[10];	/* Byte Offset string */
 	char line[81];		/* Current line */
 	char lline[81];		/* Last line for comparison */
-	char *sep = " |  ";	/* Separator string */
+	char *sep = " |  ";	/* Seporator string */ 
 	size_t lines, l, i, j, bpl=16, lb, bsl=3, lo, repeat = 0;
 
-	/*
-	 * dump the output line by line. This way if lines are
-	 * repeated they can be detected and not printed again.
+	/* 
+	 * dump the output line by line. This way if lines are 
+	 * repeated they can be detected and not printed again. 
 	 * The hex portion is a little inefficient as it is O(x^2)
-	 * but is simple to read.
+	 * but is simple to read. 
 	 *
 	 * bpl is Bytes per Line
 	 * lb is Line Bytes, mostly lb = bpl except for last line
@@ -57,24 +56,24 @@ hexdump(const void* data, size_t size)
 	for (l=0,i=0; l<lines; i+=lb, l++) {
 
 		/* Last line update bpl if necessary */
-		if (l == (lines - 1))
+		if (l == (lines - 1)) 
 			if (size % bpl)
 				lb = size % bpl;
-
-		/* Offset */
+		
+		/* Offset */ 
 		sprintf(offset, "%08x ", (unsigned int)(l * bpl));
-
+		
 		/* Hex dump */
 		line[0] = '\0';
 		for (j = 0; j < lb; ++j) {
 			sprintf(line, "%s%02X ", line,
 				((unsigned char*)data)[i+j]);
-		}
+		} 
 
 		/* Hex Ascii Separator, variable width */
 		sprintf(line, "%s%*s", line,
 			(int)(((bpl - lb) * bsl) + strlen(sep)), sep);
-
+		
 		/* Ascii dump */
 		lo = strlen(line);
 		for (j = 0; j < lb; ++j) {
@@ -89,7 +88,7 @@ hexdump(const void* data, size_t size)
 		/* check if repeated */
 		if (strcmp(line, lline)) {
 			/* Non repeated line, print it */
-			if (repeat)
+			if (repeat) 
 				printf("    Last line repeated %ld time(s)\n",
 				       repeat);
 
@@ -104,7 +103,7 @@ hexdump(const void* data, size_t size)
 		}
 	}
 
-	if (repeat)
+	if (repeat) 
 		printf("Line repeated %ld time(s)\n", repeat);
 }
 

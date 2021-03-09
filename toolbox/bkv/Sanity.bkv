@@ -1,0 +1,109 @@
+#!./bkv -f
+#
+## Copyright 2020-2021 Seagate Technology LLC.
+#
+# This Source Code Form is subject to the terms of the Mozilla
+# Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at
+# https://mozilla.org/MP:/2.0/.
+#
+# This program is distributed in the hope that it will be useful,
+# but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+# the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+# FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+# License for more details.
+#
+########   BKV Sanity Test
+#
+# This is a bkv script that attempts to run through a significant
+# percentage of functionality offered by bkv and libkinetic.  This is
+# is just functionality and not attempting coverage, corner cases,
+# stress or perf.
+#
+
+#
+#  Don't ask to delete
+yes
+#
+# Put Tests
+#
+# Std Put
+echo
+echo Put tests
+put bkv.sanity.put.1 "Put1.0"
+put bkv.sanity.put.1 "Put1.1"
+put bkv.sanity.put.1 "Put1.2"
+# Put from a file
+echo Put using a file as a value
+put -f /etc/hosts bkv.sanity.put.2
+# Put zero buffer
+echo Put using a 4k zero filled buffer as a value
+put -z 4096 bkv.sanity.put.3
+# Large puts
+echo Put even 3MiB value, should take 3 keys
+put -l -z 3145728 bkv.sanity.large-3MiB
+echo Put even 3MiB value, should take 3 keys but last key should be partial
+put -l -z 3140004 bkv.sanity.large-sub3MiB
+# Put Errs
+echo Put error cases
+put -z 3145728 bkv.sanity.4			# without -l should fail
+put -z -256 bkv.sanity.4			# negative zlen should fail
+put -f /etc/hosts -z 3145728 bkv.sanity.4	# Flag misuse
+#
+# Get Tests
+#
+# Std get
+echo
+echo Get tests
+get bkv.sanity.put.1
+get -A bkv.sanity.put.1
+get -X bkv.sanity.put.3
+get -X -n 3 bkv.sanity.large-3MiB
+get -X -n 3 bkv.sanity.large-sub3MiB
+# Get Errs
+echo Get error case, no key
+get bkv.sanity.nokey
+echo Get error case, more keys then present
+get -n 5 bkv.sanity.large-3MiB
+echo Get error case, key count too high
+get -n 512 bkv.sanity.large-3MiB
+echo Get error case, key negative
+get -n -512 bkv.sanity.large-3MiB
+echo Get error case, flags misuse
+get -A -X bkv.sanity.put.2
+#
+# Exists Tests
+#
+# Std exists
+echo 
+echo Exists tests
+exists bkv.sanity.put.1
+exists bkv.sanity.put.nokey
+#
+# Delete Tests
+#
+# Std Del
+echo 
+echo Del tests
+del bkv.sanity.put.1
+del bkv.sanity.put.2
+del bkv.sanity.put.3
+del -n 3 bkv.sanity.large-3MiB
+del -n 3 bkv.sanity.large-sub3MiB
+# Del errs
+echo Del error case, no key 
+del bkv.sanity.put.nokey
+echo Del error case,  negative count
+del -n -3 bkv.sanity.large-sub3MiB
+#
+# Limits Tests
+#
+# Std Limits
+echo 
+echo Limits test
+limits
+# Done
+quit
+
+
+

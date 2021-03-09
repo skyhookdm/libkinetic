@@ -13,11 +13,8 @@
  * License for more details.
  *
  */
-
-
 #ifndef __KINETIC_INTERFACE_H
 #define __KINETIC_INTERFACE_H
-
 
 #include "kinetic_types.h"
 
@@ -35,13 +32,17 @@
 
 // macros that use the log level
 #if LOGLEVEL >= LOGLEVEL_DEBUG
-	#define debug_fprintf(...) fprintf(__VA_ARGS__)
+	#define debug_fprintf(...) 				\
+		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
+		fprintf(__VA_ARGS__)
 #else
 	#define debug_fprintf(...) {}
 #endif
 
 #if LOGLEVEL >= LOGLEVEL_INFO
-	#define info_fprintf(...) fprintf(__VA_ARGS__)
+	#define info_fprintf(...) 				\
+		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
+		fprintf(__VA_ARGS__)
 #else
 	#define info_fprintf(...) {}
 #endif
@@ -53,13 +54,14 @@
 
 // ------------------------------
 // The API
-int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hmac);
+int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *pass);
 int ki_close(int ktd);
 
 // Kinetic Type Interfaces
 void *ki_create(int ktd, ktype_t kt);
-int   ki_clean(void *p);
-int   ki_destroy(void *p);
+kstatus_t ki_clean(void *p);
+kstatus_t ki_destroy(void *p);
+uint32_t  ki_valid(void *p);
 
 // Kinetic synchronous I/O interfaces
 kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);
@@ -78,10 +80,10 @@ kstatus_t ki_abortbatch(int ktd, kbatch_t *kb);
 kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
 
 // Kinetic asynchronous I/O interfaces
-kstatus_t ki_aio_put(int ktd, kv_t *kv,  void *cctx, kio_t **kio);
-kstatus_t ki_aio_cas(int ktd, kv_t *kv,  void *cctx, kio_t **kio);
-kstatus_t ki_aio_del(int ktd, kv_t *key, void *cctx, kio_t **kio);
-kstatus_t ki_aio_cad(int ktd, kv_t *key, void *cctx, kio_t **kio);
+kstatus_t ki_aio_put(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);
+kstatus_t ki_aio_cas(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);
+kstatus_t ki_aio_del(int ktd, kbatch_t *kb, kv_t *key, void *cctx, kio_t **kio);
+kstatus_t ki_aio_cad(int ktd, kbatch_t *kb, kv_t *key, void *cctx, kio_t **kio);
 
 kstatus_t ki_aio_get(int ktd, kv_t *key, void *cctx, kio_t **kio);
 kstatus_t ki_aio_getnext(int ktd, kv_t *key, kv_t *next,
@@ -94,13 +96,13 @@ kstatus_t ki_aio_abortbatch(int ktd,  kbatch_t *kb, void *cctx, kio_t **kio);
 kstatus_t ki_aio_submitbatch(int ktd, kbatch_t *kb, void *cctx, kio_t **kio);
 
 kstatus_t ki_aio_complete(int ktd, kio_t *kio, void **cctx);
+
 int ki_poll(int ktd, int timeout);
 
 // ------------------------------
 // key iterator functions
 struct kiovec *ki_start(kiter_t *kit, krange_t *kr);
 struct kiovec *ki_next(kiter_t *kit);
-int            ki_done(kiter_t *kit);
 
 
 // ------------------------------
@@ -109,6 +111,7 @@ int            ki_done(kiter_t *kit);
 // for information structures
 klimits_t      ki_limits(int ktd);
 kstatus_t      ki_setclustervers(int ktd, int64_t vers);
+kstatus_t      ki_version(kversion_t *kver);
 
 // for key utilities/helpers
 
@@ -158,15 +161,16 @@ struct kiovec *ki_keyfirst();
 struct kiovec *ki_keylast(size_t len);
 
 // for iterator management
+krange_t *ki_rangecpy(krange_t *dst, krange_t *src);
 krange_t *ki_rangedup(int ktd, krange_t *kr);
 
 // for checksum computation
-struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name);
+struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt,
+			      const char *digest_name);
 
 // for range 
 int ki_rangefree(krange_t *kr);
 
 const char *ki_error(kstatus_t ks);
-
 
 #endif // __KINETIC_INTERFACE_H

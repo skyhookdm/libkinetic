@@ -30,9 +30,13 @@ typedef enum ktype {
 	KITER_T,
 	KBATCH_T,
 	KGETLOG_T,
+	KVERSION_T,
 	/* Keep last */
 	KT_LAST,	
 } ktype_t;
+
+/* Initial batch id for each Session */
+#define KFIRSTBID 1000
 
 // ------------------------------
 // Type aliases for protocol
@@ -101,18 +105,10 @@ typedef enum kstatus {
 	/* Need more errnos, Sufficiently outside kinetic.proto */
 	KSTAT_GRP2	= 0x8000, 		/* Prefix for nonproto errors */
 	K_EAGAIN	= (KSTAT_GRP2 | 0),
-	K_ENOMSG	= (KSTAT_GRP2 | 0),
-	K_ENOMEM	= (KSTAT_GRP2 | 0),
-	K_EBADSESS	= (KSTAT_GRP2 | 0),
-	K_EMSGPACK	= (KSTAT_GRP2 | 0),
-	K_EMSGUNPACK	= (KSTAT_GRP2 | 0),
-	K_ECMDUNPACK	= (KSTAT_GRP2 | 0),
-	K_ENOCMD	= (KSTAT_GRP2 | 0),
-	K_ECREATEREQ	= (KSTAT_GRP2 | 0),
-	K_ERECVMSG	= (KSTAT_GRP2 | 0),
-	K_ERECVPDU	= (KSTAT_GRP2 | 0),
-	K_EPDUMSGLEN	= (KSTAT_GRP2 | 0),
-	K_EBATCH	= (KSTAT_GRP2 | 0),
+	K_ENOMSG	= (KSTAT_GRP2 | 1),
+	K_ENOMEM	= (KSTAT_GRP2 | 2),
+	K_EBADSESS	= (KSTAT_GRP2 | 3),
+	K_EBATCH	= (KSTAT_GRP2 | 4),
 	KSTAT_GRP2_LAST	= 0,
 	
 } kstatus_t;
@@ -201,6 +197,7 @@ typedef struct kv {
 	size_t          kv_disumlen;
 	kditype_t       kv_ditype;
 	kcachepolicy_t  kv_cpolicy;
+	uint32_t	kv_metaonly;
 
 	/* NOTE: currently, this also frees kv_data */
 	void        *kv_protobuf;
@@ -278,22 +275,15 @@ typedef struct krange {
 	void (*destroy_protobuf)(struct krange *keyrange_data);
 } krange_t;
 
+
 /**
  * Key Range Iter structure
  *
- * This structure permits the iteration through a key a defined keyrange
+ * This opaque type permits the iteration through a key a defined keyrange
  *
  */
-typedef struct kiter {
-	int       ki_ktd;
-	krange_t *ki_range;
-	uint32_t  ki_curr;      // Current key index
-	uint32_t  ki_maxkeyreq; // Max count of keys per request
-	int32_t   ki_count;     // Total keys requested, could be INF
+typedef void kiter_t;
 
-	// Last key special case, always cnt=1 (see `ki_iternext()`)
-	struct kiovec *ki_boundary; 
-} kiter_t;
 
 /**
  * Key Batch type
@@ -311,6 +301,8 @@ typedef void kbatch_t;
  *
  */
 typedef void kio_t;
+
+
 /* ------------------------------
  * Types for interfacing with API
  */
@@ -335,14 +327,13 @@ struct kresult_message {
 	void              *result_message;
 };
 
-// Kinetic Status block
-#if 0
-typedef struct kstatus {
-	kstatus_code_t  ks_code;
-	char           *ks_message;
-	char           *ks_detail;
-} kstatus_t;
-#endif
-
+typedef struct kversion {
+	const char 	*kvn_pb_c_vers;
+	uint32_t 	kvn_pb_c_vers_num;
+	char 		*kvn_pb_kinetic_vers;
+	const char	*kvn_ki_githash;
+	char 		*kvn_ki_vers;
+	uint32_t 	kvn_ki_vers_num;
+} kversion_t;
 
 #endif /*  _KINETIC_TYPES_H */

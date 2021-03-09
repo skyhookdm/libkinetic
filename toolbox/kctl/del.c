@@ -40,13 +40,11 @@ kctl_del_usage(struct kargs *ka)
 	fprintf(stderr, "\t-p [wt|wb|f] Persist Mode: writethrough, writeback, \n");
 	fprintf(stderr, "\t             flush [writeback]\n");
 	fprintf(stderr, "\t-a           Delete all keys\n");
-	fprintf(stderr, "\t-n count	Number of keys in range[all in range]\n");
+	fprintf(stderr, "\t-n count     Number of keys in range[all in range]\n");
 	fprintf(stderr, "\t-s KEY       Start Key in the range, non inclusive\n");
 	fprintf(stderr, "\t-S KEY       Start Key in the range, inclusive\n");
 	fprintf(stderr, "\t-e KEY       End Key in the range, non inclusive\n");
 	fprintf(stderr, "\t-E KEY       End Key in the range, inclusive\n");
-	fprintf(stderr, "\t-A           Show keys as modified ascii string\n");
-	fprintf(stderr, "\t-X           Show keys as hex and ascii\n");
 	fprintf(stderr, "\t-?           Help\n");
 
 	// R"foo(....)foo" is a non escape char evaluated string literal 
@@ -80,7 +78,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 	char  		*start = NULL, *end = NULL;
 	int 		starti = 0, endi = 0;
 	int		all = 0;
-        int 		count = KVR_COUNT_INF;;
+        int 		dels = 0, count = KVR_COUNT_INF;;
 	int 		cmpdel = 0, bat=0;
 	kv_t		*kv;
 	krange_t	*kr;
@@ -131,6 +129,14 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
+
+			if (optarg[0] == '-') {
+				fprintf(stderr, "*** Negative count %s\n",
+				       optarg);
+				CMD_USAGE(ka);
+				return(-1);
+			}
+
 			count = strtol(optarg, &cp, 0);
 			if (!cp || *cp != '\0') {
 				fprintf(stderr, "**** Invalid count %s\n",
@@ -193,9 +199,9 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
         }
 
 	if (HAVE_RANGE && bat) {
-		fprintf(stderr,	"**** No batch support with range delete\n");
-		CMD_USAGE(ka);
-		return(-1);
+		fprintf(stderr, "**** Warning: Batch Range Delete: ");
+		fprintf(stderr, "Range must not contain more than %u keys\n",
+			ka->ka_limits.kl_batdelcnt);
 	}
 
 	/* Init kv */
@@ -415,9 +421,17 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 		}
 
 		/* Iterate */
-		for (k = ki_start(kit, kr);
-		     !ki_done(kit) && k;
-		     k = ki_next(kit)) {
+		for (k = ki_start(kit, kr); k; k = ki_next(kit)) {
+			dels++;
+			if (bat && (dels > ka->ka_limits.kl_batdelcnt)) {
+				fprintf(stderr,
+					"%s: Range too big for batch: %u\n",
+					ka->ka_cmdstr,
+					ka->ka_limits.kl_batdelcnt);
+				ki_destroy(kit);
+				ki_destroy(kr);
+				return(-1);
+			}
 
 			/* Set the key */
 			kv->kv_key[0].kiov_base = k->kiov_base;
@@ -433,18 +447,24 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 						ka->ka_cmdstr, ki_error(krc));
 					return(-1);
 				}
-				krc = ki_cad(ktd, NULL, kv);
+				krc = ki_cad(ktd, (bat?ka->ka_batch:NULL), kv);
 			} else {
-				krc = ki_del(ktd, NULL, kv);
+				krc = ki_del(ktd, (bat?ka->ka_batch:NULL), kv);
 			}
 
 			if (krc != K_OK) {
 				fprintf(stderr,
 					"%s: Unable to delete key: %s\n", 
 					ka->ka_cmdstr, ki_error(krc));
+				ki_destroy(kit);
+				ki_destroy(kr);
 				return(-1);
 			}
 		}
+
+		if (ka->ka_verbose)
+			fprintf(stdout, "%s: Deleted %d keys\n",
+				ka->ka_cmdstr, dels);
 
 		ki_destroy(kit);
 		ki_destroy(kr);
