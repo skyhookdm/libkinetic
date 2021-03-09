@@ -684,7 +684,7 @@ kstatus_t extract_seqlist(struct kresult_message *resp_msg, kseq_t **seqlist, si
 	}
 
 	// TODO: memory leak that needs to be addressed:
-	// (https://gitlab.com/kinetic-storage/kinetic-prototype/-/issues/16)
+	// (https://gitlab.com/kinetic-storage/libkinetic/-/issues/16)
 	kproto_cmd_t *resp_cmd;
 	resp_cmd = unpack_kinetic_command(kb_resp_msg->commandbytes);
 	if (!resp_cmd) {
