@@ -11,8 +11,8 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
 # License for more details.
 #
-BUILDDIR =	../build
-DIRS     =	whitebox
+BUILDDIR =	../../build
+DIRS     =	getlog keyval #range batch
 BINDIR   =	$(BUILDDIR)/bin
 CFLAGS   =	-g -I$(BUILDDIR)/include
 LDFLAGS  =	-L$(BUILDDIR)/lib
