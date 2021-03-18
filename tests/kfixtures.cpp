@@ -47,56 +47,85 @@ namespace KFixtures {
         );
     }
 
+    // ------------------------------
     // Constant test data used for keyval tests
-    namespace TestDataKeyVal {
 
-        /*
-         * TODO
-        const kv_t pak_key = (kv_t) {
-            .kv_key           = struct kiovec[] { char[] {",
-            .kv_keycnt        =,
-            .kv_val           =,
-            .kv_valcnt        =,
-            .kv_ver           =,
-            .kv_verlen        =,
-            .kv_newver        =,
-            .kv_newverlen     =,
-            .kv_disum         =,
-            .kv_disumlen      =,
-            .kv_ditype        =,
-            .kv_cpolicy       =,
-            .kv_protobuf      =,
-            .destroy_protobuf =,
+    /**
+     * This namespace contains primitives, strings, and simple structs that are used for inputs and
+     * outputs for a test case.
+     */
+    namespace TestData {
+
+        // >> primitive types and primitive arrays
+        const uint32_t empty_int           = 0;
+        const char     initial_version[10] = "0x00000000";
+
+        // >> structs (that fit on a single-line)
+        const struct kiovec empty_val = (struct kiovec) {  0, NULL          };
+        const struct kiovec pak_key   = (struct kiovec) {  3, "pak"         };
+        const struct kiovec pak_val   = (struct kiovec) { 11, "hello world" };
+
+        // >> multi-line variables
+        const struct kiovec noexist_ver = (struct kiovec) {
+            32, "getversion_doesnotexist_38928383"
         };
-        char key_str[] = "pak";
-        // expected value
-        char     val_str[]         = "Hello World";
-        size_t   val_len           = strlen(val_str);
-
-        // expected checksum
-        uint32_t val_checksum      = 0;
-        Buffer disum_buffer = (Buffer) {
-            .len  =          sizeof(uint32_t),
-            .data = (void *) &val_checksum   ,
+        const struct kiovec noexist_key = (struct kiovec) {
+            29, "-ForSureThisisAUniqueKeyName-"
         };
 
-        // expected db version
-        char     existing_dbver[11];
-        sprintf(existing_dbver, "0x%08x", val_checksum);
-        Buffer dbver_buffer = (Buffer) {
-            .len  = (size_t) 10                  ,
-            .data = (void *) &(existing_dbver[0]),
+    } // namespace TestData
+
+
+    /**
+     * This namespace should contain data structures representing input data for a test fixture.
+     */
+    namespace TestInputs {
+        kv_t inputkv_pak = (kv_t) {
         };
 
-        // expected result (put it all together)
-        TestHelpers::KVEntry *expected_entry = new TestHelpers::KVEntry();
-        expected_entry->set_key    (&(key_str[0])         )
-                      ->set_val    (&(val_str[0]), val_len)
-                      ->with_dbver (&dbver_buffer         )
-                      ->with_disum (&disum_buffer         )
-                      ->with_ditype((kditype_t) KDI_CRC32 )
-        ;
-        */
-    } // namespace TestDataKeyVal
+    } // namespace TestInputs
+
+
+    /**
+     * This namespace should contain data structures representing **expected output** of a test
+     * fixture.
+     */
+    namespace TestOutputs {
+
+        const kv_t expectedkv_pak = (kv_t) {
+            .kv_key           = (struct kiovec *) &pak_key,
+            .kv_keycnt        = 1                         ,
+            .kv_val           = (struct kiovec *) &pak_val,
+            .kv_valcnt        = 1                         ,
+            .kv_ver           = initial_version           ,
+            .kv_verlen        = 10                        ,
+            .kv_newver        = NULL                      ,
+            .kv_newverlen     = 0                         ,
+            .kv_disum         = (void *) &empty_int       ,
+            .kv_disumlen      = sizeof(uint32_t)          ,
+            .kv_ditype        = (kditype_t) KDI_CRC32     ,
+            .kv_cpolicy       = (kcachepolicy_t) KC_WB    ,
+            .kv_protobuf      = NULL                      ,
+            .destroy_protobuf = NULL                      ,
+        };
+
+        const kv_t err_notfound_response = (kv_t) {
+            .kv_key           = (struct kiovec *) &empty_val,
+            .kv_keycnt        = 1                           ,
+            .kv_val           = (struct kiovec *) &empty_val,
+            .kv_valcnt        = 1                           ,
+            .kv_ver           = NULL                        ,
+            .kv_verlen        = 0                           ,
+            .kv_newver        = NULL                        ,
+            .kv_newverlen     = 0                           ,
+            .kv_disum         = NULL                        ,
+            .kv_disumlen      = 0                           ,
+            .kv_ditype        = (kditype_t) KDI_CRC32       ,
+            .kv_cpolicy       = (kcachepolicy_t) KC_WB      ,
+            .kv_protobuf      = NULL                        ,
+            .destroy_protobuf = NULL                        ,
+        };
+
+    } // namespace TestOutputs
 
 } // namespace KFixtures

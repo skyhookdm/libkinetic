@@ -32,7 +32,6 @@ namespace KFixtures {
     class KeyValTest: public ::testing::Test {
         protected:
             int conn_descriptor;
-            TestHelpers::TestHashTable *keyval_kstore;
 
             KeyValTest() {
                 this->conn_descriptor = -1;
@@ -56,11 +55,6 @@ namespace KFixtures {
                 if (!device_limits.kl_keylen) {
                     fprintf(stderr, "Failed to receive kinetic device limits\n");
                 }
-
-                // Initialize keyval_kstore once we have a connection descriptor
-                this->keyval_kstore = new TestHelpers::TestHashTable(
-                    this->conn_descriptor
-                );
             }
 
             void TearDown() override {
@@ -84,183 +78,97 @@ namespace KFixtures {
 
 
     TEST_F(KeyValTest, test_get_noexist) {
-        // Prepare inputs
-        char key_str[] = "-ForSureThisisAUniqueKeyName-";
+        kv_t request_kv = (kv_t) {
+            .kv_key           = (struct kiovec *) &noexist_key,
+            .kv_keycnt        = 1                             ,
+            .kv_val           = (struct kiovec *) &empty_val  ,
+            .kv_valcnt        = 1                             ,
+            .kv_ver           = NULL                          ,
+            .kv_verlen        = 0                             ,
+            .kv_newver        = NULL                          ,
+            .kv_newverlen     = 0                             ,
+            .kv_disum         = NULL                          ,
+            .kv_disumlen      = 0                             ,
+            .kv_ditype        = (kditype_t) KDI_CRC32         ,
+            .kv_cpolicy       = (kcachepolicy_t) KC_WB        ,
+            .kv_protobuf      = NULL                          ,
+            .destroy_protobuf = NULL                          ,
+        };
 
-        // Execute code to be tested
-        TestHelpers::KVEntry *kv_entry = keyval_kstore->get_key(key_str);
+        kstatus_t op_status = ki_get(conn_descriptor, &request_kv);
+        keyval_helper->validate_keyval(
+                      &request_kv
+            ,(kv_t *) &TestData::err_notfound_response
+        );
 
-        // Prepare expected outputs
-        kv_t   output_data;
-        memset(&output_data, 0, sizeof(kv_t));
-
-        // Validate
-        keyval_helper->validate_keyval(kv_entry->entry_data, &output_data);
-        validate_status(kv_entry->op_status, (kstatus_t) K_ENOTFOUND);
+        validate_status(op_status, (kstatus_t) K_ENOTFOUND);
     }
 
     TEST_F(KeyValTest, test_get_exists) {
-        // Prepare inputs
-        char key_str[] = "pak";
-
-        // Execute code to be tested
-        TestHelpers::KVEntry *kv_entry = keyval_kstore->get_key(key_str);
-
-        // ------------------------------
-        // Prepare expected outputs
-
-        // expected value
-        char     val_str[]         = "Hello World";
-        size_t   val_len           = strlen(val_str);
-
-        // expected checksum
-        uint32_t val_checksum      = 0;
-        Buffer disum_buffer = (Buffer) {
-            .len  =          sizeof(uint32_t),
-            .data = (void *) &val_checksum   ,
+        kv_t request_kv = (kv_t) {
+            .kv_key           = (struct kiovec *) &pak_key  ,
+            .kv_keycnt        = 1                           ,
+            .kv_val           = (struct kiovec *) &empty_val,
+            .kv_valcnt        = 1                           ,
+            .kv_ver           = NULL                        ,
+            .kv_verlen        = 0                           ,
+            .kv_newver        = NULL                        ,
+            .kv_newverlen     = 0                           ,
+            .kv_disum         = NULL                        ,
+            .kv_disumlen      = 0                           ,
+            .kv_ditype        = (kditype_t) KDI_CRC32       ,
+            .kv_cpolicy       = (kcachepolicy_t) KC_WB      ,
+            .kv_protobuf      = NULL                        ,
+            .destroy_protobuf = NULL                        ,
         };
 
-        // expected db version
-        char     existing_dbver[11];
-        sprintf(existing_dbver, "0x%08x", val_checksum);
-        Buffer dbver_buffer = (Buffer) {
-            .len  = (size_t) 10                  ,
-            .data = (void *) &(existing_dbver[0]),
-        };
+        kstatus_t op_status = ki_get(conn_descriptor, &request_kv);
+        keyval_helper->validate_keyval(
+                      &request_kv
+            ,(kv_t *) &TestData::pak_kv_response
+        );
 
-        // expected result (put it all together)
-        TestHelpers::KVEntry *expected_entry = new TestHelpers::KVEntry();
-        expected_entry->set_key    (&(key_str[0])         )
-                      ->set_val    (&(val_str[0]), val_len)
-                      ->with_dbver (&dbver_buffer         )
-                      ->with_disum (&disum_buffer         )
-                      ->with_ditype((kditype_t) KDI_CRC32 )
-        ;
-
-        // Validate
-        keyval_helper->validate_keyval(kv_entry->entry_data, expected_entry->entry_data);
-        validate_status(kv_entry->op_status, kstatus_t K_OK);
+        validate_status(op_status, (kstatus_t) K_OK);
     }
 
-
-    /*
-    TEST_F(KeyValTest, test_getkey_exists) {
-        // ------------------------------
-        // Execute the Test
-        char key_str[] = "pak";
-        char val_str[] = "Hello World";
-        size_t key_len = strlen(key_str);
-        size_t val_len = strlen(val_str);
-        size_t key_cnt = 1;
-        size_t val_cnt = 1;
-
-        // These should reflect kctl defaults
-        uint32_t       val_checksum      = 0;
-        size_t         existing_dbverlen = 11;
-        size_t         checksum_len      = sizeof(uint32_t);
-        kditype_t      checksum_type     = (kditype_t) KDI_CRC32;
-        kcachepolicy_t cpolicy_type      = (kcachepolicy_t) KC_WB;
-
-        char existing_dbver[11];
-        sprintf(existing_dbver, "0x%08x", val_checksum);
-
-        char *input_key = (char *) malloc(sizeof(char) * key_len);
-        memcpy(input_key, key_str, key_len);
-
-        struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
-        kv_t input_data   = (kv_t) {
-            .kv_key       = input_keyvec          ,
-            .kv_keycnt    = key_cnt               ,
-            .kv_val       = &input_valvec         ,
-            .kv_valcnt    = 1                     ,
-            .kv_ver       = nullptr               ,
-            .kv_verlen    = 0                     ,
-            .kv_newver    = nullptr               ,
-            .kv_newverlen = 0                     ,
-            .kv_disum     = nullptr               ,
-            .kv_disumlen  = 0                     ,
-            .kv_ditype    = (kditype_t) 0         ,
-            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
-        };
-
-        struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec *output_valvec = ki_keycreate(val_str, val_len);
-        kv_t output_data  = (kv_t) {
-            .kv_key       = output_keyvec    ,
-            .kv_keycnt    = key_cnt          ,
-            .kv_val       = output_valvec    ,
-            .kv_valcnt    = 1                ,
-            .kv_ver       = existing_dbver   ,
-            .kv_verlen    = existing_dbverlen,
-            .kv_newver    = nullptr          ,
-            .kv_newverlen = 0                ,
-            .kv_disum     = &val_checksum    ,
-            .kv_disumlen  = checksum_len     ,
-            .kv_ditype    = checksum_type    ,
-            .kv_cpolicy   = cpolicy_type     ,
-        };
-
-        kstatus_t ok_status = K_OK;
-
-        keyval_helper->test_getkey(conn_descriptor, ok_status, &input_data, &output_data);
-    }
-    */
 
     // ------------------------------
     // TODO: these tests not yet verified
 
-    /*
     TEST_F(KeyValTest, test_getversion_doesnotexist) {
+        TestData::err_notfound_response.kv_key    = &noexist_ver;
+        TestData::err_notfound_response.kv_keycnt = 1;
+
+        kv_t request_kv = (kv_t) {
+            .kv_key           = (struct kiovec *) &TestData::noexist_ver,
+            .kv_keycnt        = 1                                       ,
+            .kv_val           = (struct kiovec *) &TestData::empty_val  ,
+            .kv_valcnt        = 1                                       ,
+            .kv_ver           = NULL                                    ,
+            .kv_verlen        = 0                                       ,
+            .kv_newver        = NULL                                    ,
+            .kv_newverlen     = 0                                       ,
+            .kv_disum         = NULL                                    ,
+            .kv_disumlen      = 0                                       ,
+            .kv_ditype        = (kditype_t) KDI_CRC32                   ,
+            .kv_cpolicy       = (kcachepolicy_t) KC_WB                  ,
+            .kv_protobuf      = NULL                                    ,
+            .destroy_protobuf = NULL                                    ,
+        };
+
         // ------------------------------
         // Execute the Test
-        char key_str[] = "getversion_doesnotexist_38928383";
-        size_t key_len = strlen(key_str);
-        size_t key_cnt = 1;
-        size_t val_cnt = 1;
 
-        char *input_key = (char *) malloc(sizeof(char) * key_len);
-        memcpy(input_key, key_str, key_len);
+        kstatus_t op_status = ki_getversion(conn_descriptor, &input_data);
+        keyval_helper->validate_keyval(
+                      &request_kv
+            ,(kv_t *) &TestData::pak_kv_response
+        );
 
-        struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
-        kv_t input_data   = (kv_t) {
-            .kv_key       = input_keyvec          ,
-            .kv_keycnt    = key_cnt               ,
-            .kv_val       = &input_valvec         ,
-            .kv_valcnt    = 1                     ,
-            .kv_ver       = nullptr               ,
-            .kv_verlen    = 0                     ,
-            .kv_newver    = nullptr               ,
-            .kv_newverlen = 0                     ,
-            .kv_disum     = nullptr               ,
-            .kv_disumlen  = 0                     ,
-            .kv_ditype    = (kditype_t) 0         ,
-            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
-        };
-
-        struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
-        kv_t output_data  = (kv_t) {
-            .kv_key       = output_keyvec         ,
-            .kv_keycnt    = key_cnt               ,
-            .kv_val       = &output_valvec        ,
-            .kv_valcnt    = 1                     ,
-            .kv_ver       = nullptr               ,
-            .kv_verlen    = 0                     ,
-            .kv_newver    = nullptr               ,
-            .kv_newverlen = 0                     ,
-            .kv_disum     = nullptr               ,
-            .kv_disumlen  = 0                     ,
-            .kv_ditype    = (kditype_t) 0         ,
-            .kv_cpolicy   = (kcachepolicy_t) KC_WB,
-        };
-
-        kstatus_t notfound_status = K_ENOTFOUND;
-
-        keyval_helper->test_getkey(conn_descriptor, notfound_status, &input_data, &output_data);
+        validate_status(op_status, (kstatus_t) K_ENOTFOUND);
     }
 
+    /*
     TEST_F(KeyValTest, test_getversion_exists) {
         // ------------------------------
         // Execute the Test
