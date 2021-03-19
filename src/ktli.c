@@ -1214,17 +1214,27 @@ ktli_sender(void *p)
 			rc = (de->ktlid_fns->ktli_dfns_send)(dh,
 						       kio->kio_sendmsg.km_msg,
 						       kio->kio_sendmsg.km_cnt);
-
-			kio->kio_sendmsg.km_status = rc;
-			kio->kio_sendmsg.km_errno = errno;
 			/*
 			 * Although on the rq, setting the state outside of
 			 * rq lock is probably OK as the receiver code
 			 * only looks for its existence on the rq to match
 			 * with inbound KIO.  The SENT state is really for
 			 * debugging and completeness.
+			 *
+			 * Since it is only used for completeness, setting
+			 * the SENT state is not strictly necessary, but
+			 * setting it could race qwith the recveiver
+			 * potentially overwriting the RECEIVED state
+			 * set by the receiver.  So here we only set SENT
+			 * if the previous state is NEW otherwise we leave
+			 * it alone. So this compare and swap may succeed
+			 * or fail, but it doesn't matter.
 			 */
-			kio->kio_state = KIO_SENT;
+			SBCAS(&(kio->kio_state), KIO_NEW, KIO_SENT);
+
+			kio->kio_sendmsg.km_status = rc;
+			kio->kio_sendmsg.km_errno = errno;
+
 			debug_printf("ktli: Sent Kio: %p: Seq %ld\n",
 				     kio, kio->kio_seq);
 
