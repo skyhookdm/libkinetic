@@ -18,6 +18,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 #include <inttypes.h>
 #include <sys/types.h>
 
@@ -89,6 +90,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct kiovec	endkey[1]   = {{0, 0}};
 	struct kiovec	*k;
 	kstatus_t 	krc;
+	struct timespec tstart, tstop;
 
         while ((c = getopt(argc, argv, "abcp:s:S:e:E:n:h?")) != EOF) {
                 switch (c) {
@@ -204,6 +206,10 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			ka->ka_limits.kl_batdelcnt);
 	}
 
+	/* No reason to time the call is a user input is required */
+	if (ka->ka_yes && ka->ka_stats)
+		clock_gettime(CLOCK_MONOTONIC, &tstart);
+
 	/* Init kv */
 	if (!(kv = ki_create(ktd, KV_T))) {
 		fprintf(stderr, "*** Memory Failure\n");
@@ -293,6 +299,13 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			}
 		}
 	
+		if (ka->ka_yes && ka->ka_stats) {
+			uint64_t t;
+			clock_gettime(CLOCK_MONOTONIC, &tstop);
+			ts_sub(&tstop, &tstart, t);
+			printf("KCTL Stats: Del time: %lu \xC2\xB5S\n", t);
+		}
+
 		return(0);
 
 	} else if ((argc - optind == 0) && (HAVE_RANGE)) {
@@ -462,6 +475,17 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			}
 		}
 
+		if (ka->ka_stats) {
+			uint64_t t;
+			double m;
+			clock_gettime(CLOCK_MONOTONIC, &tstop);
+			ts_sub(&tstop, &tstart, t);
+			m = (double)t / (double)dels;
+			printf("KCTL Stats: Put time, mean: %10.10g \xC2\xB5S (n=%d) %10.10g KiB/S\n",
+			       m, dels,
+			       (ka->ka_vallen / (m * 1000000) / 1024.0));
+		}
+		
 		if (ka->ka_verbose)
 			fprintf(stdout, "%s: Deleted %d keys\n",
 				ka->ka_cmdstr, dels);

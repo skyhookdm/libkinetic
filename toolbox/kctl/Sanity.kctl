@@ -108,24 +108,24 @@ put -n 2000 -z 4096 kctl.sanity.range
 # Getrange, count < 800 forces a single getrange
 # Test start, start inclusive, end, end inclusive
 echo Ranges with count < 800 to force direct ki_getrage call
-range -n 5  -S kctl.sanity.range.000010 -E kctl.sanity.range.000019
-range -n 10 -S kctl.sanity.range.000010 -e kctl.sanity.range.000019
-range -n 10 -s kctl.sanity.range.000010 -E kctl.sanity.range.000019
-range -n 10 -s kctl.sanity.range.000010 -e kctl.sanity.range.000019
+range -n 5  -S kctl.sanity.range.000000010 -E kctl.sanity.range.000000019
+range -n 10 -S kctl.sanity.range.000000010 -e kctl.sanity.range.000000019
+range -n 10 -s kctl.sanity.range.000000010 -E kctl.sanity.range.000000019
+range -n 10 -s kctl.sanity.range.000000010 -e kctl.sanity.range.000000019
 # Iter, no count forces an iter
 # Test start, start inclusive, end, end inclusive
 echo Ranges with no count forcing iter usage
-range -S kctl.sanity.range.000010 -E kctl.sanity.range.000019
-range -S kctl.sanity.range.000010 -e kctl.sanity.range.000019
-range -s kctl.sanity.range.000010 -E kctl.sanity.range.000019
-range -s kctl.sanity.range.000010 -e kctl.sanity.range.000019
+range -S kctl.sanity.range.000000010 -E kctl.sanity.range.000000019
+range -S kctl.sanity.range.000000010 -e kctl.sanity.range.000000019
+range -s kctl.sanity.range.000000010 -E kctl.sanity.range.000000019
+range -s kctl.sanity.range.000000010 -e kctl.sanity.range.000000019
 # Iter with a count, must be higher than 800
 echo Range with a count > 800 forcing the use of iter
-range -n 1700 -S kctl.sanity.range.000010 -E kctl.sanity.range.000019
+range -n 1700 -S kctl.sanity.range.000000010 -E kctl.sanity.range.000000019
 
 # Fully test iter by cycling over 2000 keys. This ensures that
 # multiple of windows are loaded. 
-range -S kctl.sanity.range -E kctl.sanity.range.002000
+range -S kctl.sanity.range -E kctl.sanity.range.000002000
 #
 # Delete Tests
 #

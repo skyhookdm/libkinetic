@@ -21,11 +21,11 @@
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 
+#include "kio.h"
+#include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
-#include "protocol_types.h"
 #include "protocol_interface.h"
-#include "kio.h"
 
 
 /**
