@@ -36,6 +36,7 @@ typedef enum kctl_cmd {
 	KCTL_UNLOCK,
 	KCTL_ACL,
 	KCTL_BATCH,
+	KCTL_STATS,
 	
 	KCTL_EOT // End of Table -  Must be last
 } kctl_cmd_t;
@@ -69,6 +70,7 @@ struct kargs {
 	uint32_t	ka_verbose;	/* output ctl */
 	kctl_input_t	ka_input;	/* input mode */
 	uint32_t	ka_yes;		/* answer yes to any prompts */
+	uint32_t	ka_stats;	/* collect stats */
 	klimits_t	ka_limits;	/* Kinetic server limits */
 };					 
 
@@ -101,5 +103,32 @@ extern void asciidump(const void*, size_t);
  * seqs decoded. The new buffer is returned including the size. 
  */
 extern void * asciidecode(const void* , size_t, void**, size_t *);
+
+/*
+ * Time stamp subtraction to get an interval in microseconds
+ * 	_me is the minuend and is a timespec structure ptr
+ * 	_se is the subtrahend and is a timespec structure ptr
+ * 	_d is the difference in microseconds, should be a uint64_t
+ *	KCTL_BNS is 1B nanoseconds
+ *	KCTL_MAXINTV is 24hrs in microseconds
+ */
+#define KCTL_BNS	 1000000000L
+#define KCTL_MAXINTV	90000000000L
+#define ts_sub(_me, _se, _d) {						\
+	(_d)  = ((_me)->tv_nsec - (_se)->tv_nsec);			\
+	if ((_d) < 0) {							\
+		--(_me)->tv_sec;					\
+		(_d) += KCTL_BNS;					\
+	}								\
+	(_d) += ((_me)->tv_sec - (_se)->tv_sec) * KCTL_BNS;		\
+	(_d) /= (uint64_t)1000;						\
+	if ((_d) > KCTL_MAXINTV || (_d) <= 0) {				\
+		printf("KCTL TS CHK: (%lu, %lu) - (%lu, %lu) = %lu\n",	\
+		       (_me)->tv_sec, (_me)->tv_nsec,			\
+		       (_se)->tv_sec, (_se)->tv_nsec,			\
+		       (_d));						\
+		(_d) = 0;						\
+	}								\
+}
 
 #endif // _KCTL_H

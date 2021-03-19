@@ -22,7 +22,7 @@ BUILDSRC =	$(BUILDDIR)/src
 BUILDMAN =	$(BUILDDIR)/man
 
 SRCS = 		kctl.c util.c info.c get.c put.c del.c	\
-		range.c batch.c
+		range.c batch.c stats.c
 HDRS =		kctl.h
 OBJS =		$(SRCS:.c=.o)
 DEPS = 		$(SRCS:.c=.d)
@@ -45,7 +45,7 @@ DYNAMIC =	-Wl,-Bdynamic
 # used to locate the shared libs
 LDLIBS = 	-lreadline 				\
 		$(STATIC) -lkinetic 			\
-		$(DYNAMIC) -lpthread -lssl -lcrypto
+		$(DYNAMIC) -lpthread -lssl -lcrypto -lm
 
 SANITY =	Sanity.kctl
 SANITYO =	Sanity.kctl.out

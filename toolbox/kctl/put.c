@@ -18,6 +18,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 #include <inttypes.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -81,6 +82,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	kv_t		*kv;
 	struct kiovec	kv_key[2] = {{0, 0},{0, 0}};
 	struct kiovec	kv_val[1]  = {{0, 0}};
+	struct timespec start, stop;
 
         while ((c = getopt(argc, argv, "bcf:h?n:p:s:z:")) != EOF) {
                 switch (c) {
@@ -118,7 +120,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
-			if (count > 1000000) {
+			if (count > 10000000) {
 				fprintf(stderr, "**** Count too large %s\n",
 				       optarg);
 				CMD_USAGE(ka);
@@ -277,6 +279,9 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		return(-1);
 	}
 
+	if (ka->ka_stats)
+		clock_gettime(CLOCK_MONOTONIC, &start);
+
 	/* Init kv */
 	if (!(kv = ki_create(ktd, KV_T))) {
 		fprintf(stderr, "*** Memory Failure\n");
@@ -303,7 +308,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	if (count) {
 		/* Need to loop around to create the key copies required */
-		char suffix[] = "1234567890";
+		char suffix[] = "12345678901";
 
 		/* Utilize the second vector element for the suffix */
 		kv->kv_keycnt = 2;
@@ -311,7 +316,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 
 		/* Loop through changing the keyname and calling put */
 		for(i=0; i<count; i++) {
-			kv->kv_key[1].kiov_len = sprintf(suffix, ".%06d", i);
+			kv->kv_key[1].kiov_len = sprintf(suffix, ".%09d", i);
 			rc = kctl_do_put(ktd, ka, kv, sum, cpolicy, bat, cas);
 			if (rc < 0) {
 				break;
@@ -320,6 +325,18 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	} else {
 		/* "One ping only, please. Aye aye Captain." */
 		rc = kctl_do_put(ktd, ka, kv, sum, cpolicy, bat, cas);
+		count = 1;
+	}
+
+	if (ka->ka_stats) {
+		uint64_t t;
+		double m;
+		clock_gettime(CLOCK_MONOTONIC, &stop);
+		ts_sub(&stop, &start, t);
+		m = (double)t / (double)count;
+		printf("KCTL Stats: Put time, mean: %10.10g \xC2\xB5S (n=%d) %10.10g KiB/S\n",
+		       m, count,
+		       (ka->ka_vallen / m * 1000000 / 1024.0));
 	}
 
 	free(ka->ka_val);

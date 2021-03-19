@@ -18,7 +18,7 @@ BUILDLIB =	$(BUILDDIR)/lib
 BUILDBIN =	$(BUILDDIR)/bin
 
 KCTLDIR     =	$(TLD)/toolbox/kctl
-BKVDIR     =	$(TLD)/toolbox/bkv
+BKVDIR      =	$(TLD)/toolbox/bkv
 LISTDIR     =	$(TLD)/vendor/list
 PROTOBUFDIR =	$(TLD)/vendor/protobuf-c
 GTESTDIR    =	$(TLD)/vendor/googletest
@@ -62,6 +62,9 @@ dist: all
 
 $(BUILDDIR):
 	@mkdir -p $(BUILDDIR)
+	@mkdir -p $(BUILDINC)
+	@mkdir -p $(BUILDLIB)
+	@mkdir -p $(BUILDBIN)
 
 $(TBDIR): FORCE
 	(cd $@; BUILDDIR=$(BUILDDIR) make -e all install)

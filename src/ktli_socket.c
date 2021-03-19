@@ -1,6 +1,23 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
+
 /*
  * KTLI Socket Driver
  */
+#define _GNU_SOURCE         /* See feature_test_macros(7) */
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/uio.h>
@@ -16,6 +33,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <sys/uio.h>
+
+#define KTLI_ZEROCOPY 1
 
 #include "kinetic.h"
 #include "ktli.h"
@@ -81,7 +101,7 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 {
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
-	int dd, sfd, rc, on, MiB, flags;
+	int dd, sfd, rc, on = 1, MiB, flags;
 
 	if (!dh || !host || !port) {
 		errno = -EINVAL;
@@ -118,6 +138,18 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
                if (sfd == -1)
                    continue;
 
+#ifdef KTLI_ZEROCOPY
+	       /*
+		* On some systems this must be done before
+		* the socket is connected
+		*/
+	       /* printf("ZeroCopy: Enabled\n"); */
+	       if (setsockopt(sfd, SOL_SOCKET, SO_ZEROCOPY, &on, sizeof(on)))
+		       perror("setsockopt zerocopy failed");
+#else
+	       /* printf("ZeroCopy: Disabled\n");*/
+#endif
+
                if (connect(sfd, rp->ai_addr, rp->ai_addrlen) != -1)
                    break;                  /* Success */
 
@@ -136,7 +168,7 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 	    * support this but the real number comes from a GETLOG Limits call
 	    * and can be refined later
 	    */
-	   MiB = 1024 * 1024;
+	   MiB = 5 * 1024 * 1024;
 	   rc = setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, &MiB, sizeof(MiB));
 	   if (rc == -1) {
 		   fprintf(stderr, "Error setting socket send buffer size\n");
@@ -182,8 +214,8 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 	    * an explicit flush of pending output, even if TCP_CORK is
 	    * currently set.
 	    */
-	   on = 1;
-	   setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on));
+	   if (setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, &on, sizeof(on)))
+		   printf("setsockopt tcp_nodelay");
 
 	   flags = fcntl(sfd, F_GETFL, 0);
 	   if (flags == -1) {
@@ -220,6 +252,9 @@ ktli_socket_disconnect(void *dh)
 int
 ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 {
+#ifdef KTLI_ZEROCOPY
+	struct msghdr hdr = {NULL, 0, NULL, 0, NULL, 0, 0};
+#endif
 	struct iovec *iov;
 	int i, len, dd, iovs, curv, bw, tbw, cnt;
 
@@ -255,7 +290,13 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 	 * then loop until complete
 	 */
 	for (curv=0,tbw=0,cnt=1;;cnt++) {
+#ifdef KTLI_ZEROCOPY
+		hdr.msg_iov = &iov[curv];
+		hdr.msg_iovlen = iovs-curv;
+		bw = sendmsg(dd, &hdr, MSG_ZEROCOPY);
+#else
 		bw = writev(dd, &iov[curv], iovs-curv);
+#endif
 		if (bw < 0) {
 			/* Although these are equivalent, POSIX.1-2001 allows
 			 * either error to be returned for this case, and does
@@ -263,7 +304,8 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 			 * so check for both possibilities.
 			 */
 			if (errno == EAGAIN || errno == EWOULDBLOCK) {
-				usleep(500);
+				//printf("ktli_socket_send: hit EAGAIN\n");
+				//usleep(500);
 				bw = 0;
 				continue;
 			} else {
@@ -275,10 +317,9 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		tbw += bw;
 
 #if KTLI_CORK && !defined(__APPLE__)
-		// putting this here, so that it's defined when needed, and not defined (and unused)
-        // otherwise.
-		int on = 1;
-		/*
+		/* Putting this here, so that it's defined when needed,
+		 * and not defined (and unused) otherwise.
+		 *
 		 * If cork is used, need to flush by resetting NODELAY.
 		 */
 		setsockopt(dd, IPPROTO_TCP, TCP_NODELAY, &on,  sizeof(on));
@@ -293,9 +334,10 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		if (curv == iovs)
 			break;
 
-		/* partial vactor update the current io vectors base and len */
+		/* partial vector update the current io vectors base and len */
 		iov[curv].iov_base = (char *)iov[curv].iov_base + bw;
 		iov[curv].iov_len -= bw;
+
 	}
 
 	if (bw < 0) {
@@ -303,12 +345,15 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		 * if bw < 0 then writev failed above, return the error
 		 */
 		printf("socket_send: error %d", errno);
+		perror("socket_send:");
+		free(iov);
 		return(bw);
 	}
 
 	if (tbw != len) {
 		printf("socket_send: %d != %d \n", tbw, len);
 		errno = ECOMM;
+		free(iov);
 		return(-1);
 	}
 
@@ -440,11 +485,13 @@ ktli_socket_poll(void *dh, int timeout)
 		return(1);
 
 	/* some event occurred but not one we were looking for */
+#ifdef KTLI_ZEROCOPY
+#else
 	if (rc) {
 		errno = ENOMSG;
 		return(-1);
 	}
-
+#endif
 	/* Timed out */
 	return(0);
 

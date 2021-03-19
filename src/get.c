@@ -34,7 +34,8 @@
 /**
  * Internal prototypes
  */
-struct kresult_message create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
+struct kresult_message
+create_getkey_message(kmsghdr_t *, kcmdhdr_t *, kv_t *);
 
 
 kstatus_t
@@ -45,12 +46,24 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	kstatus_t krc;			/* Kinetic return code */
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info  */
+	kstats_t *kst;			/* Kinetic Stats */
 	kmsghdr_t msg_hdr;		/* Unpacked message header */ 
 	kcmdhdr_t cmd_hdr;		/* Unpacked Command header */
 	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kresult_message kmreq;	/* Intermediate req representation */
 	kpdu_t pdu;			/* Unpacked PDU structure */
+	struct timespec	start;		/* Temp start timestamp */
 	
+	/*
+	 * Sending a op, record the clock. The session is not known yet.
+	 * This is the begining of the send and the natural spot to
+	 * start the clock on send processing time. Without knowing
+	 * the session info it is not known if the code should be recording
+	 * timestamps. So this maybe wasted code. However vdso(7) makes
+	 * this fast, Not going to worry about this.
+	 */
+	ktli_gettime(&start);
+
 	if (!ckio) {
 		debug_printf("get: kio ptr required");
 		return(K_EINVAL);
@@ -65,14 +78,15 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 		debug_printf("get: ktli config");
 		return(K_EBADSESS);
 	}
-
 	ses = (ksession_t *) cf->kcfg_pconf;
+	kst = &ses->ks_stats;
 
 	/* Validate command */
 	switch (msg_type) {
 	case KMT_GETNEXT:
 	case KMT_GETPREV:
 		if (!altkv) {
+			kst->kst_gets.kop_err++;
 			debug_printf("get: altkv required");
 			return(K_EINVAL);
 		}
@@ -82,12 +96,14 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	case KMT_GET:
 	case KMT_GETVERS:
 		if (!kv) {
+			kst->kst_gets.kop_err++;
 			debug_printf("get: kv required");
 			return(K_EINVAL);
 		}
 		break;
 
 	default:
+		kst->kst_gets.kop_err++;
 		debug_printf("get: bad command");
 		return(K_EINVAL);
 	}
@@ -96,6 +112,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	/* verck=0 to ignore version field in the check */
 	rc = ki_validate_kv(kv, (verck=0), &ses->ks_l);
 	if (rc < 0) {
+		kst->kst_gets.kop_err++;
 		debug_printf("get: kv invalid");
 		return(K_EINVAL);
 	}
@@ -104,6 +121,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 		/* verck=0 to ignore version field in the check */
 		rc = ki_validate_kv(altkv, (verck=0), &ses->ks_l);
 		if (rc < 0) {
+			kst->kst_gets.kop_err++;
 			debug_printf("get: altkv invalid");
 			return(K_EINVAL);
 		}
@@ -115,6 +133,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	 */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
+		kst->kst_gets.kop_err++;
 		debug_printf("get: kio alloc");
 		return(K_ENOMEM);
 	}
@@ -158,6 +177,13 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	kio->kio_flags	= KIOF_INIT;
 
 	KIOF_SET(kio, KIOF_REQRESP);	/* Normal RPC KIO */
+
+	/* If timestamp tracking is enabled for this op set it in the KIO */
+	if (KIOP_ISSET((&kst->kst_gets), KOPF_TSTAT)) {
+		/* Deal with time stamps */
+		KIOF_SET(kio, KIOF_TSTAMP);
+		kio->kio_ts.kiot_start = start;
+	}
 
 	kio->kio_ckv	= kv;		/* Hang the callers kv */
 	kio->kio_caltkv	= altkv;	/* Hang the callers altkv, if any */
@@ -267,6 +293,8 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	kio->kio_magic = 0; /* clear the kio magic  in case this lives on */
 	KI_FREE(kio);
 
+	kst->kst_gets.kop_err++; /* Record the error in the stats */
+
 	return (krc);
 }
 
@@ -278,10 +306,14 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 kstatus_t
 g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 {
-	int rc;
+	int rc, i;
+	uint32_t sl=0, rl=0, kl=0, vl=0;/* Stats send/recv/key/val lengths */
 	kv_t *kv, *altkv;		/* Set to KVs passed in orig aio call */
 	kpdu_t pdu;			/* Unpacked PDU Structure */
+	ksession_t *ses;		/* KTLI Session info */
+	kstats_t *kst;			/* Kinetic Stats */
 	kstatus_t krc;			/* Returned status */
+	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kiovec *kiov;		/* Message KIO vector */
 	struct kresult_message kmresp;	/* Intermediate resp representation */
 	
@@ -294,6 +326,15 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		return(K_EINVAL);
 	}
 	
+	/* Get KTLI config, Kinetic session and Kinetic stats structure */
+	rc = ktli_config(ktd, &cf);
+	if (rc < 0) {
+		debug_printf("put: ktli config");
+		return(K_EBADSESS);
+	}
+	ses = (ksession_t *) cf->kcfg_pconf;
+	kst = &ses->ks_stats;
+
 	rc = ktli_receive(ktd, kio);
 	if (rc < 0) {
 		if (errno == ENOENT) {
@@ -307,6 +348,7 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 			 * of that KIO was returned to caller.
 			 * Hence, this error means nothing to clean up
 			 */
+			kst->kst_gets.kop_err++;
 			debug_printf("get: kio receive");
 			return(K_EINTERNAL);
 		}
@@ -412,12 +454,21 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		 * may need to be retained and returned to caller
 		 */
 		if ((kio->kio_recvmsg.km_cnt > KIOV_PDU) &&
-		    kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base)
+		    kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base) {
+			rl += kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_len; /* Stats */
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_PDU].kiov_base);
+		}
 
-		if ((kio->kio_recvmsg.km_cnt > KIOV_MSG) &&
-		    kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base)
+		if ((kio->kio_recvmsg.km_cnt >= KIOV_MSG) &&
+		    kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base) {
+			rl += kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_len; /* Stats */
 			KI_FREE(kio->kio_recvmsg.km_msg[KIOV_MSG].kiov_base);
+		}
+
+		if ((kio->kio_recvmsg.km_cnt >= KIOV_VAL) &&
+		    kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_base) {
+			rl += kio->kio_recvmsg.km_msg[KIOV_VAL].kiov_len; /* Stats */
+		}
 
 		/* 
 		 * In most cases leave the value buffer for the caller.
@@ -433,10 +484,59 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		KI_FREE(kio->kio_recvmsg.km_msg);
 	}
 
-	/* sendmsg always exists here but doesn't have a PDU_VAL */
-	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base);
-	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
+	/*
+	 * sendmsg always exists here and there is not KIOV_VAL
+	 */
+	for (i=0; i < kio->kio_sendmsg.km_cnt; i++) {
+		sl += kio->kio_sendmsg.km_msg[i].kiov_len; /* Stats */
+		KI_FREE(kio->kio_sendmsg.km_msg[i].kiov_base);
+	}
 	KI_FREE(kio->kio_sendmsg.km_msg);
+
+	/* Key Len and Value Len stats */
+	for (i=0; i < kv->kv_keycnt; i++) {
+		kl += kv->kv_key[i].kiov_len; /* Stats */
+	}
+
+	for (i=0; i < kv->kv_valcnt; i++) {
+		vl += kv->kv_val[i].kiov_len; /* Stats */
+	}
+
+	if (krc == K_OK) {
+		double nmn, nmsq;
+		kst->kst_gets.kop_ok++;
+#if 1
+		if (kst->kst_gets.kop_ok == 1) {
+			kst->kst_gets.kop_smsq = sl;
+			kst->kst_gets.kop_smsq = 0.0;
+		} else {
+			nmn = kst->kst_gets.kop_ssize +
+				(sl - kst->kst_gets.kop_ssize)/kst->kst_gets.kop_ok;
+
+			nmsq = kst->kst_gets.kop_smsq +
+				(sl - kst->kst_gets.kop_ssize) * (sl - nmn);
+			kst->kst_gets.kop_ssize  = nmn;
+			kst->kst_gets.kop_smsq = nmsq;
+		}
+
+		kst->kst_gets.kop_rsize = kst->kst_gets.kop_rsize +
+			(rl - kst->kst_gets.kop_rsize)/kst->kst_gets.kop_ok;
+		kst->kst_gets.kop_klen = kst->kst_gets.kop_klen +
+			(kl - kst->kst_gets.kop_klen)/kst->kst_gets.kop_ok;
+		kst->kst_gets.kop_vlen = kst->kst_gets.kop_vlen +
+			(vl - kst->kst_gets.kop_vlen)/kst->kst_gets.kop_ok;
+#endif
+
+		/* stats, boolean as to whether or not to track timestamps*/
+		if (KIOP_ISSET((&kst->kst_gets), KOPF_TSTAT)) {
+			ktli_gettime(&kio->kio_ts.kiot_comp);
+
+			s_stats_addts(&kst->kst_gets, kio);
+
+		}
+	} else {
+		kst->kst_gets.kop_err++;
+	}
 
 	memset(kio, 0, sizeof(struct kio));
 	KI_FREE(kio);
