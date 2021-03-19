@@ -4,6 +4,8 @@
 #include <time.h>
 #include <endian.h>
 
+struct kio;
+
 #include "kinetic.h"
 #include "kinetic_internal.h"
 
@@ -24,12 +26,17 @@ struct kio_msg {
 	int km_errno;
 };
 
+/*
+ * KIO flags, a bitmap for controlling the KIO's behavior
+ */
 enum kio_flags {
 	KIOF_INIT	= 0x0000,
 	KIOF_REQRESP	= 0x0001,	/* Normal case, an RPC */
-	KIOF_REQONLY	= 0x0002,	/* Special case for oneway req traffic */
+	KIOF_REQONLY	= 0x0002,	/* Special case for 1 way req traffic */
 					/* mutually exclusive wrt normal case */
 	KIOF_RESPONLY	= 0x0004,	/* Unsolicited Repsponses */
+	KIOF_TSTAMP	= 0x0008,	/* Enable Time stamp collection */
+
 #define KIOF_SET(_kio, _kiof)	((_kio)->kio_flags |= (_kiof))
 #define KIOF_CLR(_kio, _kiof)	((_kio)->kio_flags &= ~(_kiof))
 #define KIOF_ISSET(_kio, _kiof)	((_kio)->kio_flags & (_kiof))
@@ -50,6 +57,14 @@ enum kio_flags {
  */
 #define KIO_TIMEOUT_S 30
 #define KIO_CLOCK CLOCK_MONOTONIC
+
+/* This structure is for collecting timestamps during the KIO lifecycle */
+struct kio_tstamps {
+	struct timespec	kiot_start;	/* KIO RPC start */
+	struct timespec	kiot_sent;	/* KIO Sent completed */
+	struct timespec	kiot_recvs;	/* KIO Recv start */
+	struct timespec	kiot_comp;	/* KIO RPC completed */
+};
 
 /**
  * This is a client lib and the majority of exchanges in kinetic are RPCs,
@@ -100,6 +115,9 @@ struct kio {
 	kv_t		*kio_ckv;
         kv_t		*kio_caltkv;
 	kb_t		*kio_ckb;
+
+	struct kio_tstamps kio_ts;	/* Time Stamps, used only when enabled
+					   via kio_flags */
 };
 
 

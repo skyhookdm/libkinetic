@@ -37,6 +37,7 @@
 struct kresult_message
 create_put_message(kmsghdr_t *, kcmdhdr_t *, kv_t *, int);
 
+
 kstatus_t
 p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 		  void *cctx, kio_t **ckio)
@@ -45,11 +46,23 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kstatus_t krc;			/* Kinetic return code */
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info */
+	kstats_t *kst;			/* Kinetic Stats */
 	kmsghdr_t msg_hdr;		/* Unpacked message header */ 
 	kcmdhdr_t cmd_hdr;		/* Unpacked Command header */
 	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kresult_message kmreq;	/* Intermediate resp representation */
 	kpdu_t pdu;			/* Unpacked PDU structure */
+	struct timespec	start;		/* Temp start timestamp */
+
+	/*
+	 * Sending a op, record the clock. The session is not known yet.
+	 * This is the begining of the send and the natural spot to
+	 * start the clock on send processing time. Without knowing
+	 * the session info it is not known if the code should be recording
+	 * timestamps. So this maybe wasted code. However vdso(7) makes
+	 * this fast, Not going to worry about this.
+	 */
+	ktli_gettime(&start);
 
 	if (!ckio) {
 		debug_printf("put: kio ptr required");
@@ -59,17 +72,19 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	/* Clear the callers kio, ckio */
 	*ckio = NULL;
 
-	/* Get KTLI config */
+	/* Get KTLI config, Kinetic session and Kinetic stats structure */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
 		debug_printf("put: ktli config");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
+	kst = &ses->ks_stats;
 
 	/* Validate the passed in kv, if forcing a put do no verck */
 	rc = ki_validate_kv(kv, verck, &ses->ks_l);
 	if (rc < 0) {
+		kst->kst_puts.kop_err++;
 		debug_printf("put: kv invalid");
 		return(K_EINVAL);
 	}
@@ -77,6 +92,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	/* Validate the passed in kb, if any */
 	rc =  ki_validate_kb(kb, KMT_PUT);
 	if (kb && (rc < 0)) {
+		kst->kst_puts.kop_err++;
 		debug_printf("put: kb invalid");
 		return(K_EINVAL);
 	}
@@ -87,6 +103,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	 */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
+		kst->kst_puts.kop_err++;
 		debug_printf("put: kio alloc");
 		return(K_ENOMEM);
 	}
@@ -145,6 +162,13 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	else
 		/* This is a normal put, there is a response */
 		KIOF_SET(kio, KIOF_REQRESP);
+
+	/* If timestamp tracking is enabled for this op set it in the KIO */
+	if (KIOP_ISSET((&kst->kst_puts), KOPF_TSTAT)) {
+		/* Deal with time stamps */
+		KIOF_SET(kio, KIOF_TSTAMP);
+		kio->kio_ts.kiot_start = start;
+	}
 
 	kio->kio_ckv	= kv;		/* Hang the callers kv */
 	kio->kio_ckb	= kb;		/* Hang the callers kb, if any */
@@ -298,6 +322,8 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kio->kio_magic = 0; /* clear the kio magic  in case this lives on */
 	KI_FREE(kio);
 
+	kst->kst_puts.kop_err++; /* Record the error in the stats */
+
 	return (krc);
 }
 
@@ -311,10 +337,14 @@ kstatus_t
 p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 {
 	int rc, i;
+	uint32_t sl=0, rl=0, kl=0, vl=0;/* Stats send/recv/key/val lengths */
 	kv_t *kv;			/* Set to KV passed in orig aio call */
 	kb_t *kb;			/* Set to KB passed in orig aio call */
 	kpdu_t pdu;			/* Unpacked PDU Structure */
+	ksession_t *ses;		/* KTLI Session info */
+	kstats_t *kst;			/* Kinetic Stats */
 	kstatus_t krc;			/* Returned status */
+	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kiovec *kiov;		/* Message KIO vector */
 	struct kresult_message kmresp;	/* Intermediate resp representation */
 
@@ -326,7 +356,16 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 		debug_printf("put: kio invalid");
 		return(K_EINVAL);
 	}
-	
+
+	/* Get KTLI config, Kinetic session and Kinetic stats structure */
+	rc = ktli_config(ktd, &cf);
+	if (rc < 0) {
+		debug_printf("put: ktli config");
+		return(K_EBADSESS);
+	}
+	ses = (ksession_t *) cf->kcfg_pconf;
+	kst = &ses->ks_stats;
+
 	rc = ktli_receive(ktd, kio);
 	if (rc < 0) {
 		if (errno == ENOENT) {
@@ -340,11 +379,12 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 			 * of that KIO was returned to caller.
 			 * Hence, this error means nothing to clean up
 			 */
+			kst->kst_puts.kop_err++;
 			debug_printf("put: kio receive");
 			return(K_EINTERNAL);
 		}
 	}
-	
+
 	/* 
 	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO 
 	 * that is really in an error state, in those cases clean up the KIO 
@@ -440,24 +480,77 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 
 	/* clean up */
 	destroy_message(kmresp.result_message);
-	
+
 pex:
 	/* depending on errors the recvmsg may or may not exist */
 	if (kio->kio_recvmsg.km_msg) {
-		for (i=0; i < kio->kio_recvmsg.km_cnt; i++) {
+		for (rl=0, i=0; i < kio->kio_recvmsg.km_cnt; i++) {
+			rl += kio->kio_recvmsg.km_msg[i].kiov_len; /* Stats */
+
 			KI_FREE(kio->kio_recvmsg.km_msg[i].kiov_base);
 		}
 		KI_FREE(kio->kio_recvmsg.km_msg);
 	}
 
 	/*
-	 * sendmsg always exists here and has a PDU_VAL but the value vector 
-	 * elements are the callers and cannot be freed
+	 * sendmsg always exists here and has a 1 or more KIOV_VAL vectors
+	 * but the value vector(s) are the callers and cannot be freed
 	 */
-	for (i=0; i < KM_CNT_NOVAL; i++) {
-		KI_FREE(kio->kio_sendmsg.km_msg[i].kiov_base);
+	for (sl=0, i=0; i < kio->kio_sendmsg.km_cnt; i++) {
+		sl += kio->kio_sendmsg.km_msg[i].kiov_len; /* Stats */
+		if (i < KM_CNT_NOVAL)
+			KI_FREE(kio->kio_sendmsg.km_msg[i].kiov_base);
 	}
 	KI_FREE(kio->kio_sendmsg.km_msg);
+
+	/* Key Len and Value Len stats */
+	for (kl=0, i=0; i < kv->kv_keycnt; i++) {
+		kl += kv->kv_key[i].kiov_len; /* Stats */
+	}
+
+	for (vl=0, i=0; i < kv->kv_valcnt; i++) {
+		vl += kv->kv_val[i].kiov_len; /* Stats */
+	}
+
+	if (krc == K_OK) {
+		double nmn, nmsq;
+		kst->kst_puts.kop_ok++;
+#if 1
+		if (kst->kst_puts.kop_ok == 1) {
+			kst->kst_puts.kop_ssize= sl;
+			kst->kst_puts.kop_smsq = 0.0;
+
+			kst->kst_puts.kop_rsize = rl;
+			kst->kst_puts.kop_klen = kl;
+			kst->kst_puts.kop_vlen = vl;
+		} else {
+			nmn = kst->kst_puts.kop_ssize +
+				(sl - kst->kst_puts.kop_ssize)/kst->kst_puts.kop_ok;
+
+			nmsq = kst->kst_puts.kop_smsq +
+				(sl - kst->kst_puts.kop_ssize) * (sl - nmn);
+			kst->kst_puts.kop_ssize  = nmn;
+			kst->kst_puts.kop_smsq = nmsq;
+
+			kst->kst_puts.kop_rsize = kst->kst_puts.kop_rsize +
+				(rl - kst->kst_puts.kop_rsize)/kst->kst_puts.kop_ok;
+			kst->kst_puts.kop_klen = kst->kst_puts.kop_klen +
+				(kl - kst->kst_puts.kop_klen)/kst->kst_puts.kop_ok;
+			kst->kst_puts.kop_vlen = kst->kst_puts.kop_vlen +
+				(vl - kst->kst_puts.kop_vlen)/kst->kst_puts.kop_ok;
+		}
+#endif
+
+		/* stats, boolean as to whether or not to track timestamps*/
+		if (KIOP_ISSET((&kst->kst_puts), KOPF_TSTAT)) {
+			ktli_gettime(&kio->kio_ts.kiot_comp);
+
+			s_stats_addts(&kst->kst_puts, kio);
+
+		}
+	} else {
+		kst->kst_puts.kop_err++;
+	}
 
 	memset(kio, 0, sizeof(struct kio));
 	KI_FREE(kio);

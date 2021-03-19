@@ -31,6 +31,7 @@ typedef enum ktype {
 	KBATCH_T,
 	KGETLOG_T,
 	KVERSION_T,
+	KSTATS_T,
 	/* Keep last */
 	KT_LAST,	
 } ktype_t;
@@ -301,6 +302,101 @@ typedef void kbatch_t;
  *
  */
 typedef void kio_t;
+
+
+/*
+ * Kinetic Operation Statistic Structures
+ *
+ * kop flags are used to control the behavior of opstat structure
+ * At this time, operations counts are always performed but time stats
+ * are optional.
+ */
+typedef enum kopflags {
+	KOPF_TSTAT	= 0x0001,
+
+#define KIOP_SET(_kop, _kiof)	((_kop)->kop_flags |=  (_kiof))
+#define KIOP_CLR(_kop, _kiof)	((_kop)->kop_flags &= ~(_kiof))
+#define KIOP_ISSET(_kop, _kiof)	((_kop)->kop_flags &   (_kiof))
+} kopflags_t;
+
+typedef struct kopstat {
+	uint32_t	kop_flags;
+
+	/* Op Stats
+	 * An operation is a get, put, del, ....
+	 * An operation is implemented in api call like  ki_get, ki_put
+	 *
+	 * As all ops are implemented as aio call, errs can occur at anytime
+	 * during initiating an op till completing the op. An op is only
+	 * considered OK when it is successfully completed. If it fails
+	 * it is considered an err.
+	 * Drops are when timing is enabled and the collected timestamps
+	 * are nonsensical. Zero, negative intervals or intervals > KOP_MAXINT
+	 * are dropped. This is due to weirdness in the Linux per cpu clocks.
+	 * They are not necessarily sync'd so as threads move from one CPU
+	 * to the other intervals may span clocks, creating these nonsensical
+	 * intervals.
+	 */
+	uint32_t 	kop_ok;		/* total cnt */
+	uint32_t 	kop_err;	/* total errs */
+	uint32_t 	kop_dropped;	/* total dropped time ranges */
+
+	/*
+	 *  Sizes - keep a running mean of
+	 *  	RPC send / recv size
+	 */
+	double		kop_ssize;
+	double		kop_smsq;
+	double		kop_sstdev;
+	double		kop_rsize;
+	double		kop_klen;
+	double		kop_vlen;
+
+	/* Op Time Stats
+	 * These stats measure total time time spent in the op
+	 * across all calls to that op. A running mean & mean square are kept
+	 * so that a sample variance and std deviation can be calculated
+	 * later. These time stat operations require a handful of double
+	 * precision math operations and time conversion operations.
+	 * As these stats are generally not needed during normal operations,
+	 * They are disabled vi the kop_flags above and the elements
+	 * below remain untouched.
+	 */
+#define KOP_TTOTAL	0
+#define KOP_TMEAN	1
+#define KOP_TMEANSQ	2
+#define KOP_TVAR	3
+#define KOP_TSTDDEV	4
+#define KOP_TMAX	5
+
+	double		kop_tot[KOP_TMAX];	/* time spent in an op */
+	double		kop_req[KOP_TMAX];	/* time spent in req portion */
+	double		kop_resp[KOP_TMAX];	/* time spent in req portion */
+
+	/* Remove me */
+#define KOP_TT		0
+#define KOP_ST		1
+#define KOP_RT		2
+#define KOP_TTMAX	3
+#define KOP_TTRECORDS	66000
+	uint64_t	kop_times[KOP_TTRECORDS][KOP_TTMAX];
+} kopstat_t;
+
+typedef struct  kstats {
+	kopstat_t 	kst_puts;
+	kopstat_t 	kst_dels;
+	kopstat_t 	kst_gets;
+
+#if 0
+	kopstat_t 	kst_cbats;	/* Create Batch */
+	kopstat_t 	kst_sbats;	/* Submit Batch */
+	kopstat_t 	kst_bputs;	/* Batch Puts */
+	kopstat_t 	kst_bdels;	/* Batch Deletes */
+
+	kopstat_t 	kst_range;
+	kopstat_t 	kst_getlog;
+#endif
+} kstats_t;
 
 
 /* ------------------------------

@@ -104,6 +104,8 @@ int ki_poll(int ktd, int timeout);
 struct kiovec *ki_start(kiter_t *kit, krange_t *kr);
 struct kiovec *ki_next(kiter_t *kit);
 
+kstatus_t ki_getstats(int ktd, kstats_t *kst);
+kstatus_t ki_putstats(int ktd, kstats_t *kst);
 
 // ------------------------------
 // utility functions
