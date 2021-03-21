@@ -17,6 +17,8 @@
 #define _KINETIC_INT_H
 
 #include <pthread.h>
+
+#include "kinetic.h"
 #include "kinetic_types.h"
 #include "session.h"
 #include "list.h"
@@ -145,8 +147,11 @@ int ki_validate_range(krange_t *kr, klimits_t *lim);
 int ki_validate_kb(kb_t *kb, kmtype_t msg_type);
 int ki_validate_glog(kgetlog_t *glrq);
 int ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp);
+int ki_validate_kstats(kstats_t *kst);
 
 int b_batch_addop(kb_t *kb, kcmdhdr_t *kc);
 kstatus_t b_startbatch(int ktd, kbatch_t *kb);
+
+int s_stats_addts(struct kopstat *kop, struct kio *kio);
 
 #endif /* _KINET_INT_H */

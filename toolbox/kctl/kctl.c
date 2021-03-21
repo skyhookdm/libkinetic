@@ -64,6 +64,7 @@ extern int kctl_del(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_info(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_range(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_batch(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_stats(int argc, char *argv[], int kts, struct kargs *ka);
 
 #if 0
 extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
@@ -92,6 +93,7 @@ struct ktable {
 	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_info},
 	{ KCTL_RANGE,   "range",   "Print a range of keys", &kctl_range},
 	{ KCTL_BATCH,   "batch",   "Start or End a batch", &kctl_batch},
+	{ KCTL_STATS,   "stats",   "Enable command statistics", &kctl_stats},
 
 #if 0
 	{ KCTL_SETCLUSTERV,
@@ -165,6 +167,7 @@ usage()
 	fprintf(stderr, "\t-c version   Client Cluster Version [0]\n");
 	fprintf(stderr,	"\t-T timeout   Timeout in seconds [%d]\n",
 		kargs.ka_timeout);
+	fprintf(stderr,	"\t-S           Enable kctl stats\n");
 	fprintf(stderr, "\t-q           Be quiet [yes]\n");
 	fprintf(stderr, "\t-t           Be terse [no]\n");
 	fprintf(stderr, "\t-v           Be verbose [no]\n");
@@ -236,7 +239,7 @@ main(int argc, char *argv[])
 
 	kargs.ka_progname = argv[0];
 	
-	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsu:tvVy?")) != EOF) {
+	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsSu:tvVy?")) != EOF) {
 		switch (c) {
 		case 'h':
 			kargs.ka_host = optarg;
@@ -269,6 +272,10 @@ main(int argc, char *argv[])
 
 		case 's':
 			kargs.ka_usetls = 1;
+			break;
+
+		case 'S':
+			kargs.ka_stats = 1;
 			break;
 
 		case 'q':

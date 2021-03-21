@@ -14,15 +14,23 @@
  *
  */
 #include <stdio.h>
-#include <stdint.h>
 #include <string.h>
-#include <endian.h>
-#include <unistd.h>
-#include <assert.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <inttypes.h>
+#include <endian.h>
+#include <errno.h>
 
+#include "kio.h"
+#include "ktli.h"
 #include "kinetic.h"
 #include "kinetic_internal.h"
+#include "protocol_interface.h"
+
 
 int  i_iterinit(int ktd, kiter_t *kit);
 void i_iterdestroy(kiter_t *kit);
@@ -122,6 +130,8 @@ ktb_buf_len(ktype_t t)
 		return((uint32_t)sizeof(kgetlog_t));
 	case KVERSION_T:
 		return((uint32_t)sizeof(kversion_t));
+	case KSTATS_T:
+		return((uint32_t)sizeof(kstats_t));
 	default:
 		return(0);
 	}

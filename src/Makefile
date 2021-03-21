@@ -30,7 +30,7 @@ KOBJ = 		kinetic.o
 OBJS =		ktli.o ktli_socket.o ktli_session.o protocol_interface.o\
 		open.o getlog.o get.o put.o del.o range.o batch.o iter.o\
 		aio.o util.o validate.o labels.o error.o ktb.o version.o\
-		basickv.o						\
+		basickv.o stat.o					\
 		$(PROTOBUF)
 GITHASH	=	githash.h
 
@@ -42,9 +42,9 @@ INC_PRIV =	kio.h ktli.h ktli_session.h  \
 		kinetic.h kinetic_internal.h \
 		session.h
 
-CFLAGS =	-g -I$(BUILDDIR)/include -I. -Wall -fpic -Wl,-export-dynamic
-LDFLAGS =	-L$(BUILDDIR)/lib
-LDLIBS  =	-llist -lprotobuf-c
+CFLAGS =	-g -DKTLI_TSTAMP_THR -I$(BUILDDIR)/include -I. -Wall -fpic -Wl,-export-dynamic
+LDFLAGS =	-L$(BUILDDIR)/lib -L/usr/lib/$(shell gcc -print-multiarch)
+LDLIBS =	-llist -lprotobuf-c -lm
 
 CP =		/bin/cp
 LN =		/bin/ln

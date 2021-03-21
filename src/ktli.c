@@ -13,6 +13,7 @@
  * License for more details.
  *
  */
+#define _GNU_SOURCE
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -53,7 +54,7 @@ struct ktli_driver {
 	const char 		*ktlid_name;	/* driver name */
 	const char 		*ktlid_desc;	/* driver description */
 	struct ktli_driver_fns 	*ktlid_fns;	/* driver functions */
-	//	int			ktlid_flags;
+	//int			ktlid_flags;
 };
 
 /* KTLI Driver table */
@@ -77,12 +78,43 @@ static int ktli_up = 0; /* global used to lazy init KTLI */
 #define KTLI_FREE(_p) free((_p))
 
 /*
+ * KTLI_TSTAMP_THR enables a timestamp thread, that spins constantly
+ * updating a library wide global clock. It is an attempt to have a
+ * single timing source tied to a CPU for all the the threads in the
+ * library.  The results showed it to be no better than the per cpu
+ * monotonic clocks.  It is left for further investigation but it could
+ * deleted at any time.
+ */
+#ifdef KTLI_TSTAMP_THR
+/* Global Time spec and protecting locks */
+static void *ktli_timestamp(void *p);
+struct timespec ktli_ts;
+pthread_mutex_t ktli_ts_m;	/* mutex protecting the time stamp */
+pthread_t	ktli_ts_tid;	/* timestamp thread id */
+int		ktli_ts_exit;	/* thread exit flag */
+#endif /* KTLI_TSTAMP_THR */
+
+
+/*
  * internal lazy init function, called on first open
  */
 static void
 ktli_init()
 {
+#ifdef KTLI_TSTAMP_THR
+	int rc;
+#endif /* KTLI_TSTAMP_THR */
+
 	kts_init();
+
+#ifdef KTLI_TSTAMP_THR
+	pthread_mutex_init(&ktli_ts_m, NULL);
+	ktli_ts_exit = 0;
+	rc = pthread_create(&ktli_ts_tid, NULL, ktli_timestamp, NULL);
+	if (rc)
+		printf("Failed to create time stamp thread\n");
+#endif /* KTLI_TSTAMP_THR */
+
 }
 
 /**
@@ -592,7 +624,6 @@ ktli_send(int kts, struct kio *kio)
 	}
 
 	/* initialize unused kio elements */
-	kio->kio_state = KIO_NEW;
 	kio->kio_errno = 0;
 	kio->kio_sendmsg.km_status = 0;
 	kio->kio_sendmsg.km_errno = 0;
@@ -618,6 +649,7 @@ ktli_send(int kts, struct kio *kio)
 
 	/* preserve the Q back pointer  */
 	kio->kio_qbp = list_element_curr(sq->ktq_list);
+	kio->kio_state = KIO_NEW;
 
 	/* wake up the sender */
 	pthread_cond_signal(&sq->ktq_cv);
@@ -748,6 +780,7 @@ ktli_receive(int kts, struct kio *kio)
 		}
 	} else {
 		errno = ENOENT;
+		debug_printf("Attempted receveive on a non ready KIO\n");
 		rc = -1;
 	}
 
@@ -1051,7 +1084,7 @@ ktli_drain_match(int kts, struct kio *kio)
 	return(rc);
 }
 /**
- * int ktli_pol (int kts, struct ktli_config *cf)
+ * int ktli_config (int kts, struct ktli_config *cf)
  *
  * This function returns the session config structure
  *
@@ -1085,6 +1118,7 @@ ktli_sender(void *p)
 	struct ktli_queue *rq;
 	struct ktli_queue *cq;
 	struct kio *kio, **lkio;
+	enum kio_state state;	 	/* Temp state var */
 
 	assert(p);
 
@@ -1144,10 +1178,11 @@ ktli_sender(void *p)
 			kts_set_sequence(kts, kio->kio_seq + 1);
 
 			(kh->kh_setseq_fn)(kio->kio_sendmsg.km_msg,
-					     kio->kio_sendmsg.km_cnt,
-					     kio->kio_seq);
+					   kio->kio_sendmsg.km_cnt,
+					   kio->kio_seq);
 
 			/*
+			 * PREEMPIVELY Q
 			 * If a response is needed, pre-emptively place
 			 * this KIO on the rq to avoid a race with the
 			 * receiver. Of course if there is an error I will
@@ -1179,27 +1214,54 @@ ktli_sender(void *p)
 			rc = (de->ktlid_fns->ktli_dfns_send)(dh,
 						       kio->kio_sendmsg.km_msg,
 						       kio->kio_sendmsg.km_cnt);
+			/*
+			 * Although on the rq, setting the state outside of
+			 * rq lock is probably OK as the receiver code
+			 * only looks for its existence on the rq to match
+			 * with inbound KIO.  The SENT state is really for
+			 * debugging and completeness.
+			 *
+			 * Since it is only used for completeness, setting
+			 * the SENT state is not strictly necessary, but
+			 * setting it could race qwith the recveiver
+			 * potentially overwriting the RECEIVED state
+			 * set by the receiver.  So here we only set SENT
+			 * if the previous state is NEW otherwise we leave
+			 * it alone. So this compare and swap may succeed
+			 * or fail, but it doesn't matter.
+			 */
+			SBCAS(&(kio->kio_state), KIO_NEW, KIO_SENT);
 
 			kio->kio_sendmsg.km_status = rc;
 			kio->kio_sendmsg.km_errno = errno;
-			kio->kio_state = KIO_SENT;
+
 			debug_printf("ktli: Sent Kio: %p: Seq %ld\n",
 				     kio, kio->kio_seq);
 
 			/* Handle the REQONLY case with the error case */
 			if (rc < 0 || KIOF_ISSET(kio, KIOF_REQONLY)) {
+				/*
+				 * Tortured logic here.
+				 * Three possible KIOs can get here:
+				 *    1. Failed REQUEST
+				 *    2. Failed REQONLY
+				 *    3. Successful REQONLY
+				 * First handle both Failed REQUEST & REQONLY
+				 */
 				if (rc < 0) {
 					debug_printf("KTLI Send Error\n");
-					kio->kio_state = KIO_FAILED;
+					state = KIO_FAILED;
 				}
 
+				/*
+				 * Since REQONLY are not queued on rq
+				 * pop the Failed REQUEST kio off the rq.
+				 */
 				if (!KIOF_ISSET(kio, KIOF_REQONLY)) {
-					/* If on the rq, dequeue it.
-					 * Why is it on the rq? See com above.
-					 * Should only search when err and
-					 * not REQONLY.
-					 * list_traverse defaults to starting
-					 * the traverse at the front */
+					/*
+					 * Why is it on the rq? See
+					 * PREEMPIVELY Q comment above.
+					 */
 					pthread_mutex_lock(&rq->ktq_m);
 					(void)list_setcurr(rq->ktq_list,
 							   kio->kio_qbp);
@@ -1210,28 +1272,17 @@ ktli_sender(void *p)
 					   clear the Q back pointer  */
 					kio->kio_qbp = NULL;
 					
-#if 0
-					rc = list_traverse(rq->ktq_list,
-							   kio, ktli_kiomatch,
-							   LIST_ALTR);
-					if (rc != LIST_EXTENT &&
-					    rc != LIST_EMPTY) {
-						/* Found the requested kio */
-						lkio = (struct kio **)list_remove_curr(rq->ktq_list);
-						KTLI_FREE(lkio);
-					}
-#endif
-					
 					/* leave the list ready for an insert */
 					(void)list_mvrear(rq->ktq_list);
 					pthread_mutex_unlock(&rq->ktq_m);
 				} else if (rc >= 0) {
-					/* Successful REQONLY */
-					kio->kio_state = KIO_RECEIVED;
+					/* This is the Successful REQONLY */
+					state = KIO_RECEIVED;
 				}
 
 				/*
-				 * In either case hang it on the completed Q
+				 * In any case: error REQONLY/REQRESP or
+				 * ok REQONLY, hang it on the completed Q
 				 */
 				pthread_mutex_lock(&cq->ktq_m);
 				(void)list_mvrear(cq->ktq_list);
@@ -1240,18 +1291,41 @@ ktli_sender(void *p)
 
 				/* preserve the Q back pointer  */
 				kio->kio_qbp = list_element_curr(cq->ktq_list);
+				kio->kio_state = state;
 
 				pthread_cond_broadcast(&cq->ktq_cv);
 				pthread_mutex_unlock(&cq->ktq_m);
 
+				/* Completed the send set the TS if necessary */
+				if (KIOF_ISSET(kio, KIOF_TSTAMP)) {
+					/*
+					 * Stats
+					 * Mark the KIO Sent. REQONLY/Error
+					 * It might be an err, but who cares
+					 * Get current clock,
+					 * vdso(7) makes this fast
+					 */
+					ktli_gettime(&kio->kio_ts.kiot_sent);
+				}
+
 				continue;
 			}
-
 
 			/* Success  signal the receiver */
 			pthread_mutex_lock(&rq->ktq_m);
 			pthread_cond_signal(&rq->ktq_cv);
 			pthread_mutex_unlock(&rq->ktq_m);
+
+			/* Normal send complete, set the TS if necessary */
+			if (KIOF_ISSET(kio, KIOF_TSTAMP)) {
+				/*
+				 * Stats
+				 * Mark the KIO Sent.  REQRESP
+				 * Get current clock, vdso(7) makes this fast
+				 */
+				ktli_gettime(&kio->kio_ts.kiot_sent);
+
+			}
 		}
 
 	} while (1); /* forever */
@@ -1335,6 +1409,17 @@ ktli_recvmsg(int kts)
 	struct ktli_queue *cq;
 	struct kio *kio, **lkio;
 	struct kio_msg msg;
+	struct timespec	recvs;		/* Temp recv start timestamp */
+
+	/*
+	 * Received a mesg, record the clock. The KIO is not known yet.
+	 * This is the begining on the receive and the natural spot to
+	 * start the clock on receive processing time. Without knowing
+	 * the KIO it is not known if the code should be recording
+	 * timestamps. So this maybe wasted code. However vdso(7) makes
+	 * this fast, Not going to worry about this.
+	 */
+	ktli_gettime(&recvs);
 
 	dh = kts_dhandle(kts);
 	de = kts_driver(kts);
@@ -1461,8 +1546,14 @@ ktli_recvmsg(int kts)
 		return(-1);
 	}
 
+	if (KIOF_ISSET(kio, KIOF_TSTAMP)) {
+		/*
+		 * Now that the KIO is known Save recv start clock,
+		 */
+		kio->kio_ts.kiot_recvs = recvs;
+	}
+
 	/* hang response onto the kio */
-	kio->kio_state = KIO_RECEIVED;
 	kio->kio_recvmsg.km_status = 0;
 	kio->kio_recvmsg.km_errno = 0;
 	kio->kio_recvmsg.km_cnt = KM_CNT_WITHVAL;
@@ -1475,6 +1566,8 @@ ktli_recvmsg(int kts)
 
 	/* preserve the Q back pointer  */
 	kio->kio_qbp = list_element_curr(cq->ktq_list);
+	kio->kio_state = KIO_RECEIVED;
+	assert(kio->kio_qbp);
 
 	/* Let everyone know there is a new completed  kio */
 	pthread_cond_broadcast(&cq->ktq_cv);
@@ -1670,7 +1763,6 @@ ktli_receiver(void *p)
 				lkio = (struct kio **)list_remove_curr(rq->ktq_list);
 				kio = *lkio;
 				KTLI_FREE(lkio);  /* created by the list */
-				kio->kio_state = KIO_TIMEOUT;
 				kio->kio_errno = ETIMEDOUT;
 
 				/* Not on a Q, clear the back pointer */
@@ -1692,6 +1784,7 @@ ktli_receiver(void *p)
 
 				/* preserve the Q back pointer  */
 				kio->kio_qbp = list_element_curr(cq->ktq_list);
+				kio->kio_state = KIO_TIMEOUT;
 
 				pthread_cond_broadcast(&cq->ktq_cv);
 				pthread_mutex_unlock(&cq->ktq_m);
@@ -1720,3 +1813,60 @@ ktli_receiver(void *p)
 	pthread_exit(p);
 }
 
+#ifdef KTLI_TSTAMP_THR
+inline 	__attribute__((always_inline)) int
+ktli_gettime(struct timespec *ts)
+{
+	if (!ts)
+		return(-1);
+
+	pthread_mutex_lock(&ktli_ts_m);
+	*ts = ktli_ts;
+	pthread_mutex_unlock(&ktli_ts_m);
+
+	return(0);
+}
+
+static void *
+ktli_timestamp(void *p)
+{
+	int rc, cpu = 15;
+	cpu_set_t cpuset;
+	pthread_t thread;
+	//struct timespec bedtime = {0,10}, unused;
+
+	//printf("Timestamp thread spinning.....\n");
+	thread = pthread_self();
+
+	/* Set affinity mask to CPU 4 */
+	CPU_ZERO(&cpuset);
+	CPU_SET(cpu, &cpuset);
+
+	rc = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+	if (rc != 0)
+		printf("ktli_time: pthread_setaffinity_np failed");
+
+	/* Check the actual affinity mask assigned to the thread */
+	rc = pthread_getaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
+	if (rc != 0)
+		printf("ktli_time: pthread_getaffinity_np failed");
+
+	if (CPU_ISSET(4, &cpuset))
+		printf("ktli_time: Set affinity to CPU %d\n", cpu);
+
+	do {
+		/* forever tight spin loop, yes I am burning a core */
+		pthread_mutex_lock(&ktli_ts_m);
+		clock_gettime(KIO_CLOCK, &ktli_ts);
+		pthread_mutex_unlock(&ktli_ts_m);
+
+		if (ktli_ts_exit) break;
+
+		//nanosleep(&bedtime, &unused);
+	} while (1);
+
+	debug_printf("Timestamp: exiting\n");
+
+	pthread_exit(p);
+}
+#endif /* KTLI_TSTAMP_THR */

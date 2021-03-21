@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <time.h>
 #include <inttypes.h>
 #include <sys/types.h>
 
@@ -83,6 +84,8 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	kstatus_t      krc;
 	kv_t          *pkv;
+
+	struct timespec start, stop;
 
 	// This while loop can return early because there are no allocs to manage
 	while ((c = getopt(argc, argv, "mAXh?")) != EOF) {
@@ -151,22 +154,26 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		return (-1);
 	}
 
+	if (ka->ka_stats)
+		clock_gettime(CLOCK_MONOTONIC, &start);
+
 	/* Init kv and return kv */
 	if (!(kv = ki_create(ktd, KV_T))) {
 		fprintf(stderr, "*** Memory Failure\n");
 		return (-1);
 	}
+
+	if (!(rkv = ki_create(ktd, KV_T))) {
+		fprintf(stderr, "*** Memory Failure\n");
+		return (-1);
+	}
+
 	kv->kv_key	= kv_key;
 	kv->kv_keycnt	= 1;
 	kv->kv_val	= kv_val;
 	kv->kv_valcnt	= 1;
 	kv->kv_metaonly	= meta;
 
-	rkv = ki_create(ktd, KV_T);	
-	if (!rkv) {
-		fprintf(stderr, "*** Memory Failure\n");
-		return (-1);
-	}
 	rkv->kv_key    = rkv_key;
 	rkv->kv_keycnt = 1;
 	rkv->kv_val    = rkv_val;
@@ -226,6 +233,13 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 
 		kctl_status = (-1);
 		goto kctl_gex;
+	}
+
+	if (ka->ka_stats) {
+		uint64_t t;
+		clock_gettime(CLOCK_MONOTONIC, &stop);
+		ts_sub(&stop, &start, t);
+		printf("KCTL Stats: Get time: %lu \xC2\xB5S\n", t);
 	}
 
 	// ------------------------------

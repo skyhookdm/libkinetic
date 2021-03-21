@@ -236,4 +236,10 @@ extern int ktli_drain(int ktd, struct kio **kio);
 extern int ktli_drain_match(int ktd, struct kio *kio);
 extern int ktli_config(int ktd, struct ktli_config **cf);
 
+#ifdef KTLI_TSTAMP_THR
+extern int ktli_gettime(struct timespec *ts);
+#else
+#define ktli_gettime(_ts) clock_gettime(KIO_CLOCK, (_ts));
+#endif /* KTLI_TSTAMP_THR */
+
 #endif /* _KTLI_H */

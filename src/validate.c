@@ -457,3 +457,23 @@ ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp)
 	errno = 0;
 	return(0);
 }
+
+
+/**
+ * ki_validate_kstats(kstats_t *kst)
+ *
+ *  kst		Nothing to validate other it is a create kinetic typed buffer
+ *
+ */
+int
+ki_validate_kstats(kstats_t *kst)
+{
+
+	// Check the required key
+	if (!kst || !ki_valid(kst)) {
+		return (-1);
+	}
+
+	errno = 0;
+	return(0);
+}
