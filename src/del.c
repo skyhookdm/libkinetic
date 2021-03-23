@@ -385,10 +385,12 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 	 */
 	if (kio->kio_state == KIO_TIMEDOUT) {
 		debug_printf("del: kio timed out");
+		kst->kst_dels.kop_err++;
 		krc = K_ETIMEDOUT;
 		goto dex;
 	} else 	if (kio->kio_state == KIO_FAILED) {
 		debug_printf("del: kio failed");
+		kst->kst_dels.kop_err++;
 		krc = K_ENOMSG;
 		goto dex;
 	}
@@ -495,17 +497,18 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 	}
 	KI_FREE(kio->kio_sendmsg.km_msg);
 
-	/* Key Len and Value Len stats */
-	for (kl=0, i=0; i < kv->kv_keycnt; i++) {
-		kl += kv->kv_key[i].kiov_len; /* Stats */
-	}
-
-	for (vl=0, i=0; i < kv->kv_valcnt; i++) {
-		vl += kv->kv_val[i].kiov_len; /* Stats */
-	}
-
 	if (krc == K_OK) {
 		double nmn, nmsq;
+
+		/* Key Len and Value Len stats */
+		for (kl=0, i=0; i < kv->kv_keycnt; i++) {
+			kl += kv->kv_key[i].kiov_len; /* Stats */
+		}
+
+		for (vl=0, i=0; i < kv->kv_valcnt; i++) {
+			vl += kv->kv_val[i].kiov_len; /* Stats */
+		}
+
 		kst->kst_dels.kop_ok++;
 #if 1
 		if (kst->kst_dels.kop_ok == 1) {
