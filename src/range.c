@@ -223,6 +223,7 @@ ki_getrange(int ktd, krange_t *kr)
 
 			/* PAK: need to exit, receive failed */
 			else {
+				debug_printf("range: kio receive failed");
 				krc = K_EINTERNAL;
 				goto rex_sendmsg;
 			}
@@ -231,6 +232,21 @@ ki_getrange(int ktd, krange_t *kr)
 		// Got our response
 		else { break; }
 	} while (1);
+
+	/*
+	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO
+	 * that is really in an error state, in those cases clean up the KIO
+	 * and go.
+	 */
+	if (kio->kio_state == KIO_TIMEDOUT) {
+		debug_printf("range: kio timed out");
+		krc = K_ETIMEDOUT;
+		goto rex_recvmsg;
+	} else 	if (kio->kio_state == KIO_FAILED) {
+		debug_printf("range: kio failed");
+		krc = K_ENOMSG;
+		goto rex_recvmsg;
+	}
 
 	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_recv = clock();

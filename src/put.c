@@ -380,24 +380,28 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 			 * Hence, this error means nothing to clean up
 			 */
 			kst->kst_puts.kop_err++;
-			debug_printf("put: kio receive");
+			debug_printf("put: kio receive failed");
 			return(K_EINTERNAL);
 		}
 	}
 
-	/* 
-	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO 
-	 * that is really in an error state, in those cases clean up the KIO 
+	/*
+	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO
+	 * that is really in an error state, in those cases clean up the KIO
 	 * and go. 
 	 */
-	if (kio->kio_state != KIO_RECEIVED) {
-		debug_printf("put: kio bad state");
-		krc = K_EINTERNAL;
+	if (kio->kio_state == KIO_TIMEDOUT) {
+		debug_printf("put: kio timed out");
+		krc = K_ETIMEDOUT;
 		goto pex;
-	}		
+	} else 	if (kio->kio_state == KIO_FAILED) {
+		debug_printf("put: kio failed");
+		krc = K_ENOMSG;
+		goto pex;
+	}
 
 	/* Got a RECEIVED KIO, validate and decode */
-	
+
 	/*
 	 * Grab the original KV and KB sent in from the caller. 
 	 * Although these are not directly passed back in the complete, 

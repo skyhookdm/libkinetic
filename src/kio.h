@@ -11,10 +11,10 @@ struct kio;
 
 enum kio_state {
 	KIO_NEW      = 0,
-	KIO_SENT        ,
-	KIO_RECEIVED    ,
-	KIO_FAILED      ,
-	KIO_TIMEOUT     ,
+	KIO_SENT	,
+	KIO_RECEIVED	,
+	KIO_FAILED	,
+	KIO_TIMEDOUT	,
 };
 
 struct kio_msg {
