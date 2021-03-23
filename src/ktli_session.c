@@ -153,7 +153,7 @@ kts_set(int kts,
 	pthread_t sender,
 	pthread_t receiver,
 	enum ktli_sstate state,
-	int64_t sequence,
+	uint64_t sequence,
 	struct ktli_config *cf)
 {
 	if (!kts_table[kts]) return;

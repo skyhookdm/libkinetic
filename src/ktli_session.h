@@ -17,7 +17,7 @@ extern void kts_set(int kts,
 		    pthread_t sender,
 		    pthread_t receiver,
 		    enum ktli_sstate state,
-		    int64_t sequence,
+		    uint64_t sequence,
 		    struct ktli_config *cf);
 
 extern void kts_set_driver(int kts, struct ktli_driver *driver);
