@@ -16,7 +16,9 @@ DIRS     =	whitebox
 BINDIR   =	$(BUILDDIR)/bin
 CFLAGS   =	-g -I$(BUILDDIR)/include
 LDFLAGS  =	-L$(BUILDDIR)/lib
-LDLIBS   =	-lkinetic -lpthread
+STATIC	 = 	-Wl,-Bstatic
+DYNAMIC	 =	-Wl,-Bdynamic
+LDLIBS   =	$(STATIC) -lkinetic $(DYNAMIC) -lpthread
 
 all: 
 	@for i in $(DIRS); do              \
