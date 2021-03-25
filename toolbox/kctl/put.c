@@ -412,7 +412,7 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 	kv->kv_cpolicy	 = 0;
 	kv->kv_metaonly	 = 0;
 
-	(kv->destroy_protobuf)(kv);
+	if (krc == K_OK) (kv->destroy_protobuf)(kv);
 	kv->destroy_protobuf	= NULL;
 	kv->kv_protobuf		= NULL;
 

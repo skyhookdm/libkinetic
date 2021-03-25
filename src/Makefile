@@ -42,7 +42,13 @@ INC_PRIV =	kio.h ktli.h ktli_session.h  \
 		kinetic.h kinetic_internal.h \
 		session.h
 
-CFLAGS =	-g -DKTLI_TSTAMP_THR -I$(BUILDDIR)/include -I. -Wall -fpic -Wl,-export-dynamic
+# Try not the checkin with this enabled, only neeed when doing perf runs
+#STATS = 	-DKTLI_TSTAMP_THR
+
+# debuglevel: 0=no debug, 1=info, 2=debug; -fmax-errors=10 reduces shown errs
+DEBUG =	-g -DLOGLEVEL=0 $(STATS)
+
+CFLAGS =	$(DEBUG) -I$(BUILDDIR)/include -I. -Wall -fpic -Wl,-export-dynamic
 LDFLAGS =	-L$(BUILDDIR)/lib -L/usr/lib/$(shell gcc -print-multiarch)
 LDLIBS =	-llist -lprotobuf-c -lm
 
@@ -114,7 +120,7 @@ clean:
 	rm -rf $(KINETIC) $(KINETICSO) $(KINETICSOV) $(KINETICSOVL) $(GITHASH) a.out links *.o
 
 
-$(OBJS): $(INC_KPUB) $(INC_PPUB) $(INC_PRIV)
+$(OBJS): $(INC_KPUB) $(INC_PPUB) $(INC_PRIV) Makefile
 
 version.o: $(GITHASH)
 

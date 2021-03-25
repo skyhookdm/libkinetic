@@ -172,6 +172,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 			if (errno == ENOENT) { continue; }
 			else {
 				/* PAK: need to exit, receive failed */
+				debug_printf("getlog: kio receive failed");
 				krc = K_EINTERNAL;
 				goto glex_sendmsg;
 			}
@@ -181,7 +182,22 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		else { break; }
 	} while (1);
 
-    // Begin: Added PDU checking code based on src/batch.c
+	/*
+	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO
+	 * that is really in an error state, in those cases clean up the KIO
+	 * and go.
+	 */
+	if (kio->kio_state == KIO_TIMEDOUT) {
+		debug_printf("getlog: kio timed out");
+		krc = K_ETIMEDOUT;
+		goto glex_recvmsg;
+	} else 	if (kio->kio_state == KIO_FAILED) {
+		debug_printf("getlog: kio failed");
+		krc = K_ENOMSG;
+		goto glex_recvmsg;
+	}
+
+	// Begin: Added PDU checking code based on src/batch.c
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {

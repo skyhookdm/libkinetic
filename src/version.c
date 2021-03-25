@@ -53,8 +53,13 @@ ki_version(kversion_t *kver)
 		return (K_EINVAL);
 	}
 
+#ifdef KTLI_TSTAMP_THR
+	sprintf(v_kinetic_vers, "%d.%d.%d [TSTHR]",
+		KVERS_MAJOR, KVERS_MINOR, KVERS_PATCH);
+#else
 	sprintf(v_kinetic_vers, "%d.%d.%d",
 		KVERS_MAJOR, KVERS_MINOR, KVERS_PATCH);
+#endif
 
 	kver->kvn_pb_c_vers       = protobuf_c_version();
 	kver->kvn_pb_c_vers_num   = protobuf_c_version_number();
