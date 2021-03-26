@@ -63,6 +63,7 @@ ki_getstats(int ktd, kstats_t *kst)
 	s_stat_updatekop(&kst->kst_puts);
 	s_stat_updatekop(&kst->kst_gets);
 	s_stat_updatekop(&kst->kst_dels);
+	s_stat_updatekop(&kst->kst_noops);
 	
 	return(K_OK);
 }
