@@ -481,9 +481,8 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			clock_gettime(CLOCK_MONOTONIC, &tstop);
 			ts_sub(&tstop, &tstart, t);
 			m = (double)t / (double)dels;
-			printf("KCTL Stats: Put time, mean: %10.10g \xC2\xB5S (n=%d) %10.10g KiB/S\n",
-			       m, dels,
-			       (ka->ka_vallen / (m * 1000000) / 1024.0));
+			printf("KCTL Stats: Del time, mean: %10.10g \xC2\xB5S (n=%d) %10.10g dels/S\n",
+			       m, dels, (dels / (t / ((double)1000000.0))));
 		}
 		
 		if (ka->ka_verbose)

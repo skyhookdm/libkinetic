@@ -65,6 +65,9 @@ kstatus_t ki_clean(void *p);
 kstatus_t ki_destroy(void *p);
 uint32_t  ki_valid(void *p);
 
+// Kinetic synchronous NOOP interface
+kstatus_t ki_noop(int ktd);
+
 // Kinetic synchronous I/O interfaces
 kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);
 kstatus_t ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
@@ -80,6 +83,9 @@ kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
 kstatus_t ki_abortbatch(int ktd, kbatch_t *kb);
 kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
+
+// Kinetic asynchronous NOOP interface
+kstatus_t ki_aio_noop(int ktd, void *cctx, kio_t **kio);
 
 // Kinetic asynchronous I/O interfaces
 kstatus_t ki_aio_put(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);
