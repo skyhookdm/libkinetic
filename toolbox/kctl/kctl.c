@@ -65,9 +65,9 @@ extern int kctl_info(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_range(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_batch(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_stats(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
 
 #if 0
-extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_lock(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_acl(int argc, char *argv[], int kts, struct kargs *ka);
@@ -81,9 +81,7 @@ struct ktable {
 	const char *ktab_cmdhelp;
 	int (*ktab_handler)(int, char *[], int, struct kargs *);
 } ktable[] = {
-#if 0
 	{ KCTL_NOOP,    "ping",    "Ping the kinetic device", &kctl_ping},
-#endif
 	{ KCTL_GET,     "get",     "Get key value", &kctl_get},
 	{ KCTL_GETNEXT, "getnext", "Get next key value", &kctl_get},
 	{ KCTL_GETPREV, "getprev", "Get previous key value", &kctl_get},

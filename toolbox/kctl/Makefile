@@ -22,12 +22,12 @@ BUILDSRC =	$(BUILDDIR)/src
 BUILDMAN =	$(BUILDDIR)/man
 
 SRCS = 		kctl.c util.c info.c get.c put.c del.c	\
-		range.c batch.c stats.c
+		range.c batch.c stats.c ping.c
 HDRS =		kctl.h
 OBJS =		$(SRCS:.c=.o)
 DEPS = 		$(SRCS:.c=.d)
 
-#	ping.o cluster.o lock.o acl.o  \
+#	cluster.o lock.o acl.o  \
 #	histogram.o
 
 KCTLDEPS =	$(BUILDLIB)/libkinetic.a
