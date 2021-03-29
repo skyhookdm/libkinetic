@@ -312,7 +312,7 @@ typedef void kio_t;
  * are optional.
  */
 typedef enum kopflags {
-	KOPF_TSTAT	= 0x0001,
+	KOPF_TSTAT	= 0x0001,	/* Collecting timestamps */
 
 #define KIOP_SET(_kop, _kiof)	((_kop)->kop_flags |=  (_kiof))
 #define KIOP_CLR(_kop, _kiof)	((_kop)->kop_flags &= ~(_kiof))
@@ -373,13 +373,15 @@ typedef struct kopstat {
 	double		kop_req[KOP_TMAX];	/* time spent in req portion */
 	double		kop_resp[KOP_TMAX];	/* time spent in req portion */
 
-	/* Remove me */
+#ifdef KOP_KEEP_TRECORDS
 #define KOP_TT		0
 #define KOP_ST		1
 #define KOP_RT		2
 #define KOP_TTMAX	3
-#define KOP_TTRECORDS	66000
-	uint64_t	kop_times[KOP_TTRECORDS][KOP_TTMAX];
+#define KOP_TRECORDS	66000
+	uint64_t	kop_times[KOP_TRECORDS][KOP_TTMAX];
+#endif
+
 } kopstat_t;
 
 typedef struct  kstats {

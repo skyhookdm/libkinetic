@@ -77,23 +77,6 @@ static int ktli_up = 0; /* global used to lazy init KTLI */
 #define KTLI_MALLOC(_l) malloc((_l))
 #define KTLI_FREE(_p) free((_p))
 
-/*
- * KTLI_TSTAMP_THR enables a timestamp thread, that spins constantly
- * updating a library wide global clock. It is an attempt to have a
- * single timing source tied to a CPU for all the the threads in the
- * library.  The results showed it to be no better than the per cpu
- * monotonic clocks.  It is left for further investigation but it could
- * deleted at any time.
- */
-#ifdef KTLI_TSTAMP_THR
-/* Global Time spec and protecting locks */
-static void *ktli_timestamp(void *p);
-struct timespec ktli_ts;
-pthread_mutex_t ktli_ts_m;	/* mutex protecting the time stamp */
-pthread_t	ktli_ts_tid;	/* timestamp thread id */
-int		ktli_ts_exit;	/* thread exit flag */
-#endif /* KTLI_TSTAMP_THR */
-
 
 /*
  * internal lazy init function, called on first open
@@ -101,21 +84,9 @@ int		ktli_ts_exit;	/* thread exit flag */
 static void
 ktli_init()
 {
-#ifdef KTLI_TSTAMP_THR
-	int rc;
-#endif /* KTLI_TSTAMP_THR */
-
 	kts_init();
-
-#ifdef KTLI_TSTAMP_THR
-	pthread_mutex_init(&ktli_ts_m, NULL);
-	ktli_ts_exit = 0;
-	rc = pthread_create(&ktli_ts_tid, NULL, ktli_timestamp, NULL);
-	if (rc)
-		printf("Failed to create time stamp thread\n");
-#endif /* KTLI_TSTAMP_THR */
-
 }
+
 
 /**
  * int ktli_open(enum ktli_driver_id did, struct ktli_helpers *kh)
@@ -1785,7 +1756,7 @@ ktli_receiver(void *p)
 				   ktli_timechk, LIST_ALTR);
 		while (rc == LIST_OK) {
 			if (rc != LIST_EXTENT && rc != LIST_EMPTY) {
-				/* \
+				/*
 				 * Found one KIO to timeout. Pull it off the
 				 * receive Q and mark it timedout
 				 */
@@ -1799,6 +1770,13 @@ ktli_receiver(void *p)
 
 				debug_printf("KIO Timeout seq: %ld\n",
 					     kio->kio_seq);
+
+				printf("KIO Timeout seq: %ld, toq: %lu - %lu = %lu\n",
+				       kio->kio_seq,
+				       currtime.tv_sec, kio->kio_timeout.tv_sec,
+				       currtime.tv_sec - kio->kio_timeout.tv_sec
+				       );
+				       
 
 				/*
 				 * Add the found KIO to the completed Q.
@@ -1841,61 +1819,3 @@ ktli_receiver(void *p)
 
 	pthread_exit(p);
 }
-
-#ifdef KTLI_TSTAMP_THR
-inline 	__attribute__((always_inline)) int
-ktli_gettime(struct timespec *ts)
-{
-	if (!ts)
-		return(-1);
-
-	pthread_mutex_lock(&ktli_ts_m);
-	*ts = ktli_ts;
-	pthread_mutex_unlock(&ktli_ts_m);
-
-	return(0);
-}
-
-static void *
-ktli_timestamp(void *p)
-{
-	int rc, cpu = 15;
-	cpu_set_t cpuset;
-	pthread_t thread;
-	//struct timespec bedtime = {0,10}, unused;
-
-	//printf("Timestamp thread spinning.....\n");
-	thread = pthread_self();
-
-	/* Set affinity mask to CPU 4 */
-	CPU_ZERO(&cpuset);
-	CPU_SET(cpu, &cpuset);
-
-	rc = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
-	if (rc != 0)
-		printf("ktli_time: pthread_setaffinity_np failed");
-
-	/* Check the actual affinity mask assigned to the thread */
-	rc = pthread_getaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
-	if (rc != 0)
-		printf("ktli_time: pthread_getaffinity_np failed");
-
-	if (CPU_ISSET(4, &cpuset))
-		printf("ktli_time: Set affinity to CPU %d\n", cpu);
-
-	do {
-		/* forever tight spin loop, yes I am burning a core */
-		pthread_mutex_lock(&ktli_ts_m);
-		clock_gettime(KIO_CLOCK, &ktli_ts);
-		pthread_mutex_unlock(&ktli_ts_m);
-
-		if (ktli_ts_exit) break;
-
-		//nanosleep(&bedtime, &unused);
-	} while (1);
-
-	debug_printf("Timestamp: exiting\n");
-
-	pthread_exit(p);
-}
-#endif /* KTLI_TSTAMP_THR */
