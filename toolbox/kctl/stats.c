@@ -24,9 +24,6 @@
 #include <kinetic/kinetic.h>
 #include "kctl.h"
 
-/* Cheating with globals */
-static char	tstats;
-
 static void print_kop(kopstat_t *kop, char *opstr, struct kargs *ka);
 
 #define CMD_USAGE(_ka) kctl_stats_usage(_ka)
@@ -41,6 +38,7 @@ kctl_stats_usage(struct kargs *ka)
 	fprintf(stderr, "\t-d           Print Delete Statistics\n");
 	fprintf(stderr, "\t-g           Print Get Statistics\n");
 	fprintf(stderr, "\t-p           Print Put Statistics\n");
+	fprintf(stderr, "\t-n           Print Noop/Ping Statistics\n");
 	fprintf(stderr, "\t-?           Help\n");
 	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
 }
@@ -53,23 +51,32 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 {
 	extern char     *optarg;
         extern int	optind, opterr, optopt;
-	int 		gets, puts, dels;
+	int 		gets, puts, dels, noops;
+	int		tstats, clear;
         char		c;
 	kstats_t 	*kst;
 	kstatus_t 	krc;
 	
 	/* clear global flag vars */
-	tstats = 0;
-	gets = puts = dels = 0;
+	tstats = 0, clear = 0;
+	gets = puts = dels = noops = 0;
 	
-        while ((c = getopt(argc, argv, "gpdT?h")) != EOF) {
+        while ((c = getopt(argc, argv, "CgpdnT?h")) != EOF) {
                 switch (c) {
+		case 'C':
+		        clear = 1;
+			break;
+			
 		case 'd':
 			dels = 1;
 			break;
 			
 		case 'g':
 			gets = 1;
+			break;
+			
+		case 'n':
+			noops = 1;
 			break;
 			
 		case 'p':
@@ -99,14 +106,29 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 		fprintf(stderr, "*** Memory Failure\n");
 		return (-1);
 	}
-		
+
+	if (clear) {
+		printf("Clearing Statistics\n");
+		krc = ki_putstats(kts, kst);
+		if (krc != K_OK) {
+			printf("Failed to enable Time Statistics\n");
+			return(-1);
+		}
+
+		ki_destroy(kst);
+		return(0);
+	}
+
 	if (tstats) {
+		/* Turns on Time stamps and clears stats */
 		if (puts) 
 			KIOP_SET(&kst->kst_puts, KOPF_TSTAT);
 		if (gets)
 			KIOP_SET(&kst->kst_gets, KOPF_TSTAT);
 		if (dels)
 			KIOP_SET(&kst->kst_dels, KOPF_TSTAT);
+		if (noops)
+			KIOP_SET(&kst->kst_noops, KOPF_TSTAT);
 #if 0
 		KIOP_SET(&kst->kst_cbats, KOPF_TSTAT);
 		KIOP_SET(&kst->kst_sbats, KOPF_TSTAT);
@@ -123,6 +145,8 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 			printf("Failed to enable Time Statistics\n");
 			return(-1);
 		}
+
+		ki_destroy(kst);
 		return(0);
 	}
 
@@ -132,6 +156,10 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 		return(-1);
 	}
 
+	if (noops) {
+		print_kop(&kst->kst_noops, "Noop/Ping", ka);
+	}
+	
 	if (dels) {
 		print_kop(&kst->kst_dels, "Delete", ka);
 	}
@@ -144,6 +172,7 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 		print_kop(&kst->kst_puts, "Put", ka);
 	}
 
+	ki_destroy(kst);
 	return(0);
 }
 
@@ -183,7 +212,8 @@ print_kop(kopstat_t *kop, char *optstr, struct kargs *ka)
 		       kop->kop_resp[KOP_TSTDDEV]);
 	}
 
-	do {
+#ifdef TRECORDS
+	if (IOP_ISSET(kop, KOPF_TRECORDS)) {
 		int fd, i;
 		char fname[80];
 		pid_t pid = getpid();
@@ -202,8 +232,8 @@ print_kop(kopstat_t *kop, char *optstr, struct kargs *ka)
 				kop->kop_times[i][KOP_RT]);
 		close(fd);
 		break;
-	} while(1);
-	
+	} 
+#endif
 	return;
 }
 
