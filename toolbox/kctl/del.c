@@ -466,9 +466,11 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			}
 
 			if (krc != K_OK) {
+				asciidump( k->kiov_base,  k->kiov_len);
 				fprintf(stderr,
-					"%s: Unable to delete key: %s\n", 
-					ka->ka_cmdstr, ki_error(krc));
+					"%s: Unable to delete key: %x: %s\n",
+					ka->ka_cmdstr,
+					krc, ki_error(krc));
 				ki_destroy(kit);
 				ki_destroy(kr);
 				return(-1);

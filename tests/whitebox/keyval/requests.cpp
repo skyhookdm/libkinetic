@@ -88,7 +88,7 @@ namespace KFixtures {
         memcpy(input_key, key_str, key_len);
 
         struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_valvec = { .kiov_base = nullptr, .kiov_len = 0};
         kv_t input_data   = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -105,7 +105,7 @@ namespace KFixtures {
         };
 
         struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  output_valvec = { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t output_data  = (kv_t) {
             .kv_key       = output_keyvec         ,
             .kv_keycnt    = key_cnt               ,
@@ -151,7 +151,7 @@ namespace KFixtures {
         memcpy(input_key, key_str, key_len);
 
         struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_data   = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -205,7 +205,7 @@ namespace KFixtures {
         memcpy(input_key, key_str, key_len);
 
         struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_data   = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -222,7 +222,7 @@ namespace KFixtures {
         };
 
         struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  output_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t output_data  = (kv_t) {
             .kv_key       = output_keyvec         ,
             .kv_keycnt    = key_cnt               ,
@@ -255,7 +255,7 @@ namespace KFixtures {
         memcpy(input_key, key_str, key_len);
 
         struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_data   = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -277,7 +277,7 @@ namespace KFixtures {
         };
 
         struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  output_valvec = (struct kiovec) { .kiov_base = nullptr,  .kiov_len = 0 };
         kv_t output_data  = (kv_t) {
             .kv_key       = output_keyvec         ,
             .kv_keycnt    = key_cnt               ,
@@ -313,7 +313,7 @@ namespace KFixtures {
 
         // Test inputs to be passed to library
         struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_data   = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -329,8 +329,7 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        struct kiovec input_nextkeyvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
-        struct kiovec input_nextvalvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec input_nextvalvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_nextdata = (kv_t) {
             .kv_key       = &input_nextkeyvec     ,
             .kv_keycnt    = key_cnt               ,
@@ -348,7 +347,7 @@ namespace KFixtures {
 
         // Expected outputs from the library
         struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  output_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t output_data  = (kv_t) {
             .kv_key       = output_keyvec         ,
             .kv_keycnt    = key_cnt               ,
@@ -364,8 +363,7 @@ namespace KFixtures {
             .kv_cpolicy   = (kcachepolicy_t) KC_WB,
         };
 
-        struct kiovec output_nextkeyvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
-        struct kiovec output_nextvalvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec output_nextkeyvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t output_nextdata = (kv_t) {
             .kv_key       = &output_nextkeyvec    ,
             .kv_keycnt    = key_cnt               ,
@@ -410,7 +408,7 @@ namespace KFixtures {
 
         // Test inputs to be passed to library
         struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_data   = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -427,7 +425,7 @@ namespace KFixtures {
         };
 
         struct kiovec *input_nextkeyvec = ki_keycreate(input_nextkey, nextkey_len);
-        struct kiovec  input_nextvalvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_nextvalvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_nextdata = (kv_t) {
             .kv_key       = input_nextkeyvec      ,
             .kv_keycnt    = key_cnt               ,
@@ -445,7 +443,7 @@ namespace KFixtures {
 
         // Expected outputs from the library
         struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  output_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t output_data  = (kv_t) {
             .kv_key       = output_keyvec         ,
             .kv_keycnt    = key_cnt               ,
@@ -462,7 +460,7 @@ namespace KFixtures {
         };
 
         struct kiovec *output_nextkeyvec = ki_keycreate(nextkey_str, nextkey_len);
-        struct kiovec  output_nextvalvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  output_nextvalvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t output_nextdata = (kv_t) {
             .kv_key       = output_nextkeyvec     ,
             .kv_keycnt    = key_cnt               ,
@@ -499,7 +497,7 @@ namespace KFixtures {
         memcpy(input_key, key_str, key_len);
 
         struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_data   = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -516,7 +514,7 @@ namespace KFixtures {
         };
 
         struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  output_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t output_data  = (kv_t) {
             .kv_key       = output_keyvec         ,
             .kv_keycnt    = key_cnt               ,
@@ -553,7 +551,7 @@ namespace KFixtures {
         memcpy(input_key, key_str, key_len);
 
         struct kiovec *input_keyvec = ki_keycreate(input_key, key_len);
-        struct kiovec  input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t input_data   = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -575,7 +573,7 @@ namespace KFixtures {
         };
 
         struct kiovec *output_keyvec = ki_keycreate(key_str, key_len);
-        struct kiovec  output_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        struct kiovec  output_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t output_data  = (kv_t) {
             .kv_key       = output_keyvec         ,
             .kv_keycnt    = key_cnt               ,
@@ -677,7 +675,7 @@ namespace KFixtures {
 
         memcpy(input_key, key_str, key_len);
         input_keyvec  = ki_keycreate(input_key, key_len);
-        *input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        *input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t getkey_input1 = (kv_t) {
             .kv_key        = input_keyvec          ,
             .kv_keycnt     = key_cnt               ,
@@ -717,7 +715,7 @@ namespace KFixtures {
 
         memcpy(input_key, key_str, key_len);
         input_keyvec  = ki_keycreate(input_key, key_len);
-        *input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        *input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t delkey_input = (kv_t) {
             .kv_key       = input_keyvec          ,
             .kv_keycnt    = key_cnt               ,
@@ -765,7 +763,7 @@ namespace KFixtures {
 
         memcpy(input_key, key_str, key_len);
         input_keyvec  = ki_keycreate(input_key, key_len);
-        *input_valvec = (struct kiovec) { .kiov_len = 0, .kiov_base = nullptr };
+        *input_valvec = (struct kiovec) { .kiov_base = nullptr, .kiov_len = 0 };
         kv_t getkey_input2 = (kv_t) {
             .kv_key        = input_keyvec          ,
             .kv_keycnt     = key_cnt               ,
