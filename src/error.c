@@ -15,7 +15,7 @@
  */
 #include "kinetic.h"
 
-static const char *k_status_invalid = "Invalid Kinitic Status";
+static const char *k_status_invalid = "Invalid Kinetic Status";
 
 static const char *k_status_grp1[] = {
 	/* 0x0000  0 EREJECTED	*/ "Not attempted",
