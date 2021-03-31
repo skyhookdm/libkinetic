@@ -110,7 +110,7 @@ typedef enum kstatus {
 	K_ENOMEM	= (KSTAT_GRP2 | 2),
 	K_EBADSESS	= (KSTAT_GRP2 | 3),
 	K_EBATCH	= (KSTAT_GRP2 | 4),
-	KSTAT_GRP2_LAST	= 0,
+	KSTAT_GRP2_LAST	= (KSTAT_GRP2 | 5),
 	
 } kstatus_t;
 
@@ -122,8 +122,8 @@ typedef enum kstatus {
  * This is used in many places in libkinetic, including KTLI.
  */
 struct kiovec {
-	size_t  kiov_len;  // Number of bytes
 	void   *kiov_base; // Starting address
+	size_t  kiov_len;  // Number of bytes
 };
 
 
