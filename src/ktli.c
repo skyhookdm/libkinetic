@@ -77,23 +77,6 @@ static int ktli_up = 0; /* global used to lazy init KTLI */
 #define KTLI_MALLOC(_l) malloc((_l))
 #define KTLI_FREE(_p) free((_p))
 
-/*
- * KTLI_TSTAMP_THR enables a timestamp thread, that spins constantly
- * updating a library wide global clock. It is an attempt to have a
- * single timing source tied to a CPU for all the the threads in the
- * library.  The results showed it to be no better than the per cpu
- * monotonic clocks.  It is left for further investigation but it could
- * deleted at any time.
- */
-#ifdef KTLI_TSTAMP_THR
-/* Global Time spec and protecting locks */
-static void *ktli_timestamp(void *p);
-struct timespec ktli_ts;
-pthread_mutex_t ktli_ts_m;	/* mutex protecting the time stamp */
-pthread_t	ktli_ts_tid;	/* timestamp thread id */
-int		ktli_ts_exit;	/* thread exit flag */
-#endif /* KTLI_TSTAMP_THR */
-
 
 /*
  * internal lazy init function, called on first open
@@ -101,21 +84,9 @@ int		ktli_ts_exit;	/* thread exit flag */
 static void
 ktli_init()
 {
-#ifdef KTLI_TSTAMP_THR
-	int rc;
-#endif /* KTLI_TSTAMP_THR */
-
 	kts_init();
-
-#ifdef KTLI_TSTAMP_THR
-	pthread_mutex_init(&ktli_ts_m, NULL);
-	ktli_ts_exit = 0;
-	rc = pthread_create(&ktli_ts_tid, NULL, ktli_timestamp, NULL);
-	if (rc)
-		printf("Failed to create time stamp thread\n");
-#endif /* KTLI_TSTAMP_THR */
-
 }
+
 
 /**
  * int ktli_open(enum ktli_driver_id did, struct ktli_helpers *kh)
@@ -751,7 +722,9 @@ ktli_receive(int kts, struct kio *kio)
 	 * into the CQ. So set the CQ curr to that back pointer and pop
 	 * it off the list.
 	 */
-	if (kio->kio_state == KIO_RECEIVED) {
+	if ((kio->kio_state == KIO_RECEIVED) ||
+	    (kio->kio_state == KIO_TIMEDOUT) ||
+	    (kio->kio_state == KIO_FAILED))     {
 		/*
 		 * check for a NULL as a safety check that the back pointer
 		 * is valid for the CQ
@@ -767,12 +740,16 @@ ktli_receive(int kts, struct kio *kio)
 			 * Could be receiving a KIO in any state:
 			 *	KIO_RECEIVED
 			 *	KIO_FAILED
-			 *	KIO_TIMEOUT
+			 *	KIO_TIMEDOUT
 			 * That is still a successful receive of a valid KIO. 
 			 * Caller can use KIO state to determine what to do.
 			 */
-			errno = kio->kio_errno;
 			rc = 0;
+		        if (kio->kio_state == KIO_TIMEDOUT) {
+				errno = kio->kio_errno = ETIMEDOUT;
+			} else if (kio->kio_state == KIO_FAILED) {
+				errno = kio->kio_errno = ENOMSG;
+			}
 
 		} else {
 			/* Getting here is a bug */
@@ -1171,7 +1148,11 @@ ktli_sender(void *p)
 
 			pthread_mutex_unlock(&sq->ktq_m);
 
-			/* Use current session seq for this kio */
+			/*
+			 * Use current session seq for this kio, then inc.
+			 * This increment is unprotected but should be
+			 * OK. Only this thread reads/writes the sequence.
+			 */
 		        kio->kio_seq = kts_sequence(kts);
 
 			/* bump the session seq for the next message */
@@ -1399,7 +1380,7 @@ ktli_seqmatch(void *data, void *ldata)
 static int
 ktli_recvmsg(int kts)
 {
-	int rc;
+	int rc, i;
 	int64_t aseq;
 	void *dh; 			/* driver handle */
 	struct ktli_driver *de; 	/* driver entry */
@@ -1505,26 +1486,49 @@ ktli_recvmsg(int kts)
 	aseq = (kh->kh_getaseq_fn)(msg.km_msg, KM_CNT_WITHVAL);
 	debug_printf("KTLI Received ASeq: %ld\n", aseq);
 
-	/* search through the recvq, need the mutex */
+	/* search through the recvq if necessary, need the mutex */
 	pthread_mutex_lock(&rq->ktq_m);
-	rc = list_traverse(rq->ktq_list, &aseq, ktli_seqmatch, LIST_ALTR);
 
-	if (rc == LIST_EXTENT || rc == LIST_EMPTY) {
+	if (aseq > 0) {
+		/* Have a valid aseq, look for it on the RQ */
+		rc = list_traverse(rq->ktq_list,
+				   &aseq, ktli_seqmatch, LIST_ALTR);
+	}
+
+	if ((aseq == -1) || (rc == LIST_EXTENT) || (rc == LIST_EMPTY)) {
 		/*
-		 * No matching kio.  Allocate a kio, set it up and mark it as
-		 * received. Let the upper layers deal with it.
+		 * No aseq (aseq==-1) or no matching kio. If a valid aseq
+		 * but no matching KIO, it must be a delayed reponse for
+		 * an already timed out KIO. Need to just toss it. Probably
+		 * want to bump a stat here but none are available yet.
+		 * If no valid aseq, it is an unsolicited response.
+		 * Create a KIO, and prep it to be received
 		 */
+		if (aseq != -1) {
+			/* Valid aseq but no matching KIO, free up the msg */
+			debug_printf("KTLI Tossing Delinquent ASeq: %lu\n",
+				    aseq);
+			for (i=0;i<KM_CNT_WITHVAL; i++) {
+				KTLI_FREE(msg.km_msg[i].kiov_base);
+			}
+			KTLI_FREE(msg.km_msg);
+
+			pthread_mutex_unlock(&rq->ktq_m);
+			return(0);;
+		}
+
+		/* Not a valid aseq means a RESPONLY message received */
 		debug_printf("KTLI Received Unsolicited\n");
 		kio = KTLI_MALLOC(sizeof(struct kio));
 		if (!kio) {
-			debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
-			       __FILE__, __LINE__);
-
+			debug_fprintf(stderr, "RESPONLY KTLI_MALLOC failed\n");
 			pthread_mutex_unlock(&rq->ktq_m);
 			goto recvmsgerr;
 		}
+
 		memset((void *)kio, 0, sizeof(struct kio));
-		kio->kio_seq = aseq;
+		kio->kio_seq	= aseq;
+		kio->kio_magic	= KIO_MAGIC;
 		KIOF_SET(kio, KIOF_RESPONLY);
 	} else {
 		debug_printf("KTLI Received Matched KIO\n");
@@ -1539,12 +1543,8 @@ ktli_recvmsg(int kts)
 	(void)list_mvrear(rq->ktq_list); /* reset to rear after traverse */
 	pthread_mutex_unlock(&rq->ktq_m);
 
-	if (!kio) {
-		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_printf("%s:%d: traverse failed\n", __FILE__, __LINE__);
-		assert(0);
-		return(-1);
-	}
+	/* Should be here without a KIO in hand */
+	assert (kio!=NULL);
 
 	if (KIOF_ISSET(kio, KIOF_TSTAMP)) {
 		/*
@@ -1756,7 +1756,7 @@ ktli_receiver(void *p)
 				   ktli_timechk, LIST_ALTR);
 		while (rc == LIST_OK) {
 			if (rc != LIST_EXTENT && rc != LIST_EMPTY) {
-				/* \
+				/*
 				 * Found one KIO to timeout. Pull it off the
 				 * receive Q and mark it timedout
 				 */
@@ -1771,6 +1771,13 @@ ktli_receiver(void *p)
 				debug_printf("KIO Timeout seq: %ld\n",
 					     kio->kio_seq);
 
+				printf("KIO Timeout seq: %ld, toq: %lu - %lu = %lu\n",
+				       kio->kio_seq,
+				       currtime.tv_sec, kio->kio_timeout.tv_sec,
+				       currtime.tv_sec - kio->kio_timeout.tv_sec
+				       );
+				       
+
 				/*
 				 * Add the found KIO to the completed Q.
 				 * Remember we have the recev Q locks,
@@ -1784,7 +1791,7 @@ ktli_receiver(void *p)
 
 				/* preserve the Q back pointer  */
 				kio->kio_qbp = list_element_curr(cq->ktq_list);
-				kio->kio_state = KIO_TIMEOUT;
+				kio->kio_state = KIO_TIMEDOUT;
 
 				pthread_cond_broadcast(&cq->ktq_cv);
 				pthread_mutex_unlock(&cq->ktq_m);
@@ -1812,61 +1819,3 @@ ktli_receiver(void *p)
 
 	pthread_exit(p);
 }
-
-#ifdef KTLI_TSTAMP_THR
-inline 	__attribute__((always_inline)) int
-ktli_gettime(struct timespec *ts)
-{
-	if (!ts)
-		return(-1);
-
-	pthread_mutex_lock(&ktli_ts_m);
-	*ts = ktli_ts;
-	pthread_mutex_unlock(&ktli_ts_m);
-
-	return(0);
-}
-
-static void *
-ktli_timestamp(void *p)
-{
-	int rc, cpu = 15;
-	cpu_set_t cpuset;
-	pthread_t thread;
-	//struct timespec bedtime = {0,10}, unused;
-
-	//printf("Timestamp thread spinning.....\n");
-	thread = pthread_self();
-
-	/* Set affinity mask to CPU 4 */
-	CPU_ZERO(&cpuset);
-	CPU_SET(cpu, &cpuset);
-
-	rc = pthread_setaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
-	if (rc != 0)
-		printf("ktli_time: pthread_setaffinity_np failed");
-
-	/* Check the actual affinity mask assigned to the thread */
-	rc = pthread_getaffinity_np(thread, sizeof(cpu_set_t), &cpuset);
-	if (rc != 0)
-		printf("ktli_time: pthread_getaffinity_np failed");
-
-	if (CPU_ISSET(4, &cpuset))
-		printf("ktli_time: Set affinity to CPU %d\n", cpu);
-
-	do {
-		/* forever tight spin loop, yes I am burning a core */
-		pthread_mutex_lock(&ktli_ts_m);
-		clock_gettime(KIO_CLOCK, &ktli_ts);
-		pthread_mutex_unlock(&ktli_ts_m);
-
-		if (ktli_ts_exit) break;
-
-		//nanosleep(&bedtime, &unused);
-	} while (1);
-
-	debug_printf("Timestamp: exiting\n");
-
-	pthread_exit(p);
-}
-#endif /* KTLI_TSTAMP_THR */

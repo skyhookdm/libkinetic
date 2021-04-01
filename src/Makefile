@@ -30,7 +30,7 @@ KOBJ = 		kinetic.o
 OBJS =		ktli.o ktli_socket.o ktli_session.o protocol_interface.o\
 		open.o getlog.o get.o put.o del.o range.o batch.o iter.o\
 		aio.o util.o validate.o labels.o error.o ktb.o version.o\
-		basickv.o stat.o					\
+		basickv.o stat.o noop.o					\
 		$(PROTOBUF)
 GITHASH	=	githash.h
 
@@ -42,7 +42,12 @@ INC_PRIV =	kio.h ktli.h ktli_session.h  \
 		kinetic.h kinetic_internal.h \
 		session.h
 
-CFLAGS =	-g -DKTLI_TSTAMP_THR -I$(BUILDDIR)/include -I. -Wall -fpic -Wl,-export-dynamic
+STATS = 
+
+# debuglevel: 0=no debug, 1=info, 2=debug; -fmax-errors=10 reduces shown errs
+DEBUG =	-g -DLOGLEVEL=0 $(STATS)
+
+CFLAGS =	$(DEBUG) -I. -I$(BUILDDIR)/include -Wall -fpic -Wl,-export-dynamic
 LDFLAGS =	-L$(BUILDDIR)/lib -L/usr/lib/$(shell gcc -print-multiarch)
 LDLIBS =	-llist -lprotobuf-c -lm
 
@@ -73,6 +78,7 @@ $(BUILDLIB_KINETIC): $(KINETICSOVL)
 $(KINETIC):	links $(OBJS)
 	ld -r -o $(KOBJ) $(OBJS) $(LDFLAGS) $(LDLIBS)
 	ar -crs $@ $(KOBJ)
+	ranlib $@
 
 $(KINETICSOVL): $(KINETIC)
 	gcc -shared -Wl,-soname,$(KINETICSOV) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
@@ -114,7 +120,7 @@ clean:
 	rm -rf $(KINETIC) $(KINETICSO) $(KINETICSOV) $(KINETICSOVL) $(GITHASH) a.out links *.o
 
 
-$(OBJS): $(INC_KPUB) $(INC_PPUB) $(INC_PRIV)
+$(OBJS): $(INC_KPUB) $(INC_PPUB) $(INC_PRIV) Makefile
 
 version.o: $(GITHASH)
 

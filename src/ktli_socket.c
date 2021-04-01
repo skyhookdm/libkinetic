@@ -35,7 +35,7 @@
 #include <assert.h>
 #include <sys/uio.h>
 
-#define KTLI_ZEROCOPY 1
+//#define KTLI_ZEROCOPY 1
 
 #include "kinetic.h"
 #include "ktli.h"
@@ -406,7 +406,7 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 		br = readv(dd, &iov[curv], iovs-curv);
 		if (br < 0) {
 			if (errno == EAGAIN || errno == EWOULDBLOCK) {
-				usleep(500);
+				//usleep(500);
 				br = 0;
 				continue;
 			} else {

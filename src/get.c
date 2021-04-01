@@ -349,24 +349,30 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 			 * Hence, this error means nothing to clean up
 			 */
 			kst->kst_gets.kop_err++;
-			debug_printf("get: kio receive");
+			debug_printf("get: kio receive failed");
 			return(K_EINTERNAL);
 		}
 	}
 	
-	/* 
-	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO 
-	 * that is really in an error state, in those cases clean up the KIO 
-	 * and go. 
+	/*
+	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO
+	 * that is really in an error state, in those cases clean up the KIO
+	 * and go.
 	 */
-	if (kio->kio_state != KIO_RECEIVED) {
-		debug_printf("get: kio bad state");
-		krc = K_EINTERNAL;
+	if (kio->kio_state == KIO_TIMEDOUT) {
+		debug_printf("get: kio timed out");
+		kst->kst_gets.kop_err++;
+		krc = K_ETIMEDOUT;
 		goto gex;
-	}		
+	} else 	if (kio->kio_state == KIO_FAILED) {
+		debug_printf("get: kio failed");
+		kst->kst_gets.kop_err++;
+		krc = K_ENOMSG;
+		goto gex;
+	}
 
 	/* Got a RECEIVED KIO, validate and decode */
-	
+
 	/*
 	 * Grab the original KVs sent in from the caller. 
 	 * Although these are not directly passed back in the complete, 
@@ -493,17 +499,18 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 	}
 	KI_FREE(kio->kio_sendmsg.km_msg);
 
-	/* Key Len and Value Len stats */
-	for (i=0; i < kv->kv_keycnt; i++) {
-		kl += kv->kv_key[i].kiov_len; /* Stats */
-	}
-
-	for (i=0; i < kv->kv_valcnt; i++) {
-		vl += kv->kv_val[i].kiov_len; /* Stats */
-	}
-
 	if (krc == K_OK) {
 		double nmn, nmsq;
+
+		/* Key Len and Value Len stats */
+		for (i=0; i < kv->kv_keycnt; i++) {
+			kl += kv->kv_key[i].kiov_len; /* Stats */
+		}
+
+		for (i=0; i < kv->kv_valcnt; i++) {
+			vl += kv->kv_val[i].kiov_len; /* Stats */
+		}
+
 		kst->kst_gets.kop_ok++;
 #if 1
 		if (kst->kst_gets.kop_ok == 1) {

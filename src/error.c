@@ -15,7 +15,7 @@
  */
 #include "kinetic.h"
 
-static const char *k_status_invalid = "Invalid Kinitic Status";
+static const char *k_status_invalid = "Invalid Kinetic Status";
 
 static const char *k_status_grp1[] = {
 	/* 0x0000  0 EREJECTED	*/ "Not attempted",
@@ -28,7 +28,7 @@ static const char *k_status_grp1[] = {
 	/* 0x0007  7 ENOTFOUND	*/ "Not found",
 	/* 0x0008  8 EBADVERS	*/ "Version mismatch",
 	/* 0x0009  9 EBUSY	*/ "Service busy",
-	/* 0x000a 10 ETIMEDOUT	*/ "Expired",
+	/* 0x000a 10 ETIMEDOUT	*/ "Request timed out",
 	/* 0x000b 11 EDATA	*/ "Data error",
 	/* 0x000c 12 EPERMDATA	*/ "Perm data error",
 	/* 0x000d 13 EP2PCONN	*/ "Remote connection error",
@@ -45,19 +45,11 @@ static const char *k_status_grp1[] = {
 };
 
 static const char *k_status_grp2[] = {
-	/* 0x8000  0 EAGAIN	*/ "",
-	/* 0x8000  0 ENOMSG	*/ "Unable to allocate memory",
-	/* 0x8000  0 ENOMEM	*/ "Bad Session",
-	/* 0x8000  0 EBADSESS	*/ "Invalid Argument(s)",
-	/* 0x8000  0 EMSGPACK	*/ "Unable to pack kinetic message",
-	/* 0x8000  0 EMSGUNPACK	*/ "Unable to unpack kinetic message",
-	/* 0x8000  0 ECMDUNPACK	*/ "Unable to unpack kinetic command",
-	/* 0x8000  0 ENOCMD	*/ "Message has no command data",
-	/* 0x8000  0 ECREATEREQ	*/ "Unable to construct kinetic request",
-	/* 0x8000  0 ERECVMSG	*/ "Failed to receive message",
-	/* 0x8000  0 ERECVPDU	*/ "Unexpected PDU length",
-	/* 0x8000  0 EPDUMSGLEN	*/ "Length mismatch: PDU != message + value",
-	/* 0x8000  0 EBATCH	*/ "General Batch Error",
+	/* 0x8000  0 EAGAIN	*/ "Not ready, try again",
+	/* 0x8000  1 ENOMSG	*/ "No message",
+	/* 0x8000  2 ENOMEM	*/ "Unable to allocate memory",
+	/* 0x8000  3 EBADSESS	*/ "Bad session",
+	/* 0x8000  4 EBATCH	*/ "General batch error",
 };
 
 const char *

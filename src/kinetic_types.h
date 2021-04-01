@@ -110,7 +110,7 @@ typedef enum kstatus {
 	K_ENOMEM	= (KSTAT_GRP2 | 2),
 	K_EBADSESS	= (KSTAT_GRP2 | 3),
 	K_EBATCH	= (KSTAT_GRP2 | 4),
-	KSTAT_GRP2_LAST	= 0,
+	KSTAT_GRP2_LAST	= (KSTAT_GRP2 | 5),
 	
 } kstatus_t;
 
@@ -122,8 +122,8 @@ typedef enum kstatus {
  * This is used in many places in libkinetic, including KTLI.
  */
 struct kiovec {
-	size_t  kiov_len;  // Number of bytes
 	void   *kiov_base; // Starting address
+	size_t  kiov_len;  // Number of bytes
 };
 
 
@@ -312,7 +312,7 @@ typedef void kio_t;
  * are optional.
  */
 typedef enum kopflags {
-	KOPF_TSTAT	= 0x0001,
+	KOPF_TSTAT	= 0x0001,	/* Collecting timestamps */
 
 #define KIOP_SET(_kop, _kiof)	((_kop)->kop_flags |=  (_kiof))
 #define KIOP_CLR(_kop, _kiof)	((_kop)->kop_flags &= ~(_kiof))
@@ -373,19 +373,22 @@ typedef struct kopstat {
 	double		kop_req[KOP_TMAX];	/* time spent in req portion */
 	double		kop_resp[KOP_TMAX];	/* time spent in req portion */
 
-	/* Remove me */
+#ifdef KOP_KEEP_TRECORDS
 #define KOP_TT		0
 #define KOP_ST		1
 #define KOP_RT		2
 #define KOP_TTMAX	3
-#define KOP_TTRECORDS	66000
-	uint64_t	kop_times[KOP_TTRECORDS][KOP_TTMAX];
+#define KOP_TRECORDS	66000
+	uint64_t	kop_times[KOP_TRECORDS][KOP_TTMAX];
+#endif
+
 } kopstat_t;
 
 typedef struct  kstats {
 	kopstat_t 	kst_puts;
 	kopstat_t 	kst_dels;
 	kopstat_t 	kst_gets;
+	kopstat_t 	kst_noops;
 
 #if 0
 	kopstat_t 	kst_cbats;	/* Create Batch */

@@ -28,13 +28,15 @@
 #define LOGLEVEL_DEBUG 2
 
 // this is the log level set for the program
+#ifndef LOGLEVEL
 #define LOGLEVEL LOGLEVEL_NONE
+#endif
 
 // macros that use the log level
 #if LOGLEVEL >= LOGLEVEL_DEBUG
 	#define debug_fprintf(...) 				\
 		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
-		fprintf(__VA_ARGS__)
+		fprintf(stderr, __VA_ARGS__)
 #else
 	#define debug_fprintf(...) {}
 #endif
@@ -42,7 +44,7 @@
 #if LOGLEVEL >= LOGLEVEL_INFO
 	#define info_fprintf(...) 				\
 		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
-		fprintf(__VA_ARGS__)
+		fprintf(stderr,__VA_ARGS__)
 #else
 	#define info_fprintf(...) {}
 #endif
@@ -63,6 +65,9 @@ kstatus_t ki_clean(void *p);
 kstatus_t ki_destroy(void *p);
 uint32_t  ki_valid(void *p);
 
+// Kinetic synchronous NOOP interface
+kstatus_t ki_noop(int ktd);
+
 // Kinetic synchronous I/O interfaces
 kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);
 kstatus_t ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
@@ -78,6 +83,9 @@ kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
 kstatus_t ki_abortbatch(int ktd, kbatch_t *kb);
 kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
+
+// Kinetic asynchronous NOOP interface
+kstatus_t ki_aio_noop(int ktd, void *cctx, kio_t **kio);
 
 // Kinetic asynchronous I/O interfaces
 kstatus_t ki_aio_put(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);

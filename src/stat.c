@@ -61,7 +61,10 @@ ki_getstats(int ktd, kstats_t *kst)
 
 	/* Finish the Sample Var and Stddev calculations */
 	s_stat_updatekop(&kst->kst_puts);
-	
+	s_stat_updatekop(&kst->kst_gets);
+	s_stat_updatekop(&kst->kst_dels);
+	s_stat_updatekop(&kst->kst_noops);
+
 	return(K_OK);
 }
 
@@ -100,7 +103,7 @@ ki_putstats(int ktd, kstats_t *kst)
  */
 #define KOP_BNS 1000000000L
 #define KOP_MAXINTV 1000000 /* 1M uS = 1S */
-#define ts_sub(_me, _se, _d) {						\
+#define ts_sub(_me, _se, _d, _m) {					\
 	(_d)  = ((_me)->tv_nsec - (_se)->tv_nsec);			\
 	if ((_d) < 0) {							\
 		--(_me)->tv_sec;					\
@@ -108,11 +111,12 @@ ki_putstats(int ktd, kstats_t *kst)
 	}								\
 	(_d) += ((_me)->tv_sec - (_se)->tv_sec) * KOP_BNS;		\
 	(_d) /= (uint64_t)1000;						\
-	if ((_d) > KOP_MAXINTV || (_d) < 0) {				\
-	/*	printf("KCTL TS CHK: (%lu, %lu) - (%lu, %lu) = %lu\n",	\
+	if ((_d) > KOP_MAXINTV || (_d) < 0 || !(_d)) {			\
+		info_fprintf("KIOTS CHK: %s: (%lu, %lu) - (%lu, %lu) = %lu\n", \
+		       (_m),						\
 		       (_me)->tv_sec, (_me)->tv_nsec,			\
 		       (_se)->tv_sec, (_se)->tv_nsec,			\
-		       (_d));	*/					\
+		       (_d));						\
 		(_d) = 0;						\
 	}								\
 }
@@ -158,9 +162,9 @@ s_stats_addts(struct kopstat *kop, struct kio *kio)
 	}
 
         /* The times here are always in temporal order and generally close */
-	ts_sub(&kio->kio_ts.kiot_comp, &kio->kio_ts.kiot_start, tt);
-	ts_sub(&kio->kio_ts.kiot_sent, &kio->kio_ts.kiot_start, st);
-	ts_sub(&kio->kio_ts.kiot_comp, &kio->kio_ts.kiot_recvs, rt);
+	ts_sub(&kio->kio_ts.kiot_comp, &kio->kio_ts.kiot_start, tt, "TT");
+	ts_sub(&kio->kio_ts.kiot_sent, &kio->kio_ts.kiot_start, st, "ST");
+	ts_sub(&kio->kio_ts.kiot_comp, &kio->kio_ts.kiot_recvs, rt, "RT");
 	if (!tt || !st || !rt) {
 		//printf("Dropping TS (%lu,%lu,%lu)\n", tt,st,rt);
 		kop->kop_ok--;
@@ -181,9 +185,14 @@ s_stats_addts(struct kopstat *kop, struct kio *kio)
 		printf("tt, st, rt \n");
 	printf("%lu, %lu, %lu\n", tt, st, rt);
 #endif
-	kop->kop_times[kop->kop_ok][KOP_TT] = tt;
-	kop->kop_times[kop->kop_ok][KOP_ST] = st;
-	kop->kop_times[kop->kop_ok][KOP_RT] = rt;
+
+#ifdef KOP_KEEP_TRECORDS
+	if (kop->kop_ok < KOP_TRECORDS) {
+		kop->kop_times[kop->kop_ok][KOP_TT] = tt;
+		kop->kop_times[kop->kop_ok][KOP_ST] = st;
+		kop->kop_times[kop->kop_ok][KOP_RT] = rt;
+	}
+#endif
 	
 	/* Now calculate the vaious sums needed */
 	if (kop->kop_ok == 1) {
@@ -211,7 +220,7 @@ s_stat_updatekop(kopstat_t *kop)
 	if (!KIOP_ISSET(kop, KOPF_TSTAT)) {
 		return(0);
 	}
-
+	
 	var = kop->kop_smsq/(kop->kop_ok-1);
 	kop->kop_sstdev = sqrt(var);
 	
