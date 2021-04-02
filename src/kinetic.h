@@ -15,24 +15,26 @@
  */
 #ifndef __KINETIC_INTERFACE_H
 #define __KINETIC_INTERFACE_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include "kinetic_types.h"
 
-
-// ------------------------------
-// macros for printing/logging
-
-// define log levels
+/*
+ * macros for printing/logging
+ * define log levels
+ */
 #define LOGLEVEL_NONE  0
 #define LOGLEVEL_INFO  1
 #define LOGLEVEL_DEBUG 2
 
-// this is the log level set for the program
+/* this is the log level set for the program */
 #ifndef LOGLEVEL
 #define LOGLEVEL LOGLEVEL_NONE
 #endif
 
-// macros that use the log level
+/* macros that use the log level */
 #if LOGLEVEL >= LOGLEVEL_DEBUG
 	#define debug_fprintf(...) 				\
 		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
@@ -49,26 +51,27 @@
 	#define info_fprintf(...) {}
 #endif
 
-// printf's as an alias to fprintf's for convenience
+/* printf's as an alias to fprintf's for convenience */
 #define debug_printf(...) debug_fprintf(stdout, __VA_ARGS__)
 #define info_printf(...)  info_fprintf(stdout, __VA_ARGS__)
 
 
-// ------------------------------
-// The API
+/* The API */
+
+/* Connection mgt */
 int ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *pass);
 int ki_close(int ktd);
 
-// Kinetic Type Interfaces
+/* Kinetic type interfaces */
 void *ki_create(int ktd, ktype_t kt);
 kstatus_t ki_clean(void *p);
 kstatus_t ki_destroy(void *p);
 uint32_t  ki_valid(void *p);
 
-// Kinetic synchronous NOOP interface
+/* Kinetic synchronous NOOP interface */
 kstatus_t ki_noop(int ktd);
 
-// Kinetic synchronous I/O interfaces
+/* Kinetic synchronous I/O interfaces */
 kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);
 kstatus_t ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
 kstatus_t ki_del(int ktd, kbatch_t *kb, kv_t *key);
@@ -81,13 +84,14 @@ kstatus_t ki_getversion(int ktd, kv_t *key);
 kstatus_t ki_getrange(int ktd, krange_t *kr);
 kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 
+/* Kinetic synchronous batch interfaces */
 kstatus_t ki_abortbatch(int ktd, kbatch_t *kb);
 kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
 
-// Kinetic asynchronous NOOP interface
+/* Kinetic asynchronous NOOP interface */
 kstatus_t ki_aio_noop(int ktd, void *cctx, kio_t **kio);
 
-// Kinetic asynchronous I/O interfaces
+/* Kinetic asynchronous I/O interfaces */
 kstatus_t ki_aio_put(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);
 kstatus_t ki_aio_cas(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);
 kstatus_t ki_aio_del(int ktd, kbatch_t *kb, kv_t *key, void *cctx, kio_t **kio);
@@ -100,30 +104,32 @@ kstatus_t ki_aio_getprev(int ktd, kv_t *key, kv_t *prev,
 			 void *cctx, kio_t **kio);
 kstatus_t ki_aio_getversion(int ktd, kv_t *key, void *cctx, kio_t **kio);
 
+/* Kinetic asynchronous batch interfaces */
 kstatus_t ki_aio_abortbatch(int ktd,  kbatch_t *kb, void *cctx, kio_t **kio);
 kstatus_t ki_aio_submitbatch(int ktd, kbatch_t *kb, void *cctx, kio_t **kio);
 
+/* Kinetic asynchronous common complete interface */
 kstatus_t ki_aio_complete(int ktd, kio_t *kio, void **cctx);
 
+/* Kinetic poll interface */
 int ki_poll(int ktd, int timeout);
 
-// ------------------------------
-// key iterator functions
+/* Kinetic key iterator interfaces */
 struct kiovec *ki_start(kiter_t *kit, krange_t *kr);
 struct kiovec *ki_next(kiter_t *kit);
 
+/* Kinetic statistic interfaces */
 kstatus_t ki_getstats(int ktd, kstats_t *kst);
 kstatus_t ki_putstats(int ktd, kstats_t *kst);
 
-// ------------------------------
-// utility functions
+/* Kinetic utility interfaces */
 
-// for information structures
+/* Kinetic information structures */
 klimits_t      ki_limits(int ktd);
 kstatus_t      ki_setclustervers(int ktd, int64_t vers);
 kstatus_t      ki_version(kversion_t *kver);
 
-// for key utilities/helpers
+/*  Kinetic key utilities/helpers */
 
 /* 
  * Create a new key vector from an existing buffer without copying it,
@@ -170,17 +176,19 @@ struct kiovec *ki_keyappend(struct kiovec *key, size_t keycnt,
 struct kiovec *ki_keyfirst();
 struct kiovec *ki_keylast(size_t len);
 
-// for iterator management
+/* Kinetic range mgt */
 krange_t *ki_rangecpy(krange_t *dst, krange_t *src);
 krange_t *ki_rangedup(int ktd, krange_t *kr);
+int ki_rangefree(krange_t *kr);
 
-// for checksum computation
+/*  for checksum computation */
 struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt,
 			      const char *digest_name);
 
-// for range 
-int ki_rangefree(krange_t *kr);
-
+/* Kinetic error string interface */
 const char *ki_error(kstatus_t ks);
 
-#endif // __KINETIC_INTERFACE_H
+#ifdef __cplusplus
+}  /* extern "C */
+#endif
+#endif /* __KINETIC_INTERFACE_H */
