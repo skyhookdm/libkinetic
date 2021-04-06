@@ -35,7 +35,7 @@
 #include <assert.h>
 #include <sys/uio.h>
 
-#define KTLI_ZEROCOPY 1
+//#define KTLI_ZEROCOPY 1
 
 #include "kinetic.h"
 #include "ktli.h"

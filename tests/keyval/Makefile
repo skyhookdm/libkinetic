@@ -23,7 +23,10 @@ OBJS         =	requests.o helper.o ../kfixtures.o ../hashtable.o
 CFLAGS       =	-g -I$(BUILDDIR)/include -I$(GTESTDIR)/googletest/include
 CPPFLAGS     =	$(CFLAGS)
 LDFLAGS      =	-L$(BUILDDIR)/lib
-LDLIBS       =	-lkinetic -lpthread -lssl -lcrypto -lgtest -lstdc++
+STATIC	     = 	-Wl,-Bstatic
+DYNAMIC      =	-Wl,-Bdynamic
+LDLIBS       =	$(STATIC) -lkinetic 					\
+		$(DYNAMIC) -lpthread -lssl -lcrypto -lgtest -lstdc++
 
 all: $(TEST_MAIN)
 
