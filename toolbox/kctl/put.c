@@ -228,10 +228,10 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			/* tag it */
 			memcpy(ka->ka_val, ka->ka_key, ka->ka_keylen);
 		} else {
-			ka->ka_val    = NULL;	
+			ka->ka_val    = NULL;
 			ka->ka_vallen = 0;
 		}
-			
+
 	} else if ((argc - optind == 1) && filename) {
 		/* Construct value buffer from file contents */
 		if (!asciidecode(argv[optind], strlen(argv[optind]),
