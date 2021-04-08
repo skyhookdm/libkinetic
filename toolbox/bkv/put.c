@@ -68,7 +68,7 @@ b_put(int argc, char *argv[], int ktd, struct bargs *ba)
 		switch (c) {
 		case 'f':
 			filename = optarg;
-			if (zlen) {
+			if (zlen > -1) {
 				fprintf(stderr, "**** No -z and -f\n");
 				CMD_USAGE(ba);
 				return(-1);
