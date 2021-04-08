@@ -291,7 +291,8 @@ bkv_put(int ktd, void *key, size_t klen, void  *val, size_t vlen)
 	klimits_t	kil;
 	kstatus_t 	kstatus;
 
-	if (!key || !klen || !val || !vlen) {
+	/* values can be empty, but keys are mandatory */
+	if (!key || !klen) {
 		debug_fprintf("bkv_put: Illegal arguments\n");
 		return(-1);
 	}
@@ -369,6 +370,7 @@ bkv_putn(int ktd, void *key, size_t klen, uint32_t *n, void  *val, size_t vlen)
 	struct kiovec	kv_key[2]  = {{0, 0}, {0, 0}};
 	struct kiovec	kv_val[1]  = {{0, 0}};
 
+	/* For putn values are required, 0 lens not accepted */
 	if (!key || !klen || !n || !val || !vlen) {
 		debug_fprintf("bkv_putn: Illegal arguments\n");
 		return(-1);

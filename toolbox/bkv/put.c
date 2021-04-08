@@ -59,8 +59,8 @@ b_put(int argc, char *argv[], int ktd, struct bargs *ba)
 	extern char	*optarg;
 	extern int	optind, opterr, optopt;
 	struct stat	st;
-	int		rc, fd, large = 0;
-	uint64_t	zlen = 0, maxlen;
+	int		rc, fd, large = 0, zlen = -1;
+	uint64_t	maxlen;
 	uint32_t	count = 0;
 	char		c, *cp, *rs, *filename = NULL;
 
@@ -145,7 +145,7 @@ b_put(int argc, char *argv[], int ktd, struct bargs *ba)
 	 * at the same time (first clause) and there shouldn't ever
 	 * be more than a value left on the cmd line (second clause)
 	 */
-	if (((zlen || filename ) && (argc - optind == 1)) ||
+	if ((( (zlen > -1) || filename ) && (argc - optind == 1)) ||
 	     (argc - optind > 1)) {
 				fprintf(stderr, "*** Too many args\n");
 		CMD_USAGE(ba);
@@ -168,22 +168,29 @@ b_put(int argc, char *argv[], int ktd, struct bargs *ba)
 		}
 
 
-	} else if (zlen) {
+	} else if (zlen > -1) {
 		if (zlen > maxlen) {
-			fprintf(stderr, "*** zlen too long (%lu > %ld)\n",
+			fprintf(stderr, "*** zlen too long (%d > %ld)\n",
 				zlen, ba->ba_limits.bkvl_vlen);
 			return(-1);
 		}
 
-		/* Generate zero filled value buffer */
-		ba->ba_val = (char *)malloc(zlen);
-		if (!ba->ba_val) {
-			fprintf(stderr, "*** Unable to alloc zlen buffer\n");
-			return(-1);
+		if (zlen) {
+			/* Generate zero filled value buffer */
+			ba->ba_val = (char *)malloc(zlen);
+			if (!ba->ba_val) {
+				fprintf(stderr,
+					"*** Unable to alloc zlen buffer\n");
+				return(-1);
+			}
+			ba->ba_vallen = zlen;
+			memset(ba->ba_val, 0, zlen);
+			/* tag it */
+			memcpy(ba->ba_val, ba->ba_key, ba->ba_keylen);
+		} else {
+			ba->ba_val    = NULL;
+			ba->ba_vallen = 0;
 		}
-		ba->ba_vallen = zlen;
-		memset(ba->ba_val, 0, zlen);
-		memcpy(ba->ba_val, ba->ba_key, ba->ba_keylen); /* tag it */
 		
 	} else if (filename) {
 		/* Generate file filled value buffer */
