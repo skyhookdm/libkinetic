@@ -7,7 +7,7 @@
  * https://mozilla.org/MP:/2.0/.
  *
  * This program is distributed in the hope that it will be useful,
- * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; iX1ncluding without
  * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
  * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
  * License for more details.
@@ -297,19 +297,26 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 #else
 		bw = writev(dd, &iov[curv], iovs-curv);
 #endif
-		if (bw < 0) {
-			/* Although these are equivalent, POSIX.1-2001 allows
-			 * either error to be returned for this case, and does
-			 * not require these constants to have the same value,
-			 * so check for both possibilities.
+		if (bw <= 0) {
+			/*
+			 * Although EAGAIN and EWOULDBLOCK are equivalent,
+			 * POSIX.1-2001 allows either error to be returned
+			 * for this case, and does not require these
+			 * constants to have the same value, so check for
+			 * both possibilities.
+			 * EINTR should also be handled in case the system
+			 * call is interupted by a signal
 			 */
-			if (errno == EAGAIN || errno == EWOULDBLOCK) {
-				//printf("ktli_socket_send: hit EAGAIN\n");
-				//usleep(500);
+			if ((errno == EAGAIN)	   ||  	/* Not ready */
+			    (errno == EWOULDBLOCK) ||  	/* Not ready */
+			    (errno == EINTR)) {		/* Intr by signal */
 				bw = 0;
 				continue;
 			} else {
-				/* we check the error outside of the loop */
+				/*
+				 * Not a retry-able error break out,
+				 * we check the error outside of the loop
+				 */
 				break;
 			}
 		}
@@ -347,10 +354,11 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		printf("socket_send: error %d", errno);
 		perror("socket_send:");
 		free(iov);
-		return(bw);
+		return(-1);
 	}
 
 	if (tbw != len) {
+		/* This should catch the EOF error */
 		printf("socket_send: %d != %d \n", tbw, len);
 		errno = ECOMM;
 		free(iov);
@@ -358,8 +366,6 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 	}
 
 	free(iov);
-
-	//if (cnt > 1) printf("ss-wvs %d\n", cnt);
 	return(tbw);
 }
 
@@ -404,13 +410,27 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 	 */
 	for (curv=0,tbr=0,cnt=1;;cnt++) {
 		br = readv(dd, &iov[curv], iovs-curv);
-		if (br < 0) {
-			if (errno == EAGAIN || errno == EWOULDBLOCK) {
-				//usleep(500);
+		if (br <= 0) {
+			/*
+			 * Although EAGAIN and EWOULDBLOCK are equivalent,
+			 * POSIX.1-2001 allows either error to be returned
+			 * for this case, and does not require these
+			 * constants to have the same value, so check for
+			 * both possibilities.
+			 * EINTR should also be handled in case the system
+			 * call is interupted by a signal
+			 */
+			if ((errno == EAGAIN)	   ||  	/* Not ready */
+			    (errno == EWOULDBLOCK) ||  	/* Not ready */
+			    (errno == EINTR)) {		/* Intr by signal */
 				br = 0;
 				continue;
 			} else {
-				/* we check the error outside of the loop */
+				/*
+				 * we check the error outside of the loop
+				 * br < 0, errno has the error,
+				 * br = 0 is EOF, Socket has been closed
+				 */
 				break;
 			}
 		}
@@ -436,19 +456,19 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 		 * if br < 0 then readv failed above, return the error
 		 */
 		printf("socket_receive: error %d", errno);
-		return(br);
+		free(iov);
+		return(-1);
 	}
 
 	if (tbr != len) {
+		/* This should catch the EOF error */
 		printf("socket_receive: %d != %d \n", tbr, len);
 		errno = ECOMM;
+		free(iov);
 		return(-1);
 	}
 
 	free(iov);
-
-	//if (cnt > 1) printf("socket_receive: ss-rvs %d\n", cnt);
-
 	return(tbr);
 }
 
