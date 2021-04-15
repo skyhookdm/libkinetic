@@ -75,7 +75,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
  	extern char     *optarg;
         extern int	optind, opterr, optopt;
         char		c, *cp, *filename=NULL;
-	int 		count=0, cas=0, zlen=0, bat=0, rc, fd, i;
+	int 		count=0, cas=0, zlen=-1, bat=0, rc, fd, i;
 	uint32_t	sum=0;
 	struct stat	st;
 	kcachepolicy_t	cpolicy = KC_WB;
@@ -99,7 +99,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			break;
 		case 'f':
 			filename = optarg;
-			if (zlen) {
+			if (zlen > -1) {
 				fprintf(stderr, "**** No -z and -f\n");
 				CMD_USAGE(ka);
 				return(-1);
@@ -207,7 +207,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			return(-1);
 		}
 		
-	} else if (argc - optind == 1 && zlen) {
+	} else if ((argc - optind == 1) && (zlen > -1)) {
 		/* Construct zero value buffer of length zlen */
 		if (!asciidecode(argv[optind], strlen(argv[optind]),
 				 (void **)&ka->ka_key, &ka->ka_keylen)) {
@@ -216,15 +216,23 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			return(-1);
 		}
 		optind++;
-		ka->ka_val = (char *)malloc(zlen);
-		if (!ka->ka_val) {
-			fprintf(stderr, "*** Unable to alloc zlen buffer\n");
-			return(-1);
+		if (zlen) {
+			ka->ka_val = (char *)malloc(zlen);
+			if (!ka->ka_val) {
+				fprintf(stderr,
+					"*** Unable to alloc zlen buffer\n");
+				return(-1);
+			}
+			ka->ka_vallen = zlen;
+			memset(ka->ka_val, 0, zlen);
+			/* tag it */
+			memcpy(ka->ka_val, ka->ka_key, ka->ka_keylen);
+		} else {
+			ka->ka_val    = NULL;
+			ka->ka_vallen = 0;
 		}
-		ka->ka_vallen = zlen;
-		memset(ka->ka_val, 0, zlen);
-		memcpy(ka->ka_val, ka->ka_key, ka->ka_keylen); /* tag it */
-	} else if (argc - optind == 1 && filename) {
+
+	} else if ((argc - optind == 1) && filename) {
 		/* Construct value buffer from file contents */
 		if (!asciidecode(argv[optind], strlen(argv[optind]),
 				 (void **)&ka->ka_key, &ka->ka_keylen)) {
@@ -339,7 +347,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		       (ka->ka_vallen / m * 1000000 / 1024.0));
 	}
 
-	free(ka->ka_val);
+	if (ka->ka_val) free(ka->ka_val);
 	ki_destroy(kv);
 	return(rc);
 }
