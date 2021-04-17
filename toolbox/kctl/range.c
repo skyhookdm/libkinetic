@@ -32,7 +32,7 @@ kctl_range_usage(struct kargs *ka)
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-n count	Number of keys in range [unlimited]\n");
+	fprintf(stderr, "\t-n count     Number of keys in range [unlimited]\n");
 	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
 	fprintf(stderr, "\t-S KEY       Range start key, inclusive\n");
 	fprintf(stderr, "\t-e KEY       Range end key, non inclusive\n");
