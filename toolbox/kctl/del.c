@@ -41,11 +41,11 @@ kctl_del_usage(struct kargs *ka)
 	fprintf(stderr, "\t-p [wt|wb|f] Persist Mode: writethrough, writeback, \n");
 	fprintf(stderr, "\t             flush [writeback]\n");
 	fprintf(stderr, "\t-a           Delete all keys\n");
-	fprintf(stderr, "\t-n count     Number of keys in range[all in range]\n");
-	fprintf(stderr, "\t-s KEY       Start Key in the range, non inclusive\n");
-	fprintf(stderr, "\t-S KEY       Start Key in the range, inclusive\n");
-	fprintf(stderr, "\t-e KEY       End Key in the range, non inclusive\n");
-	fprintf(stderr, "\t-E KEY       End Key in the range, inclusive\n");
+	fprintf(stderr, "\t-n count	Number of keys in range [unlimited]\n");
+	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
+	fprintf(stderr, "\t-S KEY       Range start key, inclusive\n");
+	fprintf(stderr, "\t-e KEY       Range end key, non inclusive\n");
+	fprintf(stderr, "\t-E KEY       Range end key, inclusive\n");
 	fprintf(stderr, "\t-?           Help\n");
 
 	// R"foo(....)foo" is a non escape char evaluated string literal 
