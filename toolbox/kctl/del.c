@@ -41,7 +41,7 @@ kctl_del_usage(struct kargs *ka)
 	fprintf(stderr, "\t-p [wt|wb|f] Persist Mode: writethrough, writeback, \n");
 	fprintf(stderr, "\t             flush [writeback]\n");
 	fprintf(stderr, "\t-a           Delete all keys\n");
-	fprintf(stderr, "\t-n count	Number of keys in range [unlimited]\n");
+	fprintf(stderr, "\t-n count     Number of keys in range [unlimited]\n");
 	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
 	fprintf(stderr, "\t-S KEY       Range start key, inclusive\n");
 	fprintf(stderr, "\t-e KEY       Range end key, non inclusive\n");

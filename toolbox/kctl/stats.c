@@ -71,7 +71,7 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 	
 	/* clear global flag vars */
 	tstats = 0, clear = 0;
-	gets = puts = dels = noops = 0;
+	gets = puts = dels = noops = kvs = 0;
 	
         while ((c = getopt(argc, argv, "CgpdNTks:S:e:E:n:?h")) != EOF) {
                 switch (c) {
