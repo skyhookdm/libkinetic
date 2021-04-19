@@ -389,6 +389,7 @@ typedef struct  kstats {
 	kopstat_t 	kst_dels;
 	kopstat_t 	kst_gets;
 	kopstat_t 	kst_noops;
+	kopstat_t 	kst_flushs;
 
 #if 0
 	kopstat_t 	kst_cbats;	/* Create Batch */

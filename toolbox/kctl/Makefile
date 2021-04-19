@@ -22,7 +22,7 @@ BUILDSRC =	$(BUILDDIR)/src
 BUILDMAN =	$(BUILDDIR)/man
 
 SRCS = 		kctl.c util.c info.c get.c put.c del.c	\
-		range.c batch.c stats.c ping.c
+		range.c batch.c stats.c ping.c flush.c
 HDRS =		kctl.h
 OBJS =		$(SRCS:.c=.o)
 DEPS = 		$(SRCS:.c=.d)
