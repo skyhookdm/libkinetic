@@ -30,7 +30,7 @@ KOBJ = 		kinetic.o
 OBJS =		ktli.o ktli_socket.o ktli_session.o protocol_interface.o\
 		open.o getlog.o get.o put.o del.o range.o batch.o iter.o\
 		aio.o util.o validate.o labels.o error.o ktb.o version.o\
-		basickv.o stat.o noop.o					\
+		basickv.o stat.o noop.o	flush.o				\
 		$(PROTOBUF)
 GITHASH	=	githash.h
 
