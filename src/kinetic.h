@@ -71,6 +71,9 @@ uint32_t  ki_valid(void *p);
 /* Kinetic synchronous NOOP interface */
 kstatus_t ki_noop(int ktd);
 
+/* Kinetic synchronous Flush interface */
+kstatus_t ki_flush(int ktd);
+
 /* Kinetic synchronous I/O interfaces */
 kstatus_t ki_put(int ktd, kbatch_t *kb, kv_t *kv);
 kstatus_t ki_cas(int ktd, kbatch_t *kb, kv_t *kv);
@@ -90,6 +93,9 @@ kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
 
 /* Kinetic asynchronous NOOP interface */
 kstatus_t ki_aio_noop(int ktd, void *cctx, kio_t **kio);
+
+/* Kinetic asynchronous flush interface */
+kstatus_t ki_aio_flush(int ktd, void *cctx, kio_t **kio);
 
 /* Kinetic asynchronous I/O interfaces */
 kstatus_t ki_aio_put(int ktd, kbatch_t *kb, kv_t *kv,  void *cctx, kio_t **kio);

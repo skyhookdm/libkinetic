@@ -40,12 +40,13 @@ kctl_del_usage(struct kargs *ka)
 	fprintf(stderr, "\t-c           Compare and delete [no]\n");
 	fprintf(stderr, "\t-p [wt|wb|f] Persist Mode: writethrough, writeback, \n");
 	fprintf(stderr, "\t             flush [writeback]\n");
+	fprintf(stderr, "\t-F           Issue a flush at completion\n");
 	fprintf(stderr, "\t-a           Delete all keys\n");
-	fprintf(stderr, "\t-n count     Number of keys in range[all in range]\n");
-	fprintf(stderr, "\t-s KEY       Start Key in the range, non inclusive\n");
-	fprintf(stderr, "\t-S KEY       Start Key in the range, inclusive\n");
-	fprintf(stderr, "\t-e KEY       End Key in the range, non inclusive\n");
-	fprintf(stderr, "\t-E KEY       End Key in the range, inclusive\n");
+	fprintf(stderr, "\t-n count     Number of keys in range [unlimited]\n");
+	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
+	fprintf(stderr, "\t-S KEY       Range start key, inclusive\n");
+	fprintf(stderr, "\t-e KEY       Range end key, non inclusive\n");
+	fprintf(stderr, "\t-E KEY       Range end key, inclusive\n");
 	fprintf(stderr, "\t-?           Help\n");
 
 	// R"foo(....)foo" is a non escape char evaluated string literal 
@@ -80,7 +81,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 	int 		starti = 0, endi = 0;
 	int		all = 0;
         int 		dels = 0, count = KVR_COUNT_INF;;
-	int 		cmpdel = 0, bat=0;
+	int 		cmpdel = 0, bat=0, flush=0;
 	kv_t		*kv;
 	krange_t	*kr;
 	kiter_t		*kit;
@@ -92,7 +93,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 	kstatus_t 	krc;
 	struct timespec tstart, tstop;
 
-        while ((c = getopt(argc, argv, "abcp:s:S:e:E:n:h?")) != EOF) {
+        while ((c = getopt(argc, argv, "abcFp:s:S:e:E:n:h?")) != EOF) {
                 switch (c) {
 		case 'b':
 			bat = 1;
@@ -104,6 +105,9 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			break;
 		case 'c':
 			cmpdel = 1;
+			break;
+		case 'F':
+			flush = 1;
 			break;
 		case 'p':
 			if (strlen(optarg) > 2) {
@@ -298,7 +302,20 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 				return(-1);
 			}
 		}
-	
+
+		if (flush) {
+			if (ka->ka_verbose)
+				fprintf(stderr, "%s: Flushing\n",
+					ka->ka_cmdstr);
+
+			krc = ki_flush(ktd);
+			if (krc != K_OK) {
+				fprintf(stderr, "%s: Flush failed: %s\n",
+					ka->ka_cmdstr,  ki_error(krc));
+				return(-1);
+			}
+		}
+
 		if (ka->ka_yes && ka->ka_stats) {
 			uint64_t t;
 			clock_gettime(CLOCK_MONOTONIC, &tstop);
@@ -473,6 +490,19 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 					krc, ki_error(krc));
 				ki_destroy(kit);
 				ki_destroy(kr);
+				return(-1);
+			}
+		}
+
+		if (flush) {
+			if (ka->ka_verbose)
+				fprintf(stderr, "%s: Flushing\n",
+					ka->ka_cmdstr);
+
+			krc = ki_flush(ktd);
+			if (krc != K_OK) {
+				fprintf(stderr, "%s: Flush failed: %s\n",
+					ka->ka_cmdstr,  ki_error(krc));
 				return(-1);
 			}
 		}
