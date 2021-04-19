@@ -162,6 +162,16 @@ echo Del error cases
 del kctl.sanity.put.2
 
 #
+# Flush
+#
+# Flush cmd
+echo Flush tests
+flush
+# Flush after WB put
+put -F -p wb -z 32768 -n 1024 kctl.sanity.flush
+# Flush after WB del
+del -F -p wb -S kctl.sanity.flush -n 1024
+
 # Batches
 #
 # Std Batch
