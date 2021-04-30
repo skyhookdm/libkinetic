@@ -172,6 +172,35 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 					CMD_USAGE(ka);
 					return(-1);
 				}
+
+				if (((int)h->h_lower   < 0) ||
+				    ((int)h->h_upper   < 0) ||
+				    ((int)h->h_buckets < 0) ||
+				    ((int)h->h_rows    < 0) ||
+				    ((int)h->h_rclip   < 0))  {
+					fprintf(stderr,
+                                                "*** Invalid histo parms < 0: %s\n",
+                                                optarg);
+                                        CMD_USAGE(ka);
+                                        return(-1);
+                                }
+
+				if (h->h_lower >= h->h_upper) {
+					fprintf(stderr,
+                                                "*** Invalid histo lower bound %s\n",
+                                                optarg);
+                                        CMD_USAGE(ka);
+                                        return(-1);
+                                }
+
+				if (h->h_rclip >= h->h_rows) {
+					fprintf(stderr,
+                                                "*** Invalid histo clip %s\n",
+                                                optarg);
+                                        CMD_USAGE(ka);
+                                        return(-1);
+                                }
+
 			}
 
 			h->h_histo = (uint32_t *)malloc(sizeof(uint32_t) * h->h_buckets);
