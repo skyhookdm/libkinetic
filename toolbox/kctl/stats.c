@@ -20,14 +20,26 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <sys/types.h>
+#include <sys/ioctl.h>
+#include <assert.h>
 #include <math.h>
 
 #include <kinetic/kinetic.h>
 #include "kctl.h"
 
+struct histo {
+	uint32_t	h_lower;
+	uint32_t	h_upper;
+	uint32_t	h_buckets;	/* cols on X axis */
+	uint32_t	h_rows;		/* rows on Y axis */
+	uint32_t	h_rclip;	/* # rows to clip from top of Y axis */
+	uint32_t	*h_histo;
+};
+
 static void print_kop(kopstat_t *kop, char *opstr, struct kargs *ka);
 static int print_kvs(struct kargs *ka, int kts,
-		      char *start, int starti, char *end, int endi, int count);
+		     char *start, int starti, char *end, int endi, int count,
+		     struct histo *hkey, struct histo *hval, int csv);
 
 #define CMD_USAGE(_ka) kctl_stats_usage(_ka)
 
@@ -42,7 +54,17 @@ kctl_stats_usage(struct kargs *ka)
 	fprintf(stderr, "\t-g           Print Get Statistics\n");
 	fprintf(stderr, "\t-p           Print Put Statistics\n");
 	fprintf(stderr, "\t-N           Print Noop/Ping Statistics\n");
+	fprintf(stderr, "\t-c           Clear All Statistics\n");
+	fprintf(stderr, "\t Key Value Statistics Options\n");
 	fprintf(stderr, "\t-k           Print KV Statistics on a key range\n");
+	fprintf(stderr, "\t-h \'k\'|\'v\'[:L:U:B[:R:C]]\n");
+	fprintf(stderr, "\t             Print KV histogram params for either keys or values\n");
+	fprintf(stderr, "\t               L = lower bound; U = upper bound\n");
+	fprintf(stderr, "\t               B = buckets\n");
+	fprintf(stderr, "\t               R = rows to print; C = rows to clip\n");
+	fprintf(stderr, "\t               defaults [k:0:maxkey:50:20:0][v:0:maxval:50:20:0]\n");
+	fprintf(stderr, "\t-C           Print histogram as CSV\n");
+	fprintf(stderr, "\t Key Value Statistics Range Options\n");
 	fprintf(stderr, "\t-n count     Number of keys in range [unlimited]\n");
 	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
 	fprintf(stderr, "\t-S KEY       Range start key, inclusive\n");
@@ -61,24 +83,39 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 	extern char     *optarg;
         extern int	optind, opterr, optopt;
 	char		c, *cp;
-	int 		gets, puts, dels, noops, kvs;
+	int 		gets, puts, dels, noops, kvs, csv;
+	struct histo	hkey, hval;
 	int		tstats, clear;
 	char 		*start = NULL, *end = NULL;
 	int 		starti = 0, endi = 0;
         int 		count = KVR_COUNT_INF;
 	kstats_t 	*kst;
 	kstatus_t 	krc;
-	
+	int 		rc;
+	struct histo 	*h;
+
 	/* clear global flag vars */
 	tstats = 0, clear = 0;
-	gets = puts = dels = noops = kvs = 0;
+	gets = puts = dels = noops = kvs = csv = 0;
+
+	hkey.h_lower   = hval.h_lower = 0;
+	hkey.h_upper   = ka->ka_limits.kl_keylen;
+	hval.h_upper   = ka->ka_limits.kl_vallen;
+	hkey.h_buckets = hval.h_buckets = 50;
+	hkey.h_rows    = hval.h_rows = 20;
+	hkey.h_rclip   = hval.h_rclip = 0;
+	hkey.h_histo   = hval.h_histo = NULL;
 	
-        while ((c = getopt(argc, argv, "CgpdNTks:S:e:E:n:?h")) != EOF) {
+        while ((c = getopt(argc, argv, "Ccgh:pdNTks:S:e:E:n:?h")) != EOF) {
                 switch (c) {
-		case 'C':
+		case 'c':
 		        clear = 1;
 			break;
 			
+		case 'C':
+		        csv = 1;
+			break;
+
 		case 'd':
 			dels = 1;
 			break;
@@ -101,6 +138,50 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 			
 		case 'k':
 			kvs = 1;
+			break;
+
+		case 'h':
+			if ((optarg[0] == 'k') ||(optarg[0] == 'K')) {
+				h = &hkey;
+			} else if ((optarg[0] == 'v') ||(optarg[0] == 'V')) {
+				h = &hval;
+			} else {
+				fprintf(stderr, "*** Invalid histo parms %s\n",
+					optarg);
+				CMD_USAGE(ka);
+				return(-1);
+			}
+
+			/*
+			 * if more in the arg process it,
+			 * otherwise take the defaults
+			 */
+			if (optarg[1] != '\0') {
+				rc = sscanf(&optarg[1],
+					    "%[:]%i%[:]%i%[:]%i%[:]%i%[:]%i",
+					    &c, &h->h_lower,
+					    &c, &h->h_upper,
+					    &c, &h->h_buckets,
+					    &c, &h->h_rows,
+					    &c, &h->h_rclip);
+
+				if ((rc != 6) && (rc != 10))  {
+					fprintf(stderr,
+						"*** Invalid histo Parms %s\n",
+						optarg);
+					CMD_USAGE(ka);
+					return(-1);
+				}
+			}
+
+			h->h_histo = (uint32_t *)malloc(sizeof(uint32_t) * h->h_buckets);
+			if (!h->h_histo) {
+				fprintf(stderr, "*** Memory Failure\n");
+				CMD_USAGE(ka);
+				return(-1);
+			}
+			memset(h->h_histo, 0, (sizeof(uint32_t)*h->h_buckets));
+
 			break;
 
 		case 'n':
@@ -157,7 +238,6 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 			endi = 1;
 			break;
 			
-		case 'h':
                 case '?':
                 default:
                         CMD_USAGE(ka);
@@ -184,7 +264,7 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 		printf("Clearing Statistics\n");
 		krc = ki_putstats(kts, kst);
 		if (krc != K_OK) {
-			printf("Failed to enable Time Statistics\n");
+			printf("Failed to Clear Statistics\n");
 			return(-1);
 		}
 
@@ -245,8 +325,9 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 		print_kop(&kst->kst_puts, "Put", ka);
 	}
 
-	if (kvs)
-		print_kvs(ka, kts, start, starti, end, endi, count);
+	if (kvs || hkey.h_histo || hval.h_histo)
+		print_kvs(ka, kts, start, starti, end, endi, count,
+			  &hkey, &hval, csv);
 
 	ki_destroy(kst);
 	return(0);
@@ -314,15 +395,149 @@ print_kop(kopstat_t *kop, char *optstr, struct kargs *ka)
 	return;
 }
 
+static inline int
+addto_histo(struct histo *h, size_t len)
+{
+	uint32_t bucket;
+	float width;
+
+	if (!h) return(-1);
+
+	if (h->h_histo) {
+		/* if not in bounds, bail. */
+		if ((len < h->h_lower) || (len > h->h_upper))
+			return(0);
+
+		width = (h->h_upper - h->h_lower + 1) / (float)h->h_buckets;
+
+		/* Adjust length by subtracting the lower bound */
+		bucket = (int) ((len - h->h_lower) / width);
+		assert(bucket < h->h_buckets);
+		h->h_histo[bucket]++;
+	}
+	return(0);
+}
+
+static void
+csv_histo(struct histo *h, char *msg)
+{
+	int i;
+
+	if (!h) return;
+
+	printf("\nHistogram\nData Set, %s\n", msg);
+
+	printf("Lower Bound, %d\n", h->h_lower);
+	printf("Upper Bound, %d\n", h->h_upper);
+	printf("Buckets, %d\n", h->h_buckets);
+	printf("Bucket width, %g\n",
+	       (h->h_upper - h->h_lower + 1) / (float)h->h_buckets);
+	printf("\nBucket, Count\n");
+
+	for(i=0;i<h->h_buckets;i++)
+		printf("%d, %d\n", i+1, h->h_histo[i]);
+}
+
+static void
+ascii_histo(struct histo *h, char *msg)
+{
+	int r, b, clipped=0;
+	float rheight, cheight;
+	uint32_t maxcnt=0;
+
+	if (!h) return;
+
+	printf("\nHistogram: %s\n", msg);
+
+	/* find the max countin the histo */
+	for (b = 0; b < h->h_buckets; b++)
+		if (h->h_histo[b] > maxcnt) maxcnt = h->h_histo[b];
+
+	rheight = maxcnt / (float)h->h_rows;	/* Row height */
+
+	/*
+	 * Unicode codes: https://en.wikipedia.org/wiki/Block_Elements
+	 */
+	for (r = h->h_rows - 1; r >= 0; r--) {
+		/*
+		 * Clipping allows really spikey data to be mitigated.
+		 * Let real size of histo to be tall but clip put N
+		 * rows to let it fit on the screen. Otherwise details
+		 * of lower count data is lost due to fitting a high spike
+		 * into the alloted number of rows.
+		 */
+		if ((r < (h->h_rows - 1)) && (r > (h->h_rows - h->h_rclip))) {
+			if (!clipped) {
+				printf("%9s   [Clipping %d rows]\n",
+				       "", h->h_rclip);
+				clipped = 1;
+			}
+			continue;
+		}
+
+		cheight = rheight * r; /* Current Height */
+
+		/* Y Axis */
+		if ((r == (h->h_rows - 1)) || clipped) {
+			if (clipped) {
+				clipped = 0;
+				printf("%9d\u2502", (uint32_t)cheight);
+			} else {
+				printf("%9d\u2502", maxcnt);
+			}
+		} else {
+			printf("%9s\u2502", "");
+		}
+
+		/* Print the row */
+		for (b = 0; b < h->h_buckets; b++) {
+			if (h->h_histo[b] && h->h_histo[b] >= (int)cheight)
+				printf("\u258C");
+			else
+				printf(" ");
+		}
+		printf("\n");
+
+		if (r == 0) {
+			/* X Axis */
+			/* L char */
+			printf("%9d\u2514", 0);
+			/* Horizontal line */
+			for (b = 0; b < h->h_buckets; b++) printf("\u2500");
+
+			/* X-axis values: 2 rows; tens and ones */
+			printf("\n%-10s", "");
+			for (b = 1; b <= h->h_buckets; b++)
+				if (b % 10 == 0)
+					printf("%d", b/10);
+				else
+					printf(" ");
+
+			printf("\n%-10s", "");
+			for (b = 1; b <= h->h_buckets; b++)
+				printf("%d", b%10);
+		}
+	}
+
+	printf("\n\n%-10s","");
+	printf("Lower Bound=%d, ", h->h_lower);
+	printf("Upper Bound=%d, ", h->h_upper);
+	printf("Buckets=%d, ", h->h_buckets);
+	printf("Bucket width=%g\n",
+	       (h->h_upper - h->h_lower + 1) / (float)h->h_buckets);
+
+	return;
+}
+
 static int
 print_kvs(struct kargs *ka, int kts,
-	  char *start, int starti, char *end, int endi, int count)
+	  char *start, int starti, char *end, int endi, int count,
+	  struct histo *hkey, struct histo *hval, int csv)
 {
 	double		vlen_tot, vlen_mean, vlen_meansq, vlen_std;
 	double		klen_tot, klen_mean, klen_meansq, klen_std;
 	uint64_t	vlen_min, vlen_max, klen_min, klen_max;
-	uint64_t	nkeys, nerrs, i;
-	int		l;
+	uint64_t	nkeys, nerrs, i, l;
 	kstatus_t 	krc;
 	krange_t	*kr;
 	kiter_t		*kit;
@@ -459,6 +674,9 @@ print_kvs(struct kargs *ka, int kts,
 		i++;
 		printf("analyzing ...%3lu%%\r", (i*100)/(nkeys-nerrs));
 
+		addto_histo(hkey, k->kiov_len);
+		addto_histo(hval, kv_val->kiov_len);
+
 		if (i == 1) {
 			vlen_min	= kv_val->kiov_len;
 			vlen_max	= kv_val->kiov_len;
@@ -521,6 +739,15 @@ print_kvs(struct kargs *ka, int kts,
 	printf("Value Length (max)    : %lu\n", vlen_max);
 	printf("Value Length (mean)   : %-7.10g\n", vlen_mean);
 	printf("Value Length (stddev) : %-7.10g\n", vlen_std);
+
+	if (hkey->h_histo) {
+		ascii_histo(hkey,  "Key Length");
+		if (csv) csv_histo(hkey,  "Key Length");
+	}
+	if (hval->h_histo) {
+		ascii_histo(hval,  "Value Length");
+		if (csv) csv_histo(hval,  "Value Length");
+	}
 
 	if(start) free(kr->kr_start[0].kiov_base);
 
