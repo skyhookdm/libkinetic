@@ -21,16 +21,18 @@ KCTLDIR     =	$(TLD)/toolbox/kctl
 BKVDIR      =	$(TLD)/toolbox/bkv
 LISTDIR     =	$(TLD)/vendor/list
 PROTOBUFDIR =	$(TLD)/vendor/protobuf-c
-GTESTDIR    =	$(TLD)/vendor/googletest
 SRCDIR      =	$(TLD)/src
 TBDIR       =	$(TLD)/toolbox
-TESTDIR     =	$(TLD)/tests
 
 LPROTOBUF =	$(BUILDLIB)/libprotobuf-c.so
 LLIST     =	$(BUILDLIB)/liblist.a
 LKINETIC  =	$(BUILDLIB)/libkinetic.a
-LGTEST    =	$(BUILDLIB)/libgtest.a
 KCTL	  =	$(BUILDBIN)/kctl
+
+# These are being deprecated for now
+# TESTDIR   =	$(TLD)/tests
+# GTESTDIR  =	$(TLD)/vendor/googletest
+# LGTEST    =	$(BUILDLIB)/libgtest.a
 
 CC      =	gcc
 CFLAGS  =	-g -I$(BUILDDIR)/include
@@ -47,8 +49,6 @@ DISTFILES = 				\
 	./src				\
 
 all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(TBDIR) # $(TESTDIR) $(LGTEST)
-
-test: $(TESTDIR)
 
 dist: all
 	@(								\
@@ -69,9 +69,6 @@ $(BUILDDIR):
 $(TBDIR): FORCE
 	(cd $@; BUILDDIR=$(BUILDDIR) make -e all install)
 
-$(TESTDIR): FORCE
-	(cd $@; BUILDDIR=$(BUILDDIR) make -e all install)
-
 $(LPROTOBUF): 
 	(cd $(PROTOBUFDIR); [ ! -f ./configure ] && ./autogen.sh; true)
 	(cd $(PROTOBUFDIR); [ ! -f ./Makefile  ] && ./configure --prefix=$(BUILDDIR); true)
@@ -83,10 +80,6 @@ $(LLIST):
 
 $(LKINETIC): FORCE
 	(cd $(SRCDIR); BUILDDIR=$(BUILDDIR) make -e all install)
-
-$(LGTEST): FORCE
-	(cd $(GTESTDIR); BUILDDIR=$(BUILDDIR) bazel build gtest)
-	/usr/bin/install -c -m 755 $(GTESTDIR)/bazel-bin/libgtest.a $(BUILDLIB)
 
 # The sanity target only works if you have a kineticd server running locally.
 sanity:
@@ -108,24 +101,38 @@ listclean:
 kineticclean:
 	(cd $(SRCDIR); make clean)
 
-gtestclean:
-	(cd $(GTESTDIR); bazel clean)
-
 toolboxclean:
 	(cd $(TBDIR); make clean)
-
-testclean:
-	(cd $(TESTDIR); make clean)
 
 distclean:
 	(cd $(PROTOBUFDIR);  [ -f ./Makefile ] && make distclean; true)
 	(cd $(LISTDIR); make clean)
 	(cd $(SRCDIR); make clean)
-	(cd $(GTESTDIR); bazel clean)
 	(cd $(TBDIR); make clean)
-	(cd $(TESTDIR); make clean)
+	# (cd $(TESTDIR); make clean)
+	# (cd $(GTESTDIR); bazel clean)
 	rm -rf $(BUILDDIR)
 
 .PHONY: FORCE
 FORCE:
 
+
+# ------------------------------
+# Deprecated portions, here for reference (and to make bringing it back in the future easier)
+
+# We are deprecating googletest unit tests for now
+# $(LGTEST): FORCE
+# 	(cd $(GTESTDIR); BUILDDIR=$(BUILDDIR) bazel build gtest)
+# 	/usr/bin/install -c -m 755 $(GTESTDIR)/bazel-bin/libgtest.a $(BUILDLIB)
+
+# gtestclean:
+# 	(cd $(GTESTDIR); bazel clean)
+
+# Deprecating the test directory, which will only contain google tests
+# test: $(TESTDIR)
+
+# $(TESTDIR): FORCE
+# 	(cd $@; BUILDDIR=$(BUILDDIR) make -e all install)
+
+# testclean:
+# 	(cd $(TESTDIR); make clean)
