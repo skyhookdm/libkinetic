@@ -34,7 +34,7 @@
 #include "githash.h"
 
 #define KVERS_MAJOR 0
-#define KVERS_MINOR 1
+#define KVERS_MINOR 2
 #define KVERS_PATCH 0
 
 static char v_kinetic_vers[40];
