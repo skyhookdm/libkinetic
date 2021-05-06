@@ -1,11 +1,11 @@
 # libkinetic
 
-Client library for connecting to, and communicating with, a kinetic server.
+Client library for connecting to, and communicating with, a kinetic key-value server.
 
 ## Build
 ### Prequisites
 #### Ubuntu
-- sudo apt install build-essential libssl-dev libreadline-dev pkg-config
+- sudo apt install build-essential autoconf libtool libssl-dev libreadline-dev pkg-config
 
 #### Google Protobuf v2.6.1
 - wget https://github.com/google/protobuf/releases/download/v2.6.1/protobuf-2.6.1.tar.gz
@@ -17,16 +17,21 @@ Client library for connecting to, and communicating with, a kinetic server.
 - sudo make install
 - sudo ldconfig
 
+#### Clone the source
+- git clone --recurse-submodules https://gitlab.com/kinetic-storage/libkinetic.git
+<br>**OR**<br>
+- git clone https://gitlab.com/kinetic-storage/libkinetic.git
+- cd libkinetic
+- git submodule update --init --recursive
+- cd ..
 
-#### Bazel
-- sudo apt install curl gnupg
-- curl -fsSL https://bazel.build/bazel-release.pub.gpg | gpg --dearmor > bazel.gpg
-- sudo mv bazel.gpg /etc/apt/trusted.gpg.d/
-- echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" | sudo tee /etc/apt/
-sources.list.d/bazel.list
-- sudo apt update && sudo apt install bazel
+#### Prep protobuf-c
+- cd libkinetic/vendor/protobuf-c
+- ./autogen.sh
+- cd ../../..
 
 ### Build
+- cd libkinetic
 - make
 - make dist
 

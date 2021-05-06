@@ -2250,6 +2250,12 @@ kctl> echo Del error cases
 Del error cases
 kctl> del kctl.sanity.put.2
 del: Not found
+kctl> echo Flush tests
+Flush tests
+kctl> flush
+kctl> put -F -p wb -z 32768 -n 1024 kctl.sanity.flush
+kctl> del -F -p wb -S kctl.sanity.flush -n 1024
+***DELETING Key Range [kctl.,{LASTKEY}):1024
 kctl> echo Batch tests
 Batch tests
 kctl> batch -C
