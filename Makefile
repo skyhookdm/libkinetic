@@ -46,7 +46,7 @@ DISTFILES = 				\
 	./lib/libkinetic.so.1.0.0	\
 	./src				\
 
-all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(LGTEST) $(TBDIR) $(TESTDIR)
+all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(TBDIR) # $(TESTDIR) $(LGTEST)
 
 test: $(TESTDIR)
 
@@ -93,7 +93,7 @@ sanity:
 	(cd $(KCTLDIR); make all sanity)
 	(cd $(BKVDIR);  make all sanity)
 
-clean:	protobufclean listclean kineticclean gtestclean toolboxclean testclean
+clean:	protobufclean listclean kineticclean toolboxclean # gtestclean testclean
 	rm -rf $(BUILDDIR)
 
 protobufclean:
