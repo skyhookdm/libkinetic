@@ -31,6 +31,9 @@
 #include "kinetic_internal.h"
 #include "protocol_interface.h"
 
+// This is a 3rd-party dep; but included by ktli.h anyways
+#include "list.h"
+
 
 int  i_iterinit(int ktd, kiter_t *kit);
 void i_iterdestroy(kiter_t *kit);
@@ -184,6 +187,46 @@ ki_create(int ktd, ktype_t t)
 	return(p);
 }
 
+ktb_t*
+ki_ptr(void *p)
+{
+	if (!ktb_isvalid(p)) { return NULL; }
+
+	return ktb_base(p);
+}
+
+
+kstatus_t
+ki_addctx(void *p, void *ctx, void (*destructor)(void *ctx))
+{
+	ktb_t *k;
+	LIST  *protobuf_list;
+
+	debug_printf("ki_setctx: %p\n", p);
+	if (!ktb_isvalid(p)) { return (K_EINVAL); }
+
+	k = ktb_base(p);
+
+	// get list reference; allocate if needed
+	// NOTE: we do not synchronize this list because it is
+	// never accessed in parallel
+	if (!k->ktb_ctx) { k->ktb_ctx = (void *) list_create(); }
+	protobuf_list = k->ktb_ctx;
+
+	// set destructor for elements in the list
+	k->ktb_destroy = destructor;
+
+	// append context to end of the list
+	(void) list_mvrear(protobuf_list);
+	if (!list_insert_after(protobuf_list, ctx, sizeof(void *))) {
+		errno = K_EINTERNAL;
+		return (K_EINTERNAL);
+	}
+
+	return (K_OK);
+}
+
+
 /*
  * This cleans the data structure for re-use, p is a ptr returned from a
  * previous ki_create call. p continues to be valid after this call.
@@ -194,14 +237,15 @@ ki_clean(void *p)
 	ktb_t *k;
 
 	debug_printf("KI_CLEAN  : %p\n", p);
-	if (!ktb_isvalid(p)) {
-		return(K_EINVAL);
-	}
+	if (!ktb_isvalid(p)) { return (K_EINVAL); }
 
 	k = ktb_base(p);
+	if (k->ktb_ctx && k->ktb_destroy) {
+		// list_destroy calls our supplied destructor on elements of `ktb_ctx`
+		list_destroy((LIST *) k->ktb_ctx, (void *) k->ktb_destroy);
 
-	if (k->ktb_destroy) {
-		(k->ktb_destroy)(k->ktb_ctx);
+		// de-init; a new list will be alloc'd if/when this ktb is reused
+		k->ktb_ctx = NULL;
 	}
 
 	return(K_OK);

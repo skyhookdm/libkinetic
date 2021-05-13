@@ -733,16 +733,6 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	return create_message(msg_hdr, command_bytes);
 }
 
-// This may get a partially defined structure if we hit an
-// error during the construction.
-void destroy_protobuf_delkey(kv_t *kv_data) {
-	// Don't do anything if we didn't get a valid pointer
-	if (!kv_data) { return; }
-
-	// destroy the protobuf allocated memory
-	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
-}
-
 kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 	// assume failure status
 	kstatus_t krc = K_INVALID_SC;
@@ -763,10 +753,12 @@ kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 		debug_printf("extract_delkey: resp cmd unpack");
 		return(K_EINTERNAL);
 	}
-	kv_data->kv_protobuf = resp_cmd;
 
-	// set destructor to be called later
-	kv_data->destroy_protobuf = destroy_protobuf_delkey;
+	krc = ki_addctx(kv_data, resp_cmd, destroy_command);
+	if (krc != K_OK) {
+		debug_printf("extract_delkey: destroy context");
+		goto extract_dex;
+	}
 
 	// extract the status. On failure, skip to cleanup
 	krc = extract_cmdstatus_code(resp_cmd);
