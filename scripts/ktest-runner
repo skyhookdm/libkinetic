@@ -25,8 +25,11 @@ fi
 # ------------------------------
 # Setup
 
+# used for relative paths to expected resources
+script_dir=$(dirname ${0})
+
 # import bash functions, etc.
-function_dir="functions"
+function_dir="${script_dir}/functions"
 usecase_dir="tests/usecases"
 testdata_dir="tests/data"
 
