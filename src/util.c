@@ -111,10 +111,8 @@ ki_keyprepend(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
 	/* Realloc the kiovec array */
 	newcnt = keycnt + 1;
 	newlen = sizeof(struct kiovec) * newcnt;
-	new = (struct kiovec *)KI_REALLOC(key, newlen);
-	if (!key) {
-		return(NULL);
-	}
+	new = (struct kiovec *) KI_REALLOC(key, newlen);
+	if (!new) { return (NULL); }
 
 	/* Move everything down - start at the last index and work up */
 	for(i=newcnt-1; i>0; i--)
@@ -143,17 +141,15 @@ ki_keyappend(struct kiovec *key, size_t keycnt, void *keybuf, size_t keylen)
 	/* Realloc the kiovec array */
 	newcnt = keycnt + 1;
 	newlen = sizeof(struct kiovec) * newcnt;
-	new = (struct kiovec *)KI_REALLOC(key, newlen);
-	if (!key) {
-		return(NULL);
-	}
+	new    = (struct kiovec *) KI_REALLOC(key, newlen);
+	if (!new) { return (NULL); }
 
 	/* No need to move anything as realloc tacks the new space at the end */
 
 	/* Hang the user provided prefix buffer as the last index */
 	new[newcnt-1].kiov_base = keybuf;
 	new[newcnt-1].kiov_len  = keylen;
-	return(new);
+	return (new);
 
 }
 
