@@ -765,7 +765,7 @@ kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 	}
 
 	// Since everything seemed successful, let's pop this data on our cleaning stack
-	krc = ki_addctx(kv_data, (void *) resp_cmd, (void (*)(void *)) destroy_command);
+	krc = ki_addctx(kv_data, resp_cmd, destroy_command);
 	if (krc != K_OK) {
 		debug_printf("extract_delkey: destroy context");
 		goto extract_dex;
