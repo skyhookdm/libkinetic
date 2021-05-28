@@ -832,15 +832,6 @@ struct kresult_message create_getkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	return create_message(msg_hdr, command_bytes);
 }
 
-// This may get a partially defined structure if we hit an error during the construction.
-void destroy_protobuf_getkey(kv_t *kv_data) {
-	// Don't do anything if we didn't get a valid pointer
-	if (!kv_data) { return; }
-
-	// first destroy the allocated memory for the message data
-	destroy_command(kv_data->kv_protobuf);
-}
-
 kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// assume failure status
 	kstatus_t krc = K_INVALID_SC;
@@ -860,10 +851,6 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 		debug_printf("extract_getkey: command unpack");
 		return K_EINTERNAL;
 	}
-	kv_data->kv_protobuf = response_cmd;
-
-	// set destructor to be called later
-	kv_data->destroy_protobuf = destroy_protobuf_getkey;
 
 	// extract the response status to be returned.
 	// prepare this early to make cleanup easy
@@ -873,17 +860,24 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 		goto extract_gex;
 	}
 
-	// ------------------------------
-	// begin extraction of command body into kv_t structure
 	if (!response_cmd->body || !response_cmd->body->keyvalue) {
 		debug_printf("extract_getkey: command missing body or kv");
 		goto extract_gex;
 	}
+
+	krc = ki_addctx(kv_data, response_cmd, destroy_command);
+	if (krc != K_OK) {
+		debug_printf("extract_getkey: destroy context");
+		goto extract_gex;
+	}
+
+	// ------------------------------
+	// Begin extraction of command body into kv_t structure
+	// (key name, db version, tag, and data integrity algorithm)
+	// NOTE: Only extract into empty kv_t fields (caller must
+	// clear the structure is they want it filled in
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
-	// extract key name, db version, tag, and data integrity algorithm
-	// Only extract if ptr is NULL, other passed in ptrs maybe lost.
-	// Caller must clear the structure is they want it filled in
 	if (!kv_data->kv_key->kiov_base && response->has_key) {
 
 		// we set the number of keys to 1,
@@ -911,7 +905,7 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 
  extract_gex:
 	// call destructor to cleanup
-	// destroy_protobuf_getkey(kv_data);
+	destroy_command(response_cmd);
 
 	// Just make sure we don't return an ok message
 	if (krc == K_OK) {
