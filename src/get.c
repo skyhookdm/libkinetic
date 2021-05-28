@@ -879,26 +879,31 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	kproto_kv_t *response = response_cmd->body->keyvalue;
 
 	if (!kv_data->kv_key->kiov_base && response->has_key) {
-
-		// we set the number of keys to 1,
-		// since this is not a range request
+		// key comes back as contiguous buffer
 		kv_data->kv_keycnt = 1;
-		
-		extract_bytes_optional(kv_data->kv_key->kiov_base,
-				       kv_data->kv_key->kiov_len,
-				       response, key);
+		extract_bytes_optional(
+			kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len,
+			response, key
+		);
 	}
 
 	if (!kv_data->kv_ver) {
-		extract_bytes_optional(kv_data->kv_ver, kv_data->kv_verlen,
-				       response, dbversion);
+		extract_bytes_optional(
+			kv_data->kv_ver, kv_data->kv_verlen,
+			response, dbversion
+		);
 	}
 
 	if (!kv_data->kv_disum) {
-		extract_bytes_optional(kv_data->kv_disum, kv_data->kv_disumlen,
-				       response, tag);
-		extract_primitive_optional(kv_data->kv_ditype,
-					   response, algorithm);
+		extract_bytes_optional(
+			kv_data->kv_disum, kv_data->kv_disumlen,
+			response, tag
+		);
+
+		extract_primitive_optional(
+			kv_data->kv_ditype,
+			response, algorithm
+		);
 	}
 
 	return krc;
