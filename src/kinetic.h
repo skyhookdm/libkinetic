@@ -64,6 +64,7 @@ int ki_close(int ktd);
 
 /* Kinetic type interfaces */
 void *ki_create(int ktd, ktype_t kt);
+kstatus_t ki_addctx(void *p, void *ctx, void (*destructor)(void *ctx));
 kstatus_t ki_clean(void *p);
 kstatus_t ki_destroy(void *p);
 uint32_t  ki_valid(void *p);
