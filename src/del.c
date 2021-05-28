@@ -745,19 +745,10 @@ kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 		return(K_EINTERNAL);
 	}
 
-	// unpack the command bytes
-	kproto_cmd_t *resp_cmd;
-	
-	resp_cmd = unpack_kinetic_command(kv_resp_msg->commandbytes);
+	kproto_cmd_t *resp_cmd = unpack_kinetic_command(kv_resp_msg->commandbytes);
 	if (!resp_cmd) {
 		debug_printf("extract_delkey: resp cmd unpack");
-		return(K_EINTERNAL);
-	}
-
-	krc = ki_addctx(kv_data, resp_cmd, destroy_command);
-	if (krc != K_OK) {
-		debug_printf("extract_delkey: destroy context");
-		goto extract_dex;
+		return (K_EINTERNAL);
 	}
 
 	// extract the status. On failure, skip to cleanup
@@ -767,30 +758,43 @@ kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 		goto extract_dex;
 	}
 
-	// ------------------------------
-	// begin extraction of command data
 	// check if there's command data to parse, otherwise cleanup and exit
 	if (!resp_cmd->body || !resp_cmd->body->keyvalue) {
 		debug_printf("extract_delkey: command missing body or kv");
 		goto extract_dex;
 	}
-	kproto_kv_t *resp = resp_cmd->body->keyvalue;
 
-	// get the command data from the response
-	// NOTE: this is tricky. Only modify the value if the response
-	// returns a key (otherwise kv_key and kv_keycnt fall out of sync)
-	if (resp->has_key) {
-		kv_data->kv_keycnt = 1;
+    // Since everything seemed successful, let's pop this data on our cleaning stack
+	krc = ki_addctx(kv_data, (void *) resp_cmd, (void (*)(void *)) destroy_command);
+	if (krc != K_OK) {
+		debug_printf("extract_delkey: destroy context");
+		goto extract_dex;
 	}
 
+	// ------------------------------
+	// begin extraction of command data
 	// extract key name, db version, tag, and data integrity algorithm
-	extract_bytes_optional(kv_data->kv_key->kiov_base,
-			       kv_data->kv_key->kiov_len, resp, key);
-	extract_bytes_optional(kv_data->kv_ver,
-			       kv_data->kv_verlen, resp, dbversion);
-	extract_bytes_optional(kv_data->kv_disum,
-			       kv_data->kv_disumlen, resp, tag);
-	extract_primitive_optional(kv_data->kv_ditype, resp, algorithm);
+	kproto_kv_t *resp_kv = resp_cmd->body->keyvalue;
+
+	// NOTE: only modify kv_keycnt if we would change kv_key
+	// (otherwise kv_key and kv_keycnt fall out of sync)
+	if (resp_kv->has_key) { kv_data->kv_keycnt = 1; }
+	extract_bytes_optional(
+		kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len,
+		resp_kv, key
+	);
+
+	extract_bytes_optional(
+		kv_data->kv_ver, kv_data->kv_verlen,
+		resp_kv, dbversion
+	);
+
+	extract_bytes_optional(
+		kv_data->kv_disum, kv_data->kv_disumlen,
+		resp_kv, tag
+	);
+
+	extract_primitive_optional(kv_data->kv_ditype, resp_kv, algorithm);
 
 	return krc;
 
