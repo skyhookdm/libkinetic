@@ -10,7 +10,7 @@
 # the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
 # FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
 # License for more details.
-#
+
 PROJROOTDIR  =	../../..
 TESTROOTDIR  =	../..
 

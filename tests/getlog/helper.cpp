@@ -13,6 +13,7 @@
  * License for more details.
  *
  */
+
 #include "helper.hpp"
 
 namespace TestHelpers {
