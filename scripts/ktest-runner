@@ -1,5 +1,20 @@
 #!/bin/bash
 
+# ------------------------------
+## Copyright 2020-2021 Seagate Technology LLC.
+#
+# This Source Code Form is subject to the terms of the Mozilla
+# Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at
+# https://mozilla.org/MP:/2.0/.
+#
+# This program is distributed in the hope that it will be useful,
+# but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+# the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+# FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+# License for more details.
+
+
 # first, make sure that kctl is pathed
 if [[ -z $(which kctl) ]]; then
     echo "Please add kctl to PATH"
@@ -10,8 +25,11 @@ fi
 # ------------------------------
 # Setup
 
+# used for relative paths to expected resources
+script_dir=$(dirname ${0})
+
 # import bash functions, etc.
-function_dir="functions"
+function_dir="${script_dir}/functions"
 usecase_dir="tests/usecases"
 testdata_dir="tests/data"
 

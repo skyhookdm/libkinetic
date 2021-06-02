@@ -1,6 +1,20 @@
 #!/bin/bash
 
 # ------------------------------
+## Copyright 2020-2021 Seagate Technology LLC.
+#
+# This Source Code Form is subject to the terms of the Mozilla
+# Public License, v. 2.0. If a copy of the MPL was not
+# distributed with this file, You can obtain one at
+# https://mozilla.org/MP:/2.0/.
+#
+# This program is distributed in the hope that it will be useful,
+# but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+# the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+# FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+# License for more details.
+
+# ------------------------------
 # Dependencies
 scripts_topdir=$(dirname $(dirname "${0}"))
 source "${scripts_topdir}/functions/keys.bash"
@@ -20,7 +34,7 @@ fixture_teststate_dir="${scripts_topdir}/test-expectedstates"
 declare -a fixture_testcases
 
 # >> valgrind command with options set
-valgrind_cmd="valgrind --leak-check=full --show-leak-kinds=all -v"
+valgrind_cmd="valgrind --leak-check=full --show-leak-kinds=all"
 diff_cmd="/usr/bin/diff"
 
 # >> command-line parsing; only do this if invoked directly
@@ -31,13 +45,15 @@ if [[ ${is_sourced} -eq 0 ]]; then
     -h: [required] IP address of kinetic server.
     -m: [optional] check memory leaks using valgrind.
     -r: [optional] record, instead of check, pre- and post-conditions for tests.
+    -d: [optional] debug flag (only if -m is *not set*); prints command execution using 'set -x'
     "
 
     # default values for optional args
     valgrind_flag="false"
     record_mode="false"
+    debug_mode="false"
 
-    while getopts "h:mr" option_symbol; do
+    while getopts "h:mrd" option_symbol; do
         case "${option_symbol}" in
             h)
                 kinetic_host="${OPTARG}"
@@ -47,6 +63,9 @@ if [[ ${is_sourced} -eq 0 ]]; then
                 ;;
             r)
                 record_mode="true"
+                ;;
+            d)
+                debug_mode="true"
                 ;;
             *)
                 echo "${usage_msg}"
@@ -159,12 +178,15 @@ function fixture_case_pointdelete() {
     fixture_managestate "${path_to_statefile}" 'pre'
     passed_precondition=${?}
 
-    if [[ "${use_valgrind}" = "true" ]]; then
+    if [[ "${use_valgrind}" = 'true' ]]; then
         ${valgrind_cmd} ${test_command}
 
     else
+        [[ "${debug_mode}" = 'true' ]] && set -x
+
         ${test_command} >/dev/null
 
+        [[ "${debug_mode}" = 'true' ]] && set +x
     fi
 
     fixture_managestate "${path_to_statefile}" 'post'
@@ -194,7 +216,11 @@ function fixture_case_atomicdelete() {
         ${valgrind_cmd} ${test_command}
 
     else
+        [[ "${debug_mode}" = 'true' ]] && set -x
+
         ${test_command} >/dev/null
+
+        [[ "${debug_mode}" = 'true' ]] && set +x
 
     fi
 
@@ -225,7 +251,11 @@ function fixture_case_writethroughdelete() {
         ${valgrind_cmd} ${test_command}
 
     else
+        [[ "${debug_mode}" = 'true' ]] && set -x
+
         ${test_command} >/dev/null
+
+        [[ "${debug_mode}" = 'true' ]] && set +x
 
     fi
 
@@ -257,7 +287,11 @@ function fixture_case_rangedelete_exclusive() {
         ${valgrind_cmd} ${test_command}
 
     else
+        [[ "${debug_mode}" = 'true' ]] && set -x
+
         ${test_command} >/dev/null
+
+        [[ "${debug_mode}" = 'true' ]] && set +x
 
     fi
 
@@ -289,7 +323,11 @@ function fixture_case_rangedelete_inclusive() {
         ${valgrind_cmd} ${test_command}
 
     else
+        [[ "${debug_mode}" = 'true' ]] && set -x
+
         ${test_command} >/dev/null
+
+        [[ "${debug_mode}" = 'true' ]] && set +x
 
     fi
 

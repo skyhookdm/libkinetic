@@ -31,6 +31,9 @@
 #include "kinetic_internal.h"
 #include "protocol_interface.h"
 
+// This is a 3rd-party dep; but included by ktli.h anyways
+#include "list.h"
+
 
 int  i_iterinit(int ktd, kiter_t *kit);
 void i_iterdestroy(kiter_t *kit);
@@ -116,22 +119,30 @@ static uint32_t
 ktb_buf_len(ktype_t t)
 {
 	switch(t) {
+
 	case KV_T:
 		return((uint32_t)sizeof(kv_t));
+
 	case KRANGE_T:
 		return((uint32_t)sizeof(krange_t));
+
 	case KITER_T:
 		/* opaque type, use the backing type */
 		return((uint32_t)sizeof(ki_t));
+
 	case KBATCH_T:
 		/* opaque type, use the backing type */
 		return((uint32_t)sizeof(kb_t));
+
 	case KGETLOG_T:
 		return((uint32_t)sizeof(kgetlog_t));
+
 	case KVERSION_T:
 		return((uint32_t)sizeof(kversion_t));
+
 	case KSTATS_T:
 		return((uint32_t)sizeof(kstats_t));
+
 	default:
 		return(0);
 	}
@@ -166,7 +177,7 @@ ki_create(int ktd, ktype_t t)
 	k->ktb_len   = l;
 	k->ktb_ktd   = ktd;
 
-	p = (void *)k->ktb_buf;
+	p = (void *) k->ktb_buf;
 
 	debug_printf("KI_CREATE : %p (%s)\n", p, ki_ktype_label[t]);
 
@@ -184,6 +195,46 @@ ki_create(int ktd, ktype_t t)
 	return(p);
 }
 
+ktb_t*
+ki_ptr(void *p)
+{
+	if (!ktb_isvalid(p)) { return NULL; }
+
+	return ktb_base(p);
+}
+
+
+kstatus_t
+ki_addctx(void *p, void *ctx, void (*destructor)(void *ctx))
+{
+	ktb_t *k;
+	LIST  *protobuf_list;
+
+	debug_printf("ki_setctx: %p\n", p);
+	if (!ktb_isvalid(p)) { return (K_EINVAL); }
+
+	k = ktb_base(p);
+
+	// set destructor for elements in the list
+	k->ktb_destroy = destructor;
+
+	// get list reference; allocate if needed
+	// NOTE: currently, list access is not concurrent
+	if (!k->ktb_ctx) { k->ktb_ctx = (void *) list_create(); }
+	protobuf_list = k->ktb_ctx;
+
+	// append context to end of the list
+	(void) list_mvrear(protobuf_list);
+	if (!list_insert_after(protobuf_list, ctx, 0)) {
+		// TODO: should we make all of these error returns set errno, or none?
+		errno = K_EINTERNAL;
+		return (K_EINTERNAL);
+	}
+
+	return (K_OK);
+}
+
+
 /*
  * This cleans the data structure for re-use, p is a ptr returned from a
  * previous ki_create call. p continues to be valid after this call.
@@ -194,17 +245,18 @@ ki_clean(void *p)
 	ktb_t *k;
 
 	debug_printf("KI_CLEAN  : %p\n", p);
-	if (!ktb_isvalid(p)) {
-		return(K_EINVAL);
-	}
+	if (!ktb_isvalid(p)) { return (K_EINVAL); }
 
 	k = ktb_base(p);
+	if (k->ktb_ctx && k->ktb_destroy) {
+		// list_destroy calls our supplied destructor on elements of `ktb_ctx`
+		list_destroy((LIST *) k->ktb_ctx, (void *) k->ktb_destroy);
 
-	if (k->ktb_destroy) {
-		(k->ktb_destroy)(k->ktb_ctx);
+		// de-init; a new list will be alloc'd if/when this ktb is reused
+		k->ktb_ctx = NULL;
 	}
 
-	return(K_OK);
+	return (K_OK);
 }
 
 /*
@@ -217,8 +269,8 @@ ki_destroy(void *p)
 	ktb_t *k;
 
 	debug_printf("KI_DESTROY: %p\n", p);
-	if (ki_clean(p) < 0) {
-		return(K_EINVAL);
+	if (ki_clean(p) != K_OK) {
+		return (K_EINVAL);
 	}
 
 	k = ktb_base(p);
@@ -226,7 +278,8 @@ ki_destroy(void *p)
 	/* additional destruction is required */
 	switch(k->ktb_type) {
 	case KITER_T:
-		i_iterdestroy((kiter_t *)p); break;
+		i_iterdestroy((kiter_t *) p);
+		break;
 	default:
 		break;
 	}

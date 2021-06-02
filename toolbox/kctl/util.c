@@ -148,7 +148,7 @@ asciidecode(const void* data, size_t size, void** rawdata, size_t *rawlen)
 	 *		- the source buffer is not null-terminated
 	 */
 	*rawdata = malloc(sizeof(char) * (size + 1));
-	if (!*rawdata)
+	if (!(*rawdata))
 		return(NULL);
 
 	// Use an appropriately typed alias for convenience
@@ -185,7 +185,8 @@ asciidecode(const void* data, size_t size, void** rawdata, size_t *rawlen)
 
 				return (NULL);
 			}
-		} else {
+		}
+		else {
 			/* just a regular char, copy it, inc j */
 			rawdata_alias[j++] = ((const char *) data)[i];
 		}

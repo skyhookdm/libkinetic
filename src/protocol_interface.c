@@ -599,7 +599,6 @@ uint64_t ki_getaseq(struct kiovec *msg, int msgcnt) {
 
 // TODO: remove unnecessary allocations later
 void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
-
 	kpdu_t pdu;
 
 	// ERROR: not enough messages
@@ -617,20 +616,21 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 
 	kproto_msg_t *tmp_msg = (kproto_msg_t *) unpack_result.result_message;
 
-	// then walk the command
+	// then walk the command, and free the old command data
 	kproto_cmd_t *tmp_cmd = unpack_kinetic_command(tmp_msg->commandbytes);
+	KI_FREE(tmp_msg->commandbytes.data);
 
 	// extract the ack sequence field
 	tmp_cmd->header->has_sequence = 1;
 	tmp_cmd->header->sequence     = seq;
 
-	// pack field
-	// Free the previous commandbytes and then set it to the newly packed commandbytes
-	// TODO: we eventually want to only have to pack the new field
-	KI_FREE(tmp_msg->commandbytes.data);
+	// put the newly packed commandbytes into the message; free the in-memory
+	// structure
 	tmp_msg->commandbytes = pack_kinetic_command(tmp_cmd);
+	destroy_command(tmp_cmd);
 
-    // TODO: figure out if there's a better way to fail if hmac or repack fail
+	// TODO: figure out if there's a better way to fail if hmac or repack fail
+	// NOTE: hmac.data currently has the passed in hmac key, so don't free it
 	compute_hmac(
 		tmp_msg,
 		(char *) tmp_msg->hmacauth->hmac.data,
@@ -644,6 +644,7 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 		&(msg[KIOV_MSG].kiov_base),
 		&(msg[KIOV_MSG].kiov_len)
 	);
+	destroy_message(tmp_msg);
 
 	/*
 	 * Adding the final seq and adding the real HMAC changes the 
@@ -652,10 +653,6 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	UNPACK_PDU(&pdu, (uint8_t *) msg[KIOV_PDU].kiov_base);
 	pdu.kp_msglen = msg[KIOV_MSG].kiov_len;
 	PACK_PDU(&pdu, (uint8_t *) msg[KIOV_PDU].kiov_base);
-
-	// TODO: since we allocate currently, we need to clean up
-	destroy_command(tmp_cmd);
-	destroy_message(unpack_result.result_message);
 }
 
 /* ------------------------------
@@ -675,7 +672,6 @@ void destroy_message(void *unpacked_msg) {
 void destroy_command(void *unpacked_cmd) {
 	// At some point, it would be best to make sure the allocator used in `unpack` is used here
 	ProtobufCAllocator *mem_allocator = NULL;
-
 	com__seagate__kinetic__proto__command__free_unpacked(
 		(kproto_cmd_t *) unpacked_cmd,
 		mem_allocator

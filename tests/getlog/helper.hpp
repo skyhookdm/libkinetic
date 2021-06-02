@@ -13,6 +13,7 @@
  * License for more details.
  *
  */
+
 #ifndef __GETLOG_HELPER_HPP
 #define __GETLOG_HELPER_HPP
 
