@@ -197,7 +197,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	 * unfreeable ptr.  See below at bex_kmreq:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_atype = KAT_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 

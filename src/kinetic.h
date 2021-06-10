@@ -36,7 +36,7 @@ extern "C" {
 
 /* macros that use the log level */
 #if LOGLEVEL >= LOGLEVEL_DEBUG
-	#define debug_fprintf(...) 				\
+	#define debug_fprintf(...)				\
 		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
 		fprintf(stderr, __VA_ARGS__)
 #else
@@ -91,6 +91,9 @@ kstatus_t ki_getlog(int ktd, kgetlog_t *glog);
 kstatus_t ki_abortbatch(int ktd, kbatch_t *kb);
 kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
 
+/* Kinetic applet exec interface */
+kstatus_t ki_exec(int ktd, kapplet_t *app);
+
 /* Kinetic asynchronous NOOP interface */
 kstatus_t ki_aio_noop(int ktd, void *cctx, kio_t **kio);
 
@@ -113,6 +116,9 @@ kstatus_t ki_aio_getversion(int ktd, kv_t *key, void *cctx, kio_t **kio);
 /* Kinetic asynchronous batch interfaces */
 kstatus_t ki_aio_abortbatch(int ktd,  kbatch_t *kb, void *cctx, kio_t **kio);
 kstatus_t ki_aio_submitbatch(int ktd, kbatch_t *kb, void *cctx, kio_t **kio);
+
+/* Kinetic applet exec interface */
+kstatus_t ki_aio_exec(int ktd, kapplet_t *app, void *cctx, kio_t **kio);
 
 /* Kinetic asynchronous common complete interface */
 kstatus_t ki_aio_complete(int ktd, kio_t *kio, void **cctx);

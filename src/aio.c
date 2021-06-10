@@ -31,12 +31,13 @@
 #include "kinetic_internal.h"
 #include "protocol_interface.h"
 
-kstatus_t g_get_aio_complete(int ktd, struct kio *kio, void **cctx);
-kstatus_t p_put_aio_complete(int ktd, struct kio *kio, void **cctx);
-kstatus_t d_del_aio_complete(int ktd, struct kio *kio, void **cctx);
+kstatus_t g_get_aio_complete(int ktd,   struct kio *kio, void **cctx);
+kstatus_t p_put_aio_complete(int ktd,   struct kio *kio, void **cctx);
+kstatus_t d_del_aio_complete(int ktd,   struct kio *kio, void **cctx);
 kstatus_t b_batch_aio_complete(int ktd, struct kio *kio, void **cctx);
-kstatus_t n_noop_aio_complete(int ktd, struct kio *kio, void **cctx);
+kstatus_t n_noop_aio_complete(int ktd,  struct kio *kio, void **cctx);
 kstatus_t f_flush_aio_complete(int ktd, struct kio *kio, void **cctx);
+kstatus_t e_exec_aio_complete(int ktd,  struct kio *kio, void **cctx);
 
 kstatus_t
 ki_aio_complete(int ktd, kio_t *ckio, void **cctx)
@@ -75,8 +76,9 @@ ki_aio_complete(int ktd, kio_t *ckio, void **cctx)
 	case KMT_PUSHP2P:
 		break;
 
-	/* case KMT_APPLET: break; coming soon */	
-
+	case KMT_APPLET:
+		ks = e_exec_aio_complete(ktd, kio, cctx);
+		break;
 
 	default:
 		debug_printf("aio_complete: bad cmd");

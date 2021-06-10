@@ -142,12 +142,13 @@ typedef struct kiter {
 /* Some utilities */
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count);
 
-int ki_validate_kv(kv_t *kv, int versck, klimits_t *lim);
+int ki_validate_kv(kv_t *kv, int versck, int valck, klimits_t *lim);
 int ki_validate_range(krange_t *kr, klimits_t *lim);
 int ki_validate_kb(kb_t *kb, kmtype_t msg_type);
 int ki_validate_glog(kgetlog_t *glrq);
 int ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp);
 int ki_validate_kstats(kstats_t *kst);
+int ki_validate_kapplet(kapplet_t *app, klimits_t *lim);
 
 int b_batch_addop(kb_t *kb, kcmdhdr_t *kc);
 kstatus_t b_startbatch(int ktd, kbatch_t *kb);
