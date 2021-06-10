@@ -1,2 +1,5 @@
 *.o
 *.d
+*.dylib
+*.a
+src/kinetic

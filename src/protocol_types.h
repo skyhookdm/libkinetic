@@ -52,7 +52,7 @@ typedef Com__Seagate__Kinetic__Proto__Command__Batch          kproto_batch_t;
 
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog         kproto_getlog_t;
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device kgetlog_device_info;
-
+typedef Com__Seagate__Kinetic__Proto__Command__ManageApplet   kproto_kapplet_t;
 
 // ------------------------------
 // Aliases for protobuf enums
@@ -83,6 +83,7 @@ enum {
 	KMT_ENDBAT    = CMT(END_BATCH),
 	KMT_ABORTBAT  = CMT(ABORT_BATCH),
 	KMT_SETPOWER  = CMT(SET_POWER_LEVEL),
+	KMT_APPLET    = CMT(MANAGE_APPLET),
 };
 
 
@@ -91,10 +92,10 @@ enum {
 
 typedef Com__Seagate__Kinetic__Proto__Message__AuthType kauth_t;
 enum {
-	KA_INVALID     = KMAT(INVALID_AUTH_TYPE),
-	KA_HMAC        = KMAT(HMACAUTH)         ,
-	KA_PIN         = KMAT(PINAUTH)          ,
-	KA_UNSOLICITED = KMAT(UNSOLICITEDSTATUS),
+	KAT_INVALID     = KMAT(INVALID_AUTH_TYPE),
+	KAT_HMAC        = KMAT(HMACAUTH)         ,
+	KAT_PIN         = KMAT(PINAUTH)          ,
+	KAT_UNSOLICITED = KMAT(UNSOLICITEDSTATUS),
 };
 
 // Prioritization of commands

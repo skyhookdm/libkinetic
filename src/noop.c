@@ -111,7 +111,7 @@ n_noop_aio_generic(int ktd, void *cctx, kio_t **ckio)
 	 * unfreeable ptr.  See below at nex_kmreq:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_atype = KAT_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 
