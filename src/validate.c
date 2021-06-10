@@ -503,12 +503,12 @@ ki_validate_kapplet(kapplet_t *app, klimits_t *lim)
 	/*
 	 * Check the required function keys
 	 */
-	if (!app->ka_fnkey || app->ka_fnkeys < 1) {
+	if (!app->ka_fnkey || app->ka_fnkeycnt < 1) {
 		debug_fprintf(stderr, "No function key(s)\n");
 		return (-1);
 	}
 
-	for (i=0;i<app->ka_fnkeys; i++) {
+	for (i=0;i<app->ka_fnkeycnt; i++) {
 		/* Validate each of the fnkeys, no version or value checks */
 		if (ki_validate_kv(app->ka_fnkey[i],
 				   (verck=0), (valck=0), lim) < 0) {

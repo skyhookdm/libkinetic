@@ -202,6 +202,25 @@ ki_clean(void *p)
 
 	k = ktb_base(p);
 
+	/* additional cleaning is required */
+	switch(k->ktb_type) {
+	case KAPPLET_T:
+		/*
+		 * Special case for kapplet.
+		 */
+		if (((kapplet_t *)p)->ka_msg)
+			KI_FREE(((kapplet_t *)p)->ka_msg);
+		((kapplet_t *)p)->ka_msg = NULL;
+
+		if (((kapplet_t *)p)->ka_stdout)
+			KI_FREE(((kapplet_t *)p)->ka_stdout);
+		((kapplet_t *)p)->ka_stdout = NULL;
+		((kapplet_t *)p)->ka_stdoutlen = 0;
+
+	default:
+		break;
+	}
+
 	if (k->ktb_destroy) {
 		(k->ktb_destroy)(k->ktb_ctx);
 	}

@@ -16,7 +16,7 @@
 #ifndef __KINETIC_INTERFACE_H
 #define __KINETIC_INTERFACE_H
 #ifdef __cplusplus
-extern "C" {}
+extern "C" {
 #endif
 
 #include "kinetic_types.h"

@@ -74,14 +74,14 @@ kctl_exec(int argc, char *argv[], int ktd, struct kargs *ka)
 {
  	extern char     *optarg;
         extern int	optind, opterr, optopt;
-	int		i, hdump = 0, adump = 0;
+	int		i, rc, hdump = 0, adump = 0;
         char		c, *cp;
 	uint32_t	count = 0;
 	char 		*gkey = NULL;
 	size_t		gkeylen;
 	int 		fnargc = 0;
 	char 		**fnargv = NULL;
-	suffix_t	*suffix;
+	suffix_t	*suffix = NULL;
 	struct kiovec	*kv_key;
 	struct kiovec	kv_gkey;
 	struct kiovec	kv_gval = {0, 0};
@@ -278,33 +278,38 @@ kctl_exec(int argc, char *argv[], int ktd, struct kargs *ka)
 		return (-1);
 	}
 		
-	app->ka_fnkey  = fnkv;
-	app->ka_fnkeys = count;
-	app->ka_fntype = fntype;
-	app->ka_argv   = fnargv;
-	app->ka_argc   = fnargc;
-	app->ka_outkey = gkv;
+	app->ka_fnkey    = fnkv;
+	app->ka_fnkeycnt = count;
+	app->ka_fntype   = fntype;
+	app->ka_argv     = fnargv;
+	app->ka_argc     = fnargc;
+	app->ka_outkey   = gkv;
 
 	if (ka->ka_verbose) {
 		printf("Executing function: %s\n", ka->ka_key);
+		printf("Fnkey type: %s\n", fntypestr);
 		printf("Fnkey count: %d\n", count);
 		if (suffix) {
-			printf("Sharded keys:\n");
+			printf("Fnkey shards:");
 			for (i=0; i<count; i++)
-				printf("\t\t%s%s\n", ka->ka_key, suffix[i]);
+				printf("\t%s%s\n\t", ka->ka_key, suffix[i]);
 		}
-		printf("Fnkey type: %s\n", fntypestr);
-		printf("Fnkey args: ");
+		printf("\rFnkey args: ");
 		for (i=0; i<fnargc; i++)
 			printf("%s ", fnargv[i]);
 		printf("\n");
 		if (gkey) {
-			printf("Returning key: %s\n", gkey);
+			printf("Requested key: %s\n", gkey);
 		}
-		
+
+		printf("Executing...");
 	}
 	
 	krc = ki_exec(ktd, app);
+
+	if (ka->ka_verbose)
+		printf("Done.\n");
+
 	if (krc != K_OK) {
 		fprintf(stderr, "%s: %s: %s\n",
 			ka->ka_cmdstr, ka->ka_key, ki_error(krc));
@@ -314,30 +319,55 @@ kctl_exec(int argc, char *argv[], int ktd, struct kargs *ka)
 	if (gkey) {
 		if (!ka->ka_quiet) {
 			/* Print key length */
-			printf("Result KV\nLength: %lu\n", gkv->kv_val[0].kiov_len);
+			printf("Requested value:\nLength: %lu\n",
+			       gkv->kv_val[0].kiov_len);
 		}
 
 		if (adump) {
-			asciidump(gkv->kv_val[0].kiov_base, gkv->kv_val[0].kiov_len);
+			asciidump(gkv->kv_val[0].kiov_base,
+				  gkv->kv_val[0].kiov_len);
 		} else if (hdump) {
-			hexdump(gkv->kv_val[0].kiov_base, gkv->kv_val[0].kiov_len);
+			hexdump(gkv->kv_val[0].kiov_base,
+				gkv->kv_val[0].kiov_len);
 		} else {
 			/* raw */
 			write(fileno(stdout),
-			      gkv->kv_val[0].kiov_base, gkv->kv_val[0].kiov_len);
+			      gkv->kv_val[0].kiov_base,
+			      gkv->kv_val[0].kiov_len);
 		}
 
 		if (!ka->ka_quiet) {
 			printf("\n");
 		}
+
 	}
 
-	if (!ka->ka_quiet) {
+	if (ka->ka_verbose) {
 		printf("Exit Code  : %d\n", app->ka_rc);
 		printf("Exit Signal: %d\n", app->ka_sig);
 		printf("Exit Mesg  : %s\n", app->ka_msg);
-		printf("Std Out    : %s\n", app->ka_stdout);
+		printf("Std Out    : \n");
 	}
-	
-	return(app->ka_rc);
+
+	if (!ka->ka_quiet)
+		printf("%s", app->ka_stdout);
+
+	/* Cleanup */
+
+	if (gkey) {
+		free(gkv->kv_val[0].kiov_base);
+		ki_destroy(gkv);
+	}
+
+	for (i=0; i<count; i++)
+		if (fnkv[i]) ki_destroy(fnkv[i]);
+
+	if (fnkv) free(fnkv);
+	if (suffix) free(suffix);
+	if (kv_key) free(kv_key);
+
+	rc = app->ka_rc;
+	if (app) ki_destroy(app);
+
+	return(rc);
 }
