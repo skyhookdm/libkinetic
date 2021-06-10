@@ -11,6 +11,7 @@
 # FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
 # License for more details.
 #
+#
 BUILDDIR =	../build
 BUILDINC =	$(BUILDDIR)/include
 BUILDLIB =	$(BUILDDIR)/lib
@@ -23,20 +24,26 @@ KINETICSOVL = 	$(KINETICSOV).0.0
 
 BUILDLIB_KINETIC = $(BUILDLIB)/$(KINETIC)
 
-PROTOBUF_C =	kinetic.pb-c.c
-PROTOBUF =	kinetic.pb-c.o
 PROTODIR =	protocol
+PROTOC =	protoc
+PROTOCDIR = 	../vendor/protobuf-c/protoc-c
+PROTOCPLUGIN =	$(PROTOCDIR)/protoc-gen-c
+PROTOBUFPATH =	../vendor/kinetic.proto
+PROTOBUF = 	$(PROTOBUFPATH)/kinetic.proto
+PROTOBUF_H =	$(PROTODIR)/kinetic.pb-c.h
+PROTOBUF_C =	$(PROTODIR)/kinetic.pb-c.c
+PROTOBUF_O =	kinetic.pb-c.o
 KOBJ = 		kinetic.o
 OBJS =		ktli.o ktli_socket.o ktli_session.o protocol_interface.o\
 		open.o getlog.o get.o put.o del.o range.o batch.o iter.o\
 		aio.o util.o validate.o labels.o error.o ktb.o version.o\
-		basickv.o stat.o noop.o	flush.o				\
-		$(PROTOBUF)
+		basickv.o stat.o noop.o	flush.o	exec.o			\
+		$(PROTOBUF_O)
 GITHASH	=	githash.h
 
 INC_KPUB =	kinetic.h kinetic_types.h protocol_types.h basickv.h
 
-INC_PPUB =	protocol/kinetic.pb-c.h
+INC_PPUB =	$(PROTOBUF_H)
 
 INC_PRIV =	kio.h ktli.h ktli_session.h  \
 		kinetic.h kinetic_internal.h \
@@ -116,8 +123,10 @@ gen_githash: FORCE
 	exit 0;								\
 	)
 
+
 clean:
-	rm -rf $(KINETIC) $(KINETICSO) $(KINETICSOV) $(KINETICSOVL) $(GITHASH) a.out links *.o
+	rm -rf $(KINETIC) $(KINETICSO) $(KINETICSOV) $(KINETICSOVL) 	\
+		$(PROTOBUF_H) $(PROTOBUF_C) $(GITHASH) a.out links *.o
 
 
 $(OBJS): $(INC_KPUB) $(INC_PPUB) $(INC_PRIV) Makefile
@@ -126,8 +135,12 @@ version.o: $(GITHASH)
 
 $(GITHASH):
 
-$(PROTOBUF): $(PROTODIR)/$(PROTOBUF_C)
+$(PROTOBUF_O): $(PROTOBUF_C)
 	$(CC) $(CFLAGS)   -c -o $@ $<
+
+$(PROTOBUF_H) $(PROTOBUF_C): $(PROTOBUF)
+	$(PROTOC) --c_out=$(PROTODIR) --proto_path=$(PROTOBUFPATH)	\
+		  --plugin=$(PROTOCPLUGIN) $(PROTOBUF)
 
 .PHONY: FORCE
 FORCE:

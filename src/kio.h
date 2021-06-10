@@ -115,6 +115,7 @@ struct kio {
 	kv_t		*kio_ckv;
         kv_t		*kio_caltkv;
 	kb_t		*kio_ckb;
+	kapplet_t	*kio_ckapp;
 
 	struct kio_tstamps kio_ts;	/* Time Stamps, used only when enabled
 					   via kio_flags */

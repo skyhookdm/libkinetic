@@ -39,13 +39,14 @@
  *		as in a get, kv_val[0].kiov_base=NULL and kv_val[0].kiov_len=0
  *  verck	ver is an optional field kv_t, but sometimes it is required.
  * 		When verck is set the version field must be set.
+ *  valck	val is mostly a required field, but sometimes it's not
  *  lim 	Contains server limits
  *
  * Validate that the user is passing a valid kv structure
  *
  */
 int
-ki_validate_kv(kv_t *kv, int verck, klimits_t *lim)
+ki_validate_kv(kv_t *kv, int verck, int valck, klimits_t *lim)
 {
 
 	// Check the required key
@@ -63,21 +64,25 @@ ki_validate_kv(kv_t *kv, int verck, klimits_t *lim)
 
 	if (total_keylen > lim->kl_keylen) { return (-1); }
 
-	/* Check the value vectors */
-	if (!kv->kv_val || kv->kv_valcnt < 1) {
-		debug_fprintf(stderr,
-			      "Key *Value* is none or has 0 fragments\n");
-		return (-1);
-	}
+	/* Check the value vectors if required */
+	if (valck) {
+		if (!kv->kv_val || kv->kv_valcnt < 1) {
+			debug_fprintf(stderr, "Value missing\n");
+			return (-1);
+		}
 
-	/* Total up the length across all vectors */
-	size_t total_vallen = 0;
-	size_t val_fragndx = 0;
-	for (val_fragndx = 0; val_fragndx < kv->kv_valcnt; val_fragndx++) {
-		total_vallen += kv->kv_val[val_fragndx].kiov_len;
-	}
+		/* Total up the length across all vectors */
+		size_t tlen = 0;
+		size_t i = 0;
+		for (i=0; i<kv->kv_valcnt; i++) {
+			debug_fprintf(stderr, "Value too long\n");
+			tlen += kv->kv_val[i].kiov_len;
+		}
 
-	if (total_vallen > lim->kl_vallen) { return (-1); }
+		if (tlen > lim->kl_vallen) {
+			return (-1);
+		}
+	}
 
 	/* Check the versions -- minimum */
 	if (kv->kv_ver &&
@@ -475,5 +480,74 @@ ki_validate_kstats(kstats_t *kst)
 	}
 
 	errno = 0;
+	return(0);
+}
+
+
+/**
+ * ki_validate_kapplet(kapplet_t *app, klimits_t *lim)
+ *
+ * app		Validate fnkeys as valid kv's, fn key type, outkey as valid kv
+ *
+ */
+int
+ki_validate_kapplet(kapplet_t *app, klimits_t *lim)
+{
+	int i, valck, verck;
+
+	// Check the required key
+	if (!app || !ki_valid(app)) {
+		return (-1);
+	}
+
+	/*
+	 * Check the required function keys
+	 */
+	if (!app->ka_fnkey || app->ka_fnkeys < 1) {
+		debug_fprintf(stderr, "No function key(s)\n");
+		return (-1);
+	}
+
+	for (i=0;i<app->ka_fnkeys; i++) {
+		/* Validate each of the fnkeys, no version or value checks */
+		if (ki_validate_kv(app->ka_fnkey[i],
+				   (verck=0), (valck=0), lim) < 0) {
+			debug_fprintf(stderr, "Invalid function key\n");
+			return(-1);
+		}
+	}
+
+	/* Verify the fntype */
+	switch (app->ka_fntype) {
+	case KF_NATIVE:
+	case KF_LLVMIR:
+	case KF_JAVA:
+	case KF_EBPF:
+		break;
+	default:
+		debug_fprintf(stderr, "Bad function type\n");
+		return(-1);
+	}
+
+	/* verify the flags - unused for now */
+	if (app->ka_flags & ~KAF_VALIDMASK) {
+		return(-1);
+	}
+
+	/* Args can't really be validated */
+
+	/*
+	 * If an outkey is defined make sure its a legal kv_t
+	 */
+	if (app->ka_outkey) {
+		if (ki_validate_kv(app->ka_outkey,
+				   (verck=0), (valck=1), lim) < 0) {
+			debug_fprintf(stderr, "Invalid output key\n");
+			return(-1);
+		}
+	}
+
+	/* rc, sig, msg, stdout are outbound elements set by the API */
+
 	return(0);
 }
