@@ -349,9 +349,11 @@ typedef enum kapplet_flags {
  * the kapplet_t structure is used to execute an applet function on the
  * kinetic server device.
  *
- * ka_fnkey     this is an array of kv_t's that hold the sharded function
- * ka_fnkeys	to execute. ka_fnkeys holds the count of keys in the array.
+ * ka_fnkey     this is a kv_t ptr's that hold the sharded function
+ * ka_fnkeycnt	to execute. ka_fnkeycnt holds the count of keys in the array.
  *		Each element of the fnkey array must have a ki_created kv_t.
+ *		As there is no way to ki_create an array of kv_t, ka_fnkey
+ *		must be an array of kv_t ptrs and not an array of kv_t's.
  * 		Since kv's have a maximum value size and functions can be
  *		large, it may be necessary for a single executable function
  * 		to be sharded across a set of kv pairs. This array
@@ -375,20 +377,21 @@ typedef enum kapplet_flags {
  *		a signal
  * ka_msg	this holds the server's returned msg
  * ka_stdout	this holds stdout from the function execution
+ * ka_stdoutlen	this holds the length of stdout
  */
 typedef struct kapplet {
 	kv_t		**ka_fnkey;	/* Function Keys, array of kv_t ptrs */
-	int32_t		ka_fnkeys;	/* Number of function keys in the array*/
-	kfn_t 		ka_fntype;	/* Funtion type */
+	uint32_t	ka_fnkeycnt;	/* Num of function keys in the array */
+	kfn_t		ka_fntype;	/* Function type */
 	uint32_t	ka_flags;	/* Applet operational flags */
-	char 		**ka_argv;	/* Applet argv */
-	int32_t		ka_argc;	/* Applet argv element count */
-	kv_t 		*ka_outkey;	/* Single key for output */
+	char 		**ka_argv;	/* Function argv */
+	int32_t		ka_argc;	/* Function argv element count */
+	kv_t		*ka_outkey;	/* Single key for output */
 	int32_t		ka_rc;		/* OUT: Function return/exit code */
 	int32_t		ka_sig;		/* OUT: Function exit signal, if any */
 	char		*ka_msg;	/* OUT: Kinetic exit message */
-	char 		*ka_stdout;	/* OUT: Function Std Out, if any */
-	int32_t		ka_stdoutlen;	/* OUT: Function Std Out length */
+	char		*ka_stdout;	/* OUT: Function Std Out, if any */
+	size_t		ka_stdoutlen;	/* OUT: Function Std Out length */
 
 #define KA_FLAG_SET(_ka, _kaf)   ((_ka)->ka_flags |= (_kaf))
 #define KA_FLAG_CLR(_ka, _kaf)   ((_ka)->ka_flags &= ~(_kaf))

@@ -563,8 +563,8 @@ create_exec_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kapplet_t *app)
 	 * consolidate and copy app fnkeys to the cmd body
 	 * But first need an appropriately sized vector
 	 */
-	if (app->ka_fnkeys) {
-		len = sizeof(ProtobufCBinaryData) * app->ka_fnkeys;
+	if (app->ka_fnkeycnt) {
+		len = sizeof(ProtobufCBinaryData) * app->ka_fnkeycnt;
 		progkey = (ProtobufCBinaryData *)KI_MALLOC(len);
 		if (!progkey) {
 			goto cb_ex;
@@ -573,7 +573,7 @@ create_exec_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kapplet_t *app)
 	}
 
 	/* Now copy the keys, first the function keys */
-	for (i=0; i<app->ka_fnkeys; i++) {
+	for (i=0; i<app->ka_fnkeycnt; i++) {
 		if (!(key = app->ka_fnkey[i])) {
 			goto cb_ex;
 		}
@@ -631,7 +631,6 @@ create_exec_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kapplet_t *app)
 	 *	Language:VENDOR_DEPENDENT
 	 *	programKey = string
 	 *	(optional) programKey = string
-	 *	maxRunTime = 0
 	 *	AcknowledgeMode = 2
 	 *	notifyOnCompletion = 1
 	 *	(optional) outputKey = string
@@ -644,7 +643,7 @@ create_exec_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kapplet_t *app)
 	set_primitive_optional(&proto_cmd_body, lang, app->ka_fntype);
 
 	proto_cmd_body.programkey = progkey;
-	proto_cmd_body.n_programkey = app->ka_fnkeys;
+	proto_cmd_body.n_programkey = app->ka_fnkeycnt;
 
 	/* maxruntime unused */
 	/* set_primitive_optional(&proto_cmd_body, maxruntime, 0); */
@@ -678,7 +677,7 @@ create_exec_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kapplet_t *app)
 	 * programkey and outkey can be freed
 	 */
  cb_ex:
-	for (i=0;i<app->ka_fnkeys; i++) {
+	for (i=0;i<app->ka_fnkeycnt; i++) {
 		if (progkey[i].data)
 			KI_FREE(progkey[i].data);
 	}
@@ -759,7 +758,7 @@ extract_exec_response(struct kresult_message *resp_msg, kapplet_t *app)
 
 	krc = resp_cmd->status->code;
 
-	app->ka_msg = resp_cmd->status->statusmessage;
+	app->ka_msg = strdup(resp_cmd->status->statusmessage);
 
 	/*
 	 * The current detailed message layout is as follows:
@@ -779,7 +778,7 @@ extract_exec_response(struct kresult_message *resp_msg, kapplet_t *app)
 	dmsg = strchr(dmsg, ':'); dmsg++;	/* toss mesg: */
 	dmsglen -= (uint32_t)(dmsg - (char *)resp_cmd->status->detailedmessage.data);
 
-	app->ka_stdout    = dmsg;
+	app->ka_stdout    = strdup(dmsg);
 	app->ka_stdoutlen = dmsglen;
 
 	return krc;
