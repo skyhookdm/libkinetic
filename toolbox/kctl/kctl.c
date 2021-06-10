@@ -67,6 +67,7 @@ extern int kctl_batch(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_stats(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_flush(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_exec(int argc, char *argv[], int kts, struct kargs *ka);
 
 #if 0
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
@@ -94,6 +95,7 @@ struct ktable {
 	{ KCTL_BATCH,   "batch",   "Start or End a batch", &kctl_batch},
 	{ KCTL_STATS,   "stats",   "Enable command statistics", &kctl_stats},
 	{ KCTL_FLUSH,   "flush",   "Flush key values caches", &kctl_flush},
+	{ KCTL_EXEC,    "exec",    "Execute a func on the kinetic device", &kctl_exec},
 
 #if 0
 	{ KCTL_SETCLUSTERV,

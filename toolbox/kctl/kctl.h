@@ -38,6 +38,7 @@ typedef enum kctl_cmd {
 	KCTL_BATCH,
 	KCTL_STATS,
 	KCTL_FLUSH,
+	KCTL_EXEC,
 	
 	KCTL_EOT // End of Table -  Must be last
 } kctl_cmd_t;

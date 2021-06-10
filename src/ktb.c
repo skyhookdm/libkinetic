@@ -132,6 +132,8 @@ ktb_buf_len(ktype_t t)
 		return((uint32_t)sizeof(kversion_t));
 	case KSTATS_T:
 		return((uint32_t)sizeof(kstats_t));
+	case KAPPLET_T:
+		return((uint32_t)sizeof(kapplet_t));
 	default:
 		return(0);
 	}
