@@ -143,6 +143,9 @@ ktb_buf_len(ktype_t t)
 	case KSTATS_T:
 		return((uint32_t)sizeof(kstats_t));
 
+	case KAPPLET_T:
+		return((uint32_t)sizeof(kapplet_t));
+
 	default:
 		return(0);
 	}
@@ -248,6 +251,24 @@ ki_clean(void *p)
 	if (!ktb_isvalid(p)) { return (K_EINVAL); }
 
 	k = ktb_base(p);
+
+	/* additional cleaning is required */
+	switch(k->ktb_type) {
+	case KAPPLET_T:
+		/*
+		 * Special case for kapplet.
+		 */
+		if (((kapplet_t *) p)->ka_msg   ) { KI_FREE(((kapplet_t *) p)->ka_msg);    }
+		if (((kapplet_t *) p)->ka_stdout) { KI_FREE(((kapplet_t *) p)->ka_stdout); }
+
+		((kapplet_t *) p)->ka_msg       = NULL;
+		((kapplet_t *) p)->ka_stdout    = NULL;
+		((kapplet_t *) p)->ka_stdoutlen = 0;
+
+	default:
+		break;
+	}
+
 	if (k->ktb_ctx && k->ktb_destroy) {
 		// list_destroy calls our supplied destructor on elements of `ktb_ctx`
 		list_destroy((LIST *) k->ktb_ctx, (void *) k->ktb_destroy);

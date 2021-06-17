@@ -1,0 +1,366 @@
+.\"
+.\" Copyright 2020-2021 Seagate Technology LLC.
+.\"
+.\" %%%LICENSE_START(VERBATIM)
+.\" This Source Code Form is subject to the terms of the Mozilla
+.\" Public License, v. 2.0. If a copy of the MPL was not
+.\" distributed with this file, You can obtain one at
+.\" https://mozilla.org/MP:/2.0/.
+.\"
+.\" This program is distributed in the hope that it will be useful,
+.\" but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+.\" the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+.\" FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+.\" License for more details.
+.\" %%%LICENSE_END
+
+.de URL
+\\$2 \(laURL: \\$1 \(ra\\$3
+..
+.if \n[.g] .mso www.tmac
+.TH ...
+		      
+.TH KINETIC 3 2021-06-11 "Seagate Technologies LLC" "Kinetic Programmer's Model"
+.SH NAME
+ki_exec \- Kinetic applet execution routines
+.SH SYNOPSIS
+cc [
+.I flags 
+]
+.IR files
+.B -lkinetic 
+[ 
+.IR libraries
+]
+.PP
+.B #include <kinetic.h>
+.PP
+.BI "kstatus_t ki_exec(int " ktd ", kapplet_t *" kapp );
+.PP
+.BI "kstatus_t ki_aio_exec(int " ktd ", kapplet_t *" kapp ", void *" cctx ", kio_t **" kio );
+.PP
+.SH DESCRIPTION
+These routines provide the synchronous and asynchronous interface for
+executing an applet/function on the kinetic device. The data structure 
+.BR kapplet_t
+houses all the necessary parameters for the kinetic device to execute the
+applet/funtion.
+.PP
+The terms applet and function are interchangable and both are used in the
+API.  They refer to a program that can be executed with a set of command line
+parameters on the kinetic device. The program executable is stored as a set of
+key value pairs on the kinetic device. At execution time the program is
+reassembled in the kinetic device by getting these key values pairs and
+concantenating their values. The type of executable is variable, being any one 
+of the following types:  
+.PP
+NATIVE
+.RS
+This is a fully compiled and linked program for the software platform and
+hardware architecture of the kinetic device. That is, the program is native to
+the kinetic device's environment. This requires a toolchain (usually a cross
+compiler) and a set of system libraries built with that toolchain.  This toolchain is used to compile and link the caller's function into a native application/program.
+.RE
+LLVMIR 
+.RS
+LLVM IR or LLVM Intermediate Representation is a programming language
+independent representation that can be further optimized and compiled into may
+different instruction sets. The application would be compiled to the IR stage
+and then stored as a set of key values on the kinetic device. The device is
+then responsible for further optimizing, compiling and linking the IR to its
+native representation.   More information about the tools require see the 
+.URL "https://llvm.org/" "LLVM website" "."
+.RE
+EBPF 
+.RS
+Extended Berkeley Packet Filter (eBPF) is a virtual instruction set
+architecture. An application can be compiled to this architecture by using the
+.URL "https://clang.llvm.org/" "Clang" " compiler."
+Applications are only compiled and not fully linked, multiple \.o files can,
+however, be incrementally linked. This object file is then stored as a set of key values
+on the kinetic device.  At execution time, the kinetic device will load the
+key values into a virtual machine that emulates the eBPF instruction
+set. For more information on this virtual machine, see kinetic-ebpf(7).
+.RE
+JAVA
+.RS
+An application can be a JAVA jar. 
+.RE
+
+The data structure that conveys the execution parameters is
+.IR kapplet_t .
+and must be created via ki_create(). This data structure defines the following:
+.PP
+.IR ka_fnkey ,
+.IR ka_fnkeycnt
+- Function Key Set
+.RS
+The function key set defines the set of keys that contain the function and the
+order in which they should be concatenated to reassemble the function.  The
+reason for a key set and not a single key is that a function may easily be
+larger than the a values maximum size.  For example, a NATIVE application may
+easily multiple megabytes in size and with a 1 megabyte limit on values, it
+would take several values to house.
+.PP
+.IR ka_fnkey
+holds the function key set using an array of
+.IR kv_t
+pointers.  Each
+.IR kv_t
+must be created by
+.BR ki_create()
+as described in ki_create(3). Each
+.IR kv_t
+must have a valid key kiovec array with at least one element. Since no values
+are returned for these keys no other data in the
+.IR kv_t
+is required to be initialized. The number of keys in this array is held in
+.IR ka_knkeycnt .
+The order of the pointers in the the array is the order of concatenation on
+the kinetic device.
+.RE
+.PP
+.IR ka_fntype
+- Function Type
+.RS
+This defines the type described above.
+.RE
+.PP
+.IR ka_flags
+- Function Flags
+.RS
+Currently unused.
+.RE
+.PP
+.IR ka_argv ,
+.IR ka_argc
+- Function Arguments
+[optional]
+.RS
+These are the arguments passed the application at runtime. They are formated
+exactly as standard main() arguments, argv and argc.
+.RE
+.PP
+.IR ka_outkey
+- Output Key
+[optional]
+.RS
+The output key is really any key value to be retrieved and returned in the
+response to the execution request.  It may be that the application uses that
+key to put its results into that key value, but nothing in the mechanism
+forces that usage. It's usefullness is limited by the value size
+limitation. If an applications results are greater than that limit, then only 
+partial results can be returned using this mechanism.
+.PP
+.IR ka_outkey
+is a pointer to a single
+.IR kv_t .
+It must be created by
+.BR ki_create()
+as described in ki_create(3). The 
+.IR kv_t
+must have a valid key kiovec array with at least one element as well as single
+element value kiovec array.  All other 
+.IR kv_t
+fields are currently ignored.
+.RE
+.PP
+.IR ka_rc
+- Function Return Code
+[output]
+.RS
+The function return code is the runtime exit code of the application. It is
+set by the kinetic device and returned in the response. Any caller set data is
+ignored and overwritten by the results.
+.RE
+.PP
+.IR ka_sig
+- Function Exit Signal
+[output]
+.RS
+The function exit signal is set if the application exited by way of an
+unhandled signal. Usually this is due a segmentation violation or bus
+error. It is set by the kinetic device and returned in the response. Any
+caller set data is ignored and overwritten by the results.
+.RE
+.PP
+.IR ka_msg
+- Kinetic Device Exit Message
+[output]
+.RS
+The Kinetic device exit message is a message generated by the Kinetic
+device. It usually describes the success or failure of the execution.  It is
+set by the kinetic device and returned in the response. Any caller set data is
+ignored and overwritten by the results. This message string is freed by
+ki_clean() or ki_destroy(). 
+.RE
+.PP
+.IR ka_stdout ,
+.IR ka_stdoutlen
+- Function Standard Ouput
+[output]
+.RS
+The function standard output is the collected standard out and standard error
+generated by the application. It is set by the kinetic device and returned in
+the response. Any caller set data is ignored and overwritten by the
+results. This message string is freed by ki_clean() or ki_destroy(). 
+.RE
+.PP
+.SH EXAMPLE
+A simple usage implementation might look like this:
+.PP
+.in +4n
+.EX
+int
+kinetic_execute(int argc, char *argv[])
+{
+	struct kiovec  kv_key    = { "MyFunc", 6 };
+	struct kiovec  kv_outkey = { "MyResults", 9 };
+	struct kiovec  kv_outval = { 0, 0 };
+	kv_t           *fnkv, *okv;
+	kapplet_t      *app;
+	kstatus_t      krc;
+
+	/* Create Function Key KV */
+	if (!(fnkv = ki_create(ktd, KV_T))) {
+		fprintf(stderr, "*** Function KV create failure\\n");
+		return (-1);
+	}
+	
+	/* Create Output KV */
+	if (!(okv = ki_create(ktd, KV_T))) {
+		fprintf(stderr, "*** Output KV create failure\\n");
+		return (-1);
+	}
+	
+	/* Create Applet */
+	if (!(app = ki_create(ktd, KAPPLET_T))) {
+		fprintf(stderr, "*** Kapplet create failure\\n");
+		return (-1);
+	}
+
+	/* Setup the KVs */
+	fnkv->kv_key    = kv_key;
+	fnkv->kv_keycnt = 1;
+	
+	okv->kv_key    = kv_outkey;
+	okv->kv_keycnt = 1;
+	okv->kv_val    = kv_outval;
+	okv->kv_valcnt = 1;
+
+	/* Setup the applet */
+	app->ka_fnkey    = &fnkv;
+	app->ka_fnkeycnt = 1;
+	app->ka_fntype   = KF_NATIVE;
+	app->ka_argv     = argv;
+	app->ka_argc     = argc;
+	app->ka_outkey   = okv;
+
+	krc = ki_exec(ktd, app);
+	if (krc != K_OK) {
+		fprintf(stderr, "Application failed to execute\\n");
+		return(-1);
+	}
+
+	printf("Results: ");
+	write(fileno(stdout),
+	      okv->kv_val[0].kiov_base, okv->kv_val[0].kiov_len);
+
+	printf("\\nExit Code  : %d\\n", app->ka_rc);
+	printf("Exit Signal: %d\\n", app->ka_sig);
+	printf("Exit Mesg  : %s\\n", app->ka_msg);
+	printf("Std Out    :\\n");
+	printf("%s", app->ka_stdout);
+	
+	/* Clean up */
+	free(okv->kv_val[0].kiov_base);
+	ki_destroy(fnkv);
+	ki_destroy(okv);
+	ki_destroy(app);
+	return(0);
+}
+.EE
+.in
+.SH MEMORY ALLOCATION
+Any data structures created via ki_create() must be destroyed via
+ki_destroy(). All memory allocated by the caller is the callers reponsibility
+to free. The one exception is if the caller requested andoutput key value to
+be returned. In this case the caller is responsible for freeing the value
+pointer. 
+.SH RETURN VALUE
+The 
+.BR ki_exec ()
+and
+.BR ki_aio_exec ()
+calls both return a
+.IR kstatus_t
+return code. If the execution was successful, meaning the application was
+successfully launched and it returned, the K_OK will be returned. This return
+code has no bearing on whether the application was successful. 
+.SH ATTRIBUTES
+For an explanation of the terms used in this section, see
+.BR attributes (7).
+.TS
+allbox;
+lbw19 lb lb
+l l l.
+Interface	Attribute	Value
+T{
+.BR ki_exec ()
+.BR ki_aio_exec ()
+T}	Thread safety	MT-Safe
+.TE
+.SH NOTES
+None.
+.SH SEE ALSO
+kinetic(7),
+kinetic-aio(7)
+kinetic-ebpf(7)
+.PP
+ki_open(3),
+ki_close(3)
+.PP
+ki_create(3),
+ki_clean(3),
+ki_destroy(3),
+ki_valid(3)
+.PP
+ki_put(3),
+ki_cas(3),
+ki_del(3),
+ki_cad(3),
+ki_get(3),
+ki_getnext(3),
+ki_getprev(3),
+ki_getversion(3),
+ki_getrange(3),
+ki_start(3),
+ki_next(3),
+ki_exec(3)
+.PP
+ki_abortbatch(3),
+ki_submitbatch(3),
+ki_aio_abortbatch(3),
+ki_aio_submitbatch(3),
+.PP
+ki_aio_put(3),
+ki_aio_cas(3),
+ki_aio_del(3),
+ki_aio_cad(3),
+ki_aio_get(3),
+ki_aio_getnext(3),
+ki_aio_getprev(3),
+ki_aio_getversion(3),
+ki_aio_exec(3),
+ki_aio_complete(3),
+ki_poll(3)
+.PP
+kki_getlog(3),
+ki_limits(3),
+ki_version(3),
+ki_error(3)
+.SH AUTHOR
+Philip Kufeldt (philip.kufeldt@seagate.com), Seagate Technologies LLC
+
+Aldrin Montana (aldrin.montana@seagate.com), Seagate Technologies LLC
+

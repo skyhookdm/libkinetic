@@ -32,6 +32,8 @@ typedef enum ktype {
 	KGETLOG_T,
 	KVERSION_T,
 	KSTATS_T,
+	KAPPLET_T,
+
 	/* Keep last */
 	KT_LAST,	
 } ktype_t;
@@ -113,6 +115,7 @@ typedef enum kstatus {
 	KSTAT_GRP2_LAST	= (KSTAT_GRP2 | 5),
 	
 } kstatus_t;
+
 
 /**
  * koivec structure
@@ -304,6 +307,99 @@ typedef void kbatch_t;
 typedef void kio_t;
 
 
+/**
+ * Kinetic Applet types
+ */
+#define CSMAT(csmat)	COM__SEAGATE__KINETIC__PROTO__COMMAND__MANAGE_APPLET__MANAGE_APPLET_TYPE__##csmat
+
+/**
+ * Kinetic Applet acknowledge mode
+ */
+#define CSMAAM(csmaam)	COM__SEAGATE__KINETIC__PROTO__COMMAND__MANAGE_APPLET__ACKNOWLEDGE_MODE__##csmaam
+
+/**
+ * Kinetic Applet Function Format
+ */
+#define CSMAL(csmal) COM__SEAGATE__KINETIC__PROTO__COMMAND__MANAGE_APPLET__LANGUAGE__##csmal
+typedef Com__Seagate__Kinetic__Proto__Command__ManageApplet__Language kfn_t;
+enum {
+	KF_INVALID	= CSMAL(INVALID_PROGRAM),
+	KF_NATIVE	= CSMAL(VENDOR_DEPENDENT),
+	KF_LLVMIR	= CSMAL(LLVM_KINETIC_BITCODE),
+	KF_JAVA		= CSMAL(JAVA_BYTECODE),
+	KF_EBPF		= CSMAL(EBPF),
+};
+
+/**
+ * Kinetic Applet flags
+ * Currently unused
+ */
+typedef enum kapplet_flags {
+	/* bitmap enum */
+	KAF_NONE	= 0x0000,
+
+	KAF_GETOUTKEY	= 0x0001, /* Unused - Return the output key value. */
+	KAF_INSTALL	= 0x0002, /* Unused */
+
+	KAF_VALIDMASK	= 0x0000,
+} kapplet_flags_t;
+
+/**
+ * Kinetic Applet
+ * the kapplet_t structure is used to execute an applet function on the
+ * kinetic server device.
+ *
+ * ka_fnkey     this is a kv_t ptr's that hold the sharded function
+ * ka_fnkeycnt	to execute. ka_fnkeycnt holds the count of keys in the array.
+ *		Each element of the fnkey array must have a ki_created kv_t.
+ *		As there is no way to ki_create an array of kv_t, ka_fnkey
+ *		must be an array of kv_t ptrs and not an array of kv_t's.
+ * 		Since kv's have a maximum value size and functions can be
+ *		large, it may be necessary for a single executable function
+ * 		to be sharded across a set of kv pairs. This array
+ *		represents the ordered keys whose values when concatenated
+ *		together reconstitute the executable function.
+ *		***Currently only the kv_key and kv_keycnt fields of the kv
+ *		are required or used.***
+ * ka_fntype	This holds the type of the executable: native, llvmir, java
+ *		or ebpf
+ * ka_flags	These flags can modify the behavior of the applet
+ * ka_argv 	is an argv style argument list
+ * ka_argc 	is the count of arguments in ka_argv
+ * ka_outkey	is a key to be returned with the results of an exec.
+ * 		Can be any key value, but typical use is that the function
+ *		can set it's results in this key and have it returned with
+ * 		exec completion. Only one key can be returned. Requires kv_key
+ *		and kv_val kiovecs.
+ * ka_rc	this holds the exit or return code of the function, set on
+ *		completion
+ * ka_siq	this holds the signal number if the function exited due to
+ *		a signal
+ * ka_msg	this holds the server's returned msg
+ * ka_stdout	this holds stdout from the function execution
+ * ka_stdoutlen	this holds the length of stdout
+ */
+typedef struct kapplet {
+	kv_t		**ka_fnkey;	/* Function Keys, array of kv_t ptrs */
+	uint32_t	ka_fnkeycnt;	/* Num of function keys in the array */
+	kfn_t		ka_fntype;	/* Function type */
+	uint32_t	ka_flags;	/* Applet operational flags */
+	char 		**ka_argv;	/* Function argv */
+	int32_t		ka_argc;	/* Function argv element count */
+	kv_t		*ka_outkey;	/* Single key for output */
+	int32_t		ka_rc;		/* OUT: Function return/exit code */
+	int32_t		ka_sig;		/* OUT: Function exit signal, if any */
+	char		*ka_msg;	/* OUT: Kinetic exit message */
+	char		*ka_stdout;	/* OUT: Function Std Out, if any */
+	size_t		ka_stdoutlen;	/* OUT: Function Std Out length */
+
+#define KA_FLAG_SET(_ka, _kaf)   ((_ka)->ka_flags |= (_kaf))
+#define KA_FLAG_CLR(_ka, _kaf)   ((_ka)->ka_flags &= ~(_kaf))
+#define KA_FLAG_ISSET(_ka, _kaf) ((_ka)->ka_flags & (_kaf))
+#define KA_GETOUTKEY(_ka)        ((_ka)->ka_flags & KAF_GETOUTKEY)
+} kapplet_t;
+
+
 /*
  * Kinetic Operation Statistic Structures
  *
@@ -345,12 +441,12 @@ typedef struct kopstat {
 	 *  Sizes - keep a running mean of
 	 *  	RPC send / recv size
 	 */
-	double		kop_ssize;
-	double		kop_smsq;
-	double		kop_sstdev;
-	double		kop_rsize;
-	double		kop_klen;
-	double		kop_vlen;
+	double		kop_ssize;	/* Send Size Mean */
+	double		kop_smsq;	/* Send Size Means square */
+	double		kop_sstdev;	/* Send Size Stddev */
+	double		kop_rsize;	/* Recv Size Mean */
+	double		kop_klen;	/* Key length mean, not for all ops */
+	double		kop_vlen;	/* Val length mean, not for all ops */
 
 	/* Op Time Stats
 	 * These stats measure total time time spent in the op
@@ -390,6 +486,7 @@ typedef struct  kstats {
 	kopstat_t 	kst_gets;
 	kopstat_t 	kst_noops;
 	kopstat_t 	kst_flushs;
+	kopstat_t 	kst_execs;
 
 #if 0
 	kopstat_t 	kst_cbats;	/* Create Batch */

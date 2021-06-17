@@ -42,7 +42,7 @@ kstatus_t
 d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 		  void *cctx, kio_t **ckio)
 {
-	int rc, n;			/* return code, temps */
+	int rc, n, valck;		/* return code, temps */
 	kstatus_t krc;			/* Kinetic return code */
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info */
@@ -83,7 +83,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kst = &ses->ks_stats;
 
 	/* Validate the passed in kv, if forcing a del do no verck  */
-	rc = ki_validate_kv(kv, verck, &ses->ks_l);
+	rc = ki_validate_kv(kv, verck, (valck=1), &ses->ks_l);
 	if (rc < 0) {
 		kst->kst_dels.kop_err++;
 		debug_printf("del: kv invalid");
@@ -127,7 +127,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	 * unfreeable ptr.  See below at dex_kmreq:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_atype = KAT_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 

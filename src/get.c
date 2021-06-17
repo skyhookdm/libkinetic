@@ -42,7 +42,7 @@ kstatus_t
 g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 		  void *cctx, kio_t **ckio)
 {
-	int rc, n, verck;		/* return code, temp, version check */
+	int rc, n, verck, valck;	/* return code, temp, vers/val check */
 	kstatus_t krc;			/* Kinetic return code */
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info  */
@@ -110,7 +110,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 
 	/* Validate the passed in kv and if necessary the altkv */
 	/* verck=0 to ignore version field in the check */
-	rc = ki_validate_kv(kv, (verck=0), &ses->ks_l);
+	rc = ki_validate_kv(kv, (verck=0), (valck=1), &ses->ks_l);
 	if (rc < 0) {
 		kst->kst_gets.kop_err++;
 		debug_printf("get: kv invalid");
@@ -119,7 +119,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 
 	if (altkv) {
 		/* verck=0 to ignore version field in the check */
-		rc = ki_validate_kv(altkv, (verck=0), &ses->ks_l);
+		rc = ki_validate_kv(altkv, (verck=0), (valck=1), &ses->ks_l);
 		if (rc < 0) {
 			kst->kst_gets.kop_err++;
 			debug_printf("get: altkv invalid");
@@ -156,7 +156,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	 * unfreeable ptr.  See below at gex_req:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_atype = KAT_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 
