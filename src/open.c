@@ -97,7 +97,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	struct kresult_message  kmresp;
 	kstatus_t		krc;
 	ksession_t		*ks;
-	kgetlog_t		glog;
+	kgetlog_t		*glog;
 	kcmdhdr_t		cmd_hdr;
 
 	/*
@@ -186,9 +186,16 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 		goto oex2;
 	}
 
+	// once we have a response, and a ktd, create our glog structure
+	if (!(glog = ki_create(ktd, KGETLOG_T))) {
+		fprintf(stderr, "*** Memory Failure\n");
+		rc = -1;
+		goto oex1;
+	}
+
 	// initialize glog now that it's going to be used by extract_getlog
-	memset(&glog, 0, sizeof(kgetlog_t));
-	krc = extract_getlog(&kmresp, &glog);
+	memset(glog, 0, sizeof(kgetlog_t));
+	krc = extract_getlog(&kmresp, glog);
 	if (krc != K_OK) {
 		// TODO: should this set ktd to -1?
 		rc = -1;
@@ -196,8 +203,8 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	}
 
 	// kgl_limit and kgl_conf are not pointers, so memcpy them
-	memcpy(&ks->ks_l   , &glog.kgl_limits, sizeof(klimits_t)       );
-	memcpy(&ks->ks_conf, &glog.kgl_conf  , sizeof(kconfiguration_t));
+	memcpy(&ks->ks_l   , &(glog->kgl_limits), sizeof(klimits_t)       );
+	memcpy(&ks->ks_conf, &(glog->kgl_conf)  , sizeof(kconfiguration_t));
 
 	memset(&cmd_hdr, 0, sizeof(kcmdhdr_t));
 	krc = extract_cmdhdr(&kmresp, &cmd_hdr);
@@ -213,11 +220,10 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	ks->ks_bats = 0;
 
  oex1:
-	// destroy anything in getlog that was allocated
-	// (including the unpacked command)
-	glog.destroy_protobuf(&glog);
+	// destroy the glog structure
+	ki_destroy(glog);
 
-	// destroy the protobuf message itself
+	// destroy the protobuf message itself (extract_getlog should cleanup glog)
 	destroy_message(kmresp.result_message);
 
  oex2:
