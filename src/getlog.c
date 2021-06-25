@@ -60,7 +60,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* Get KTLI config */ 
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("getlog: ktli config");
+		debug_printf("getlog: ktli config\n");
 		return(K_EBADSESS);
 	}
 
@@ -69,14 +69,14 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* Validate the passed in glog; this function sets errno */
 	rc = ki_validate_glog(glog);
 	if (rc < 0) {
-		debug_printf("getlog: validation");
+		debug_printf("getlog: validation\n");
 		return(K_EINVAL);
 	}
 	
 	/* create the kio structure; first malloc, so we return on failure */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		debug_printf("getlog: kio alloc");
+		debug_printf("getlog: kio alloc\n");
 		return(K_ENOMEM);
 	}
 	memset(kio, 0, sizeof(struct kio));
@@ -105,7 +105,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	kmreq = create_getlog_message(&msg_hdr, &cmd_hdr, glog);
 	if (kmreq.result_code == FAILURE) {
-		debug_printf("getlog: request message create");
+		debug_printf("getlog: request message create\n");
 		krc = K_EINTERNAL;
 		goto glex_kio;
 	}
@@ -124,7 +124,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 	if (!kio->kio_sendmsg.km_msg) {
-		debug_printf("getlog: sendmesg alloc");
+		debug_printf("getlog: sendmesg alloc\n");
 		krc = K_ENOMEM;
 		goto glex_req;
 	}
@@ -143,7 +143,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	);
 
 	if (pack_result == FAILURE) {
-		debug_printf("getlog: sendmesg msg pack");
+		debug_printf("getlog: sendmesg msg pack\n");
 		krc = K_EINTERNAL;
 		goto glex_sendmsg;
 	}
@@ -158,7 +158,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	/* Send the request */
 	ktli_send(ktd, kio);
-	debug_printf ("Sent Kio: %p\n", kio);
+	debug_printf("Sent Kio: %p\n", kio);
 
 	/* Wait for the response */
 	do {
@@ -172,7 +172,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 			if (errno == ENOENT) { continue; }
 			else {
 				/* PAK: need to exit, receive failed */
-				debug_printf("getlog: kio receive failed");
+				debug_printf("getlog: kio receive failed\n");
 				krc = K_EINTERNAL;
 				goto glex_sendmsg;
 			}
@@ -188,11 +188,11 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	 * and go.
 	 */
 	if (kio->kio_state == KIO_TIMEDOUT) {
-		debug_printf("getlog: kio timed out");
+		debug_printf("getlog: kio timed out\n");
 		krc = K_ETIMEDOUT;
 		goto glex_recvmsg;
 	} else 	if (kio->kio_state == KIO_FAILED) {
-		debug_printf("getlog: kio failed");
+		debug_printf("getlog: kio failed\n");
 		krc = K_ENOMSG;
 		goto glex_recvmsg;
 	}
@@ -201,7 +201,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		debug_printf("getlog: PDU bad length");
+		debug_printf("getlog: PDU bad length\n");
 		krc = K_EINTERNAL;
 		goto glex_recvmsg;
 	}
@@ -210,7 +210,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
     /* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
-		debug_printf("getlog: PDU decode");
+		debug_printf("getlog: PDU decode\n");
 		krc = K_EINTERNAL;
 		goto glex_recvmsg;
 	}
@@ -219,7 +219,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		debug_printf("getlog: msg unpack");
+		debug_printf("getlog: msg unpack\n");
 		krc = K_EINTERNAL;
 		goto glex_resp;
 	}
@@ -515,19 +515,17 @@ extract_getlog(struct kresult_message *resp_msg, kgetlog_t *getlog_data)
 	kstatus_t krc = K_EINTERNAL;
 	kproto_msg_t *getlog_resp_msg;
 
+	// commandbytes should exist
 	getlog_resp_msg = (kproto_msg_t *) resp_msg->result_message;
-
-	// check that there is command data
 	if (!getlog_resp_msg->has_commandbytes) {
-		debug_printf("extract_getlog: no resp cmd");
-		return(K_EINTERNAL);
+		debug_printf("extract_getlog: no resp cmd\n");
+		return krc;
 	}
 
-	kproto_cmd_t *resp_cmd;
-	resp_cmd = unpack_kinetic_command(getlog_resp_msg->commandbytes);
+	kproto_cmd_t *resp_cmd = unpack_kinetic_command(getlog_resp_msg->commandbytes);
 	if (!resp_cmd) {
-		debug_printf("extract_getlog: resp cmd unpack");
-		return(K_EINTERNAL);
+		debug_printf("extract_getlog: resp cmd unpack\n");
+		return krc;
 	}
 	getlog_data->kgl_protobuf = resp_cmd;
 
@@ -538,13 +536,13 @@ extract_getlog(struct kresult_message *resp_msg, kgetlog_t *getlog_data)
 	// copy the data for data independence
         krc = extract_cmdstatus_code(resp_cmd);
 	if (krc != K_OK) {
-		debug_printf("extract_getlog: status");
+		debug_printf("extract_getlog: status\n");
 		goto extract_glex;
 	}
 
-	// check that there's a command body and getlog data
+	// check if there's command data to parse, otherwise cleanup and exit
 	if (!resp_cmd->body || !resp_cmd->body->getlog) {
-		debug_printf("extract_getlog: command missing body or getlog");
+		debug_printf("extract_getlog: command missing body or getlog\n");
 		goto extract_glex;
 	}
 
@@ -558,19 +556,25 @@ extract_getlog(struct kresult_message *resp_msg, kgetlog_t *getlog_data)
 	getlog_data->kgl_type    = resp->types;
 
 	// repeated fields
-	extract_result = extract_utilizations(getlog_data,
-					      resp->n_utilizations,
-					      resp->utilizations);
+	extract_result = extract_utilizations(
+		getlog_data,
+		resp->n_utilizations,
+		resp->utilizations
+	);
 	if (extract_result < 0) { goto extract_glex; }
 
-	extract_result = extract_temperatures(getlog_data,
-					      resp->n_temperatures,
-					      resp->temperatures);
+	extract_result = extract_temperatures(
+		getlog_data,
+		resp->n_temperatures,
+		resp->temperatures
+	);
 	if (extract_result < 0) { goto extract_glex; }
 
-	extract_result = extract_statistics(getlog_data,
-					    resp->n_statistics,
-					    resp->statistics);
+	extract_result = extract_statistics(
+		getlog_data,
+		resp->n_statistics,
+		resp->statistics
+	);
 	if (extract_result < 0) { goto extract_glex; }
 
 	// then optional fields (can't use macro because
@@ -582,16 +586,22 @@ extract_getlog(struct kresult_message *resp_msg, kgetlog_t *getlog_data)
 
 	// then other fields
 	if (resp->capacity) {
-		extract_primitive_optional(getlog_data->kgl_cap.kc_total,
-					   resp->capacity,
-					   nominalcapacityinbytes);
+		extract_primitive_optional(
+			getlog_data->kgl_cap.kc_total,
+			resp->capacity,
+			nominalcapacityinbytes
+		);
 
-		extract_primitive_optional(getlog_data->kgl_cap.kc_used,
-					   resp->capacity, portionfull);
+		extract_primitive_optional(
+			getlog_data->kgl_cap.kc_used,
+			resp->capacity, portionfull
+		);
 	}
 
-	extract_result = extract_configuration(getlog_data,
-					       resp->configuration);
+	extract_result = extract_configuration(
+		getlog_data,
+		resp->configuration
+	);
 	if (extract_result < 0) { goto extract_glex; }
 
 	// no allocations, so this "can't fail"
