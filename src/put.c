@@ -47,7 +47,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info */
 	kstats_t *kst;			/* Kinetic Stats */
-	kmsghdr_t msg_hdr;		/* Unpacked message header */ 
+	kmsghdr_t msg_hdr;		/* Unpacked message header */
 	kcmdhdr_t cmd_hdr;		/* Unpacked Command header */
 	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kresult_message kmreq;	/* Intermediate resp representation */
@@ -752,13 +752,6 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 	return create_message(msg_hdr, command_bytes);
 }
 
-void destroy_protobuf_putkey(kv_t *kv_data) {
-	if (!kv_data) { return; }
-
-	// destroy protobuf allocated memory
-	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
-}
-
 kstatus_t extract_putkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 	// assume failure status
 	kstatus_t krc = K_EINTERNAL;
@@ -777,10 +770,6 @@ kstatus_t extract_putkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 		debug_printf("extract_putkey: resp cmd unpack\n");
 		return krc;
 	}
-	kv_data->kv_protobuf = resp_cmd;
-
-	// set destructor to be called later
-	kv_data->destroy_protobuf = destroy_protobuf_putkey;
 
 	// extract the status. On failure, skip to cleanup
 	krc = extract_cmdstatus_code(resp_cmd);
@@ -795,11 +784,11 @@ kstatus_t extract_putkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 		goto extract_pex;
 	}
 
-	// get the command data from the response
-	// NOTE: this is tricky. Only modify the value if the response
-	// returns a key (otherwise kv_key and kv_keycnt fall out of sync)
-	if (resp->has_key) {
-		kv_data->kv_keycnt = 1;
+	// Since everything seemed successful, let's pop this data on our cleaning stack
+	krc = ki_addctx(kv_data, resp_cmd, destroy_command);
+	if (krc != K_OK) {
+		debug_printf("extract_putkey: failed to add context\n");
+		goto extract_pex;
 	}
 
 	// ------------------------------
