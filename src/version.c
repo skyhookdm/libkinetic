@@ -33,18 +33,22 @@
 
 #include "githash.h"
 
+#define PB_KINETIC_VERS \
+	com__seagate__kinetic__proto__local__protocol_version__default_value
+
 #define KVERS_MAJOR 0
 #define KVERS_MINOR 2
 #define KVERS_PATCH 0
 
-static char v_kinetic_vers[40];
-static uint32_t v_kinetic_vers_num =
-	(KVERS_MAJOR*1E6) + (KVERS_MINOR*1E3) + KVERS_PATCH;
+static char     v_kinetic_vers[40];
+static uint32_t v_kinetic_vers_num = (
+	  (KVERS_MAJOR * 1E6)
+	+ (KVERS_MINOR * 1E3)
+	+ (KVERS_PATCH      )
+);
 
 extern const char *protobuf_c_version(void);
-extern uint32_t protobuf_c_version_number(void);
-#define PB_KINETIC_VERS \
-	com__seagate__kinetic__proto__local__protocol_version__default_value
+extern uint32_t    protobuf_c_version_number(void);
 
 kstatus_t
 ki_version(kversion_t *kver)
@@ -53,15 +57,17 @@ ki_version(kversion_t *kver)
 		return (K_EINVAL);
 	}
 
-	sprintf(v_kinetic_vers, "%d.%d.%d",
-		KVERS_MAJOR, KVERS_MINOR, KVERS_PATCH);
+	sprintf(v_kinetic_vers
+		,"%d.%d.%d"
+		,KVERS_MAJOR, KVERS_MINOR, KVERS_PATCH
+    );
 
 	kver->kvn_pb_c_vers       = protobuf_c_version();
 	kver->kvn_pb_c_vers_num   = protobuf_c_version_number();
 	kver->kvn_pb_kinetic_vers = PB_KINETIC_VERS;
-	kver->kvn_ki_githash	  = ki_githash;
-	kver->kvn_ki_vers	  = v_kinetic_vers;
-	kver->kvn_ki_vers_num	  = v_kinetic_vers_num;
-	
-	return(K_OK);
+	kver->kvn_ki_githash      = ki_githash;
+	kver->kvn_ki_vers         = v_kinetic_vers;
+	kver->kvn_ki_vers_num     = v_kinetic_vers_num;
+
+	return (K_OK);
 }

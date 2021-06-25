@@ -317,40 +317,36 @@ ki_keylast(size_t len)
 krange_t *
 ki_rangecpy(krange_t *dst, krange_t *src)
 {
-	if (!dst) {
-		return(NULL);
-	}
+	if (!dst) { return (NULL); }
 
 	/* Its a legal range to have an empty start and end key */
 
 	/* Copy start key, this allocates new space and copies the key */
 	dst->kr_startcnt = src->kr_startcnt;
-	dst->kr_start = ki_keydup(src->kr_start, src->kr_startcnt);
-	if (src->kr_start && !dst->kr_start) {
-		return(NULL);
-	}
+	dst->kr_start    = ki_keydup(src->kr_start, src->kr_startcnt);
+	if (src->kr_start && !dst->kr_start) { return (NULL); }
 
 	/* Copy end key, this allocates new space and copies the key */
 	dst->kr_endcnt = src->kr_endcnt;
-	dst->kr_end = ki_keydup(src->kr_end, src->kr_endcnt);
+	dst->kr_end    = ki_keydup(src->kr_end, src->kr_endcnt);
 	if (src->kr_end && !dst->kr_end) {
 		ki_keydestroy(dst->kr_start, dst->kr_startcnt);
-		return(NULL);
+		return (NULL);
 	}
 
 	/* Copy keys list, this allocates new space and copies the key */
 	dst->kr_keyscnt = src->kr_keyscnt;
-	dst->kr_keys = ki_keydup(src->kr_keys, src->kr_keyscnt);
+	dst->kr_keys    = ki_keydup(src->kr_keys, src->kr_keyscnt);
 	if (src->kr_keys && !dst->kr_keys) {
 		ki_keydestroy(dst->kr_start, dst->kr_startcnt);
 		ki_keydestroy(dst->kr_end, dst->kr_endcnt);
-		return(NULL);
+		return (NULL);
 	}
 
 	dst->kr_flags = src->kr_flags;
 	dst->kr_count = src->kr_count;
 
-	return(dst);
+	return (dst);
 }
 
 

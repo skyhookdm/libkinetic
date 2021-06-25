@@ -66,7 +66,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	ktli_gettime(&start);
 
 	if (!ckio) {
-		debug_printf("del: kio ptr required");
+		debug_printf("del: kio ptr required\n");
 		return(K_EINVAL);
 	}
 
@@ -76,7 +76,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("del: ktli config");
+		debug_printf("del: ktli config\n");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
@@ -86,7 +86,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	rc = ki_validate_kv(kv, verck, (valck=1), &ses->ks_l);
 	if (rc < 0) {
 		kst->kst_dels.kop_err++;
-		debug_printf("del: kv invalid");
+		debug_printf("del: kv invalid\n");
 		return(K_EINVAL);
 	}
 
@@ -94,7 +94,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	rc =  ki_validate_kb(kb, KMT_PUT);
 	if (kb && (rc < 0)) {
 		kst->kst_dels.kop_err++;
-		debug_printf("put: kb invalid");
+		debug_printf("put: kb invalid\n");
 		return(K_EINVAL);
 	}
 
@@ -105,7 +105,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
 		kst->kst_dels.kop_err++;
-		debug_printf("del: kio alloc");
+		debug_printf("del: kio alloc\n");
 		return(K_ENOMEM);
 	}
 	memset(kio, 0, sizeof(struct kio));
@@ -147,7 +147,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	 */
 	kmreq = create_delkey_message(&msg_hdr, &cmd_hdr, kv, (verck?0:1));
 	if (kmreq.result_code == FAILURE) {
-		debug_printf("del: request message create");
+		debug_printf("del: request message create\n");
 		krc = K_EINTERNAL;
 		goto dex_kio;
 	}
@@ -185,7 +185,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 
 	if (!kio->kio_sendmsg.km_msg) {
-		debug_printf("del: sendmesg alloc");
+		debug_printf("del: sendmesg alloc\n");
 		krc = K_ENOMEM;
 		goto dex_kmreq;
 	}
@@ -195,7 +195,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = KI_MALLOC(KP_PLENGTH);
 
 	if (!kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base) {
-		debug_printf("del: sendmesg PDU alloc");
+		debug_printf("del: sendmesg PDU alloc\n");
 		krc = K_ENOMEM;
 		goto dex_kmmsg;
 	}
@@ -209,7 +209,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	);
 
 	if (pack_result == FAILURE) {
-		debug_printf("del: sendmesg msg pack");
+		debug_printf("del: sendmesg msg pack\n");
 		krc = K_EINTERNAL;
 		goto dex_kmmsg_pdu;
 	}
@@ -245,14 +245,14 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 		}
 		if ((ses->ks_l.kl_batopscnt > 0) &&
 		    (kb->kb_ops > ses->ks_l.kl_batopscnt)) {
-			debug_printf("del: batch ops");
+			debug_printf("del: batch ops\n");
 			krc = K_EBATCH;
 			goto dex_kmmsg_msg;
 
 		}
 		if ((ses->ks_l.kl_batdelcnt > 0 ) &&
 		    (kb->kb_dels > ses->ks_l.kl_batdelcnt)) {
-			debug_printf("del: batch del ops");
+			debug_printf("del: batch del ops\n");
 			krc = K_EBATCH;
 			goto dex_kmmsg_msg;
 		}
@@ -260,7 +260,7 @@ d_del_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 
 	/* Send the request */
 	if (ktli_send(ktd, kio) < 0) {
-		debug_printf("del: kio send");
+		debug_printf("del: kio send\n");
 		krc = K_EINTERNAL;
 		goto dex_kmmsg_msg;
 	}
@@ -346,14 +346,14 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 		*cctx = NULL; 
 
 	if (!kio  || (kio && (kio->kio_magic !=  KIO_MAGIC))) {
-		debug_printf("del: kio invalid");
+		debug_printf("del: kio invalid\n");
 		return(K_EINVAL);
 	}
 
 	/* Get KTLI config, Kinetic session and Kinetic stats structure */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("put: ktli config");
+		debug_printf("put: ktli config\n");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
@@ -363,7 +363,7 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 	if (rc < 0) {
 		if (errno == ENOENT) {
 			/* No available response, so try again */
-			debug_printf("del: kio not available");
+			debug_printf("del: kio not available\n");
 			return(K_EAGAIN);
 		} else {
 			/* Receive really failed
@@ -373,7 +373,7 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 			 * Hence, this error means nothing to clean up
 			 */
 			kst->kst_dels.kop_err++;
-			debug_printf("del: kio receive failed");
+			debug_printf("del: kio receive failed\n");
 			return(K_EINTERNAL);
 		}
 	}
@@ -384,12 +384,12 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 	 * and go.
 	 */
 	if (kio->kio_state == KIO_TIMEDOUT) {
-		debug_printf("del: kio timed out");
+		debug_printf("del: kio timed out\n");
 		kst->kst_dels.kop_err++;
 		krc = K_ETIMEDOUT;
 		goto dex;
 	} else 	if (kio->kio_state == KIO_FAILED) {
-		debug_printf("del: kio failed");
+		debug_printf("del: kio failed\n");
 		kst->kst_dels.kop_err++;
 		krc = K_ENOMSG;
 		goto dex;
@@ -427,7 +427,7 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 		kmbat = unpack_kinetic_message(kiov->kiov_base,
 						kiov->kiov_len);
 		if (kmbat.result_code == FAILURE) {
-			debug_printf("del: sendmsg unpack");
+			debug_printf("del: sendmsg unpack\n");
 			krc = K_EINTERNAL;
 			goto dex;
 		}
@@ -448,7 +448,7 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		debug_printf("del: PDU bad length");
+		debug_printf("del: PDU bad length\n");
 		krc = K_EINTERNAL;
 		goto dex;
 	}
@@ -461,7 +461,7 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kiov = kio->kio_recvmsg.km_msg;
 	if ((pdu.kp_msglen != kiov[KIOV_MSG].kiov_len) ||
 	    (pdu.kp_vallen != kiov[KIOV_VAL].kiov_len))    {
-		debug_printf("del: PDU decode");
+		debug_printf("del: PDU decode\n");
 		krc = K_EINTERNAL;
 		goto dex;
 	}
@@ -470,7 +470,7 @@ d_del_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base,
 					kiov[KIOV_MSG].kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		debug_printf("del: msg unpack");
+		debug_printf("del: msg unpack\n");
 		krc = K_EINTERNAL;
 		goto dex;
 	}
@@ -735,39 +735,39 @@ struct kresult_message create_delkey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 
 kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 	// assume failure status
-	kstatus_t krc = K_INVALID_SC;
+	kstatus_t krc = K_EINTERNAL;
 	kproto_msg_t *kv_resp_msg;
 
 	// commandbytes should exist
 	kv_resp_msg = (kproto_msg_t *) resp_msg->result_message;
 	if (!kv_resp_msg->has_commandbytes) {
-		debug_printf("extract_delkey: no resp cmd");
-		return(K_EINTERNAL);
+		debug_printf("extract_delkey: no resp cmd\n");
+		return krc;
 	}
 
 	kproto_cmd_t *resp_cmd = unpack_kinetic_command(kv_resp_msg->commandbytes);
 	if (!resp_cmd) {
-		debug_printf("extract_delkey: resp cmd unpack");
-		return (K_EINTERNAL);
+		debug_printf("extract_delkey: resp cmd unpack\n");
+		return krc;
 	}
 
 	// extract the status. On failure, skip to cleanup
 	krc = extract_cmdstatus_code(resp_cmd);
 	if (krc != K_OK) {
-		debug_printf("extract_delkey: status");
+		debug_printf("extract_delkey: status\n");
 		goto extract_dex;
 	}
 
 	// check if there's command data to parse, otherwise cleanup and exit
 	if (!resp_cmd->body || !resp_cmd->body->keyvalue) {
-		debug_printf("extract_delkey: command missing body or kv");
+		debug_printf("extract_delkey: command missing body or kv\n");
 		goto extract_dex;
 	}
 
 	// Since everything seemed successful, let's pop this data on our cleaning stack
 	krc = ki_addctx(kv_data, resp_cmd, destroy_command);
 	if (krc != K_OK) {
-		debug_printf("extract_delkey: destroy context");
+		debug_printf("extract_delkey: destroy context\n");
 		goto extract_dex;
 	}
 
@@ -799,14 +799,11 @@ kstatus_t extract_delkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 	return krc;
 
  extract_dex:
-
+	debug_printf("extract_delkey: error exit\n");
 	destroy_command(resp_cmd);
 
 	// Just make sure we don't return an ok message
-	if (krc == K_OK) {
-		debug_printf("extract_delkey: error exit");
-		krc = K_EINTERNAL;
-	}
+	if (krc == K_OK) { krc = K_EINTERNAL; }
 
 	return krc;
 }
