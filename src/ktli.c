@@ -1418,8 +1418,7 @@ ktli_recvmsg(int kts)
 	msg.km_msg = KTLI_MALLOC(sizeof(struct kiovec) * KM_CNT_WITHVAL);
 	if (!msg.km_msg) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
-			      __FILE__, __LINE__);
+		debug_fprintf(stderr, "KTLI_MALLOC failed\n");
 		goto recvmsgerr;
 	}
 
@@ -1427,8 +1426,7 @@ ktli_recvmsg(int kts)
 	msg.km_msg[KIOV_PDU].kiov_base = KTLI_MALLOC(kh->kh_recvhdr_len);
 	if (!msg.km_msg[KIOV_PDU].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
-			      __FILE__, __LINE__);
+		debug_fprintf(stderr, "KTLI_MALLOC failed\n");
 		goto recvmsgerr;
 	}
 	msg.km_msg[KIOV_PDU].kiov_len = kh->kh_recvhdr_len;
@@ -1437,8 +1435,7 @@ ktli_recvmsg(int kts)
 	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[KIOV_PDU], 1);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: receive failed %d\n",
-			      __FILE__, __LINE__, rc);
+		debug_fprintf(stderr, "receive failed (%d)\n", rc);
 		goto recvmsgerr;
 	}
 
@@ -1449,8 +1446,7 @@ ktli_recvmsg(int kts)
 	if ((msg.km_msg[KIOV_MSG].kiov_len < 0) ||
 	    (msg.km_msg[KIOV_VAL].kiov_len < 0)) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_printf("%s:%d: Helper msglen failed failed\n",
-		       __FILE__, __LINE__);
+		debug_fprintf(stderr, "Helper msglen failed failed\n");
 		goto recvmsgerr;
 	}
 
@@ -1458,16 +1454,14 @@ ktli_recvmsg(int kts)
 	msg.km_msg[KIOV_MSG].kiov_base = KTLI_MALLOC(msg.km_msg[KIOV_MSG].kiov_len);
 	if (!msg.km_msg[KIOV_MSG].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
-			      __FILE__, __LINE__);
+		debug_fprintf(stderr, "KTLI_MALLOC failed\n");
 		goto recvmsgerr;
 	}
 
 	msg.km_msg[KIOV_VAL].kiov_base = KTLI_MALLOC(msg.km_msg[KIOV_VAL].kiov_len);
 	if (!msg.km_msg[KIOV_VAL].kiov_base) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_fprintf(stderr, "%s:%d: KTLI_MALLOC failed\n",
-			      __FILE__, __LINE__);
+		debug_fprintf(stderr, "KTLI_MALLOC failed\n");
 		goto recvmsgerr;
 	}
 
@@ -1475,8 +1469,7 @@ ktli_recvmsg(int kts)
 	rc = (de->ktlid_fns->ktli_dfns_receive)(dh, &msg.km_msg[KIOV_MSG], 2);
 	if (rc == -1) {
 		/* PAK: HANDLE - Yikes, errors down here suck */
-		debug_printf("%s:%d: receive failed %d\n",
-			     __FILE__, __LINE__, errno);
+		debug_fprintf(stderr, "receive failed (%d)\n", errno);
 		perror("");
 		goto recvmsgerr;
 		assert(0);
@@ -1712,8 +1705,7 @@ ktli_receiver(void *p)
 		/* -1 error, 0 timeout, 1 need to receive data */
 		if (rc < 0) {
 			/* PAK: FIX, infinite loop when errno = ECONNABORTED */
-			debug_printf("%s:%d: poll failed %d\n",
-				     __FILE__, __LINE__, errno);
+			debug_fprintf(stderr, "poll failed (%d)\n", errno);
 			perror("Poll:");
 			continue;
 		}

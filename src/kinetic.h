@@ -31,22 +31,22 @@ extern "C" {
 
 /* this is the log level set for the program */
 #ifndef LOGLEVEL
-#define LOGLEVEL LOGLEVEL_NONE
+    #define LOGLEVEL LOGLEVEL_NONE
 #endif
 
 /* macros that use the log level */
 #if LOGLEVEL >= LOGLEVEL_DEBUG
-	#define debug_fprintf(...)				\
-		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
-		fprintf(stderr, __VA_ARGS__)
+	#define debug_fprintf(print_fd, ...)                  \
+		fprintf(print_fd, "%s:%d: ", __FILE__, __LINE__); \
+		fprintf(print_fd, __VA_ARGS__)
 #else
 	#define debug_fprintf(...) {}
 #endif
 
 #if LOGLEVEL >= LOGLEVEL_INFO
-	#define info_fprintf(...) 				\
-		fprintf(stderr, "%s:%d:", __FILE__, __LINE__);	\
-		fprintf(stderr,__VA_ARGS__)
+	#define info_fprintf(print_fd, ...)                   \
+		fprintf(print_fd, "%s:%d: ", __FILE__, __LINE__); \
+		fprintf(print_fd, __VA_ARGS__)
 #else
 	#define info_fprintf(...) {}
 #endif
