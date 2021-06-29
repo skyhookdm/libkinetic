@@ -494,7 +494,14 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 					ka->ka_limits.kl_batdelcnt);
 
 				ki_destroy(kit);
+
+				// Clear stack-based data, then destroy original key range
+				kr->kr_start    = NULL;
+				kr->kr_startcnt = 0;
+				kr->kr_end      = NULL;
+				kr->kr_endcnt   = 0;
 				ki_destroy(kr);
+
 				return (-1);
 			}
 
@@ -527,6 +534,12 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 					krc, ki_error(krc));
 
 				ki_destroy(kit);
+
+				// Clear stack-based data, then destroy original key range
+				kr->kr_start    = NULL;
+				kr->kr_startcnt = 0;
+				kr->kr_end      = NULL;
+				kr->kr_endcnt   = 0;
 				ki_destroy(kr);
 
 				return (-1);
@@ -562,6 +575,12 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			fprintf(stdout, "%s: Deleted %d keys\n", ka->ka_cmdstr, dels);
 
 		ki_destroy(kit);
+
+		// Clear stack-based data, then destroy original key range
+		kr->kr_start    = NULL;
+		kr->kr_startcnt = 0;
+		kr->kr_end      = NULL;
+		kr->kr_endcnt   = 0;
 		ki_destroy(kr);
 	}
 
