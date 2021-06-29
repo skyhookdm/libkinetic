@@ -31,6 +31,7 @@
 #include "kinetic_internal.h"
 #include "protocol_interface.h"
 
+
 /**
  * Internal prototypes
  */
@@ -699,47 +700,26 @@ create_exec_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kapplet_t *app)
 	return create_message(msg_hdr, command_bytes);
 }
 
-#if 0
-void destroy_protobuf_execkey(kv_t *kv_data) {
-	if (!kv_data) { return; }
-
-	// destroy protobuf allocated memory
-	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
-}
-#endif
-
 kstatus_t
 extract_exec_response(struct kresult_message *resp_msg, kapplet_t *app)
 {
-	char * dmsg;
-	uint32_t dmsglen;
-	
-	kstatus_t krc;
-	kproto_msg_t *kv_resp_msg;
+	char      *dmsg;
+	uint32_t   dmsglen;
+	kstatus_t  krc;
 
-	kv_resp_msg = (kproto_msg_t *) resp_msg->result_message;
-
-	// check commandbytes exists
-	if (!kv_resp_msg->has_commandbytes) {
+	// commandbytes should exist
+	kproto_msg_t *app_resp_msg = (kproto_msg_t *) resp_msg->result_message;
+	if (!app_resp_msg->has_commandbytes) {
 		debug_printf("extract_exec_response: no resp cmd");
-		return(K_EINTERNAL);
+		return (K_EINTERNAL);
 	}
 
-	// unpack command, and hang it on kv_data to be destroyed at any time
-	kproto_cmd_t *resp_cmd;
-	resp_cmd = unpack_kinetic_command(kv_resp_msg->commandbytes);
+	// unpack command, and hang it on `app` to be destroyed at any time
+	kproto_cmd_t *resp_cmd = unpack_kinetic_command(app_resp_msg->commandbytes);
 	if (!resp_cmd) {
 		debug_printf("extract_execkey: resp cmd unpack");
-		return(K_EINTERNAL);
+		return (K_EINTERNAL);
 	}
-
-	/*
-	 * PAK:NEED to update this
-	 * Hang resp_cmd on KTB and set destructor
-	 *
-	 * kv_data->kv_protobuf = resp_cmd;
-	 * kv_data->destroy_protobuf = destroy_protobuf_execkey;
-	 */
 
 	/* 
 	 * extract the full status. On failure, skip to cleanup 
@@ -748,17 +728,23 @@ extract_exec_response(struct kresult_message *resp_msg, kapplet_t *app)
 	 *	statusMessage = Applet with keys: Hello finished executing!
 	 *	detailedMessage = "0:0:Applet success:Args: /mnt/util/applets/4234354357\nHello World!"
 	 */
-	if (!resp_cmd->status		||
-	    !resp_cmd->status->has_code ||
+	krc = extract_cmdstatus_code(resp_cmd);
+	if (krc != K_OK				||
 	    !resp_cmd->status->statusmessage	||
 	    !resp_cmd->status->has_detailedmessage) {
-		debug_printf("Invalid status message");
-		return(K_EINTERNAL);
+		debug_printf("extract_exec: Invalid status message");
+		goto extract_eex;
 	}
 
-	krc = resp_cmd->status->code;
+	// ------------------------------
+	// begin extraction of command data (just the output streams for `exec`)
 
-	app->ka_msg = strdup(resp_cmd->status->statusmessage);
+	// Since everything seemed successful, let's pop this data on our cleaning stack
+	krc = ki_addctx(app, resp_cmd, destroy_command);
+	if (krc != K_OK) {
+		debug_printf("extract_exec: destroy context\n");
+		goto extract_eex;
+	}
 
 	/*
 	 * The current detailed message layout is as follows:
@@ -766,11 +752,11 @@ extract_exec_response(struct kresult_message *resp_msg, kapplet_t *app)
 	 * 
 	 * Decode/extract fields from formatted output message. mesg is tossed
 	 */
-	dmsg    = (char *)resp_cmd->status->detailedmessage.data;
+	dmsg    = (char *) resp_cmd->status->detailedmessage.data;
 	dmsglen = resp_cmd->status->detailedmessage.len;
 	if (sscanf(dmsg, "%d:%d:", &app->ka_rc, &app->ka_sig) != 2) {
-		debug_printf("Bad detailed message format");
-		return(K_EINTERNAL);
+		debug_printf("extract_exec: bad detailed message format");
+		goto extract_eex;
 	}
 
 	dmsg = strchr(dmsg, ':'); dmsg++;	/* forward past rc: */
@@ -778,8 +764,29 @@ extract_exec_response(struct kresult_message *resp_msg, kapplet_t *app)
 	dmsg = strchr(dmsg, ':'); dmsg++;	/* toss mesg: */
 	dmsglen -= (uint32_t)(dmsg - (char *)resp_cmd->status->detailedmessage.data);
 
+	// set data in app structure, but caller will manage this data
+	// TODO: if we want, these can just be pointers to protobuf data
+	app->ka_msg       = strdup(resp_cmd->status->statusmessage);
 	app->ka_stdout    = strdup(dmsg);
 	app->ka_stdoutlen = dmsglen;
+
+	if (app->ka_msg == NULL || app->ka_stdout == NULL) {
+		debug_printf("extract_exec: could not allocate exec messages");
+		goto extract_eex;
+	}
+
+	return krc;
+
+ extract_eex:
+	debug_printf("extract_exec: error exit\n");
+
+	// use system free because the allocation is done by strdup
+	free(app->ka_msg);
+	free(app->ka_stdout);
+	destroy_command(resp_cmd);
+
+	// Just make sure we don't return an ok message
+	if (krc == K_OK) { krc = K_EINTERNAL; }
 
 	return krc;
 }
