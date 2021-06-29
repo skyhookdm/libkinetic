@@ -37,7 +37,7 @@
 	com__seagate__kinetic__proto__local__protocol_version__default_value
 
 #define KVERS_MAJOR 0
-#define KVERS_MINOR 2
+#define KVERS_MINOR 3
 #define KVERS_PATCH 0
 
 static char     v_kinetic_vers[40];
