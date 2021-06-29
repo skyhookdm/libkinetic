@@ -434,19 +434,20 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 	kv->kv_cpolicy	 = 0;
 	kv->kv_metaonly	 = 0;
 
-	if (krc == K_OK) (kv->destroy_protobuf)(kv);
-	kv->destroy_protobuf	= NULL;
-	kv->kv_protobuf		= NULL;
-
 	kv->kv_val[0].kiov_base = NULL;
 	kv->kv_val[0].kiov_len  = 0;
-	
-	if (krc != K_OK) {
-		fprintf(stderr, "%s: %s: %s\n",
-			ka->ka_cmdstr, ka->ka_key, ki_error(krc));
-		return(-1);
+
+	if (krc == K_OK) {
+		ki_destroy(kv);
+		return (0);
 	}
-	return(0);
+
+	fprintf(stderr
+		,"%s: %s: %s\n"
+		, ka->ka_cmdstr, ka->ka_key, ki_error(krc)
+	);
+
+	return(-1);
 }
 
 
