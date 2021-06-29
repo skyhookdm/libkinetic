@@ -152,10 +152,10 @@ typedef struct kgetlog {
 	klimits_t         kgl_limits;
 	kdevicelog_t      kgl_log;
 
-	void           *kgl_protobuf;
+	// void           *kgl_protobuf;
 
 	// NOTE: this also frees getlog_data, unless we don't want it to
-	void           (*destroy_protobuf)(struct kgetlog *getlog_data);
+	// void           (*destroy_protobuf)(struct kgetlog *getlog_data);
 } kgetlog_t;
 
 /**
@@ -204,8 +204,8 @@ typedef struct kv {
 	uint32_t	kv_metaonly;
 
 	/* NOTE: currently, this also frees kv_data */
-	void        *kv_protobuf;
-	void        (*destroy_protobuf)(struct kv *kv_data);
+	// void        *kv_protobuf;
+	// void        (*destroy_protobuf)(struct kv *kv_data);
 } kv_t;
 
 /**
@@ -241,9 +241,9 @@ typedef struct kv {
  *  kr_end	End key. A kio vector representing a single key.
  *  kr_flags	Bitmap that encodes the insclusive booleans for start and end
  *  kr_count	Contains requested number of keys in the range.
- *  kr_keys	Actual key list that is represented by the defined
- *		key range 5-tuple above. It is kiovec array where each vector
- *		element is a single key.
+ *  kr_keys	Key list, represented by key range 5-tuple (defined above).
+ *		This is a kio vector representing **many** keys (each element
+ *		is a distinct key).
  *  kr_keyscnt	Contains the number of keys in the key list, kr_keys.
  */
 typedef enum krange_flags {
@@ -275,8 +275,8 @@ typedef struct krange {
 #define KR_REVERSE(_kvr)           ((_kvr)->kr_flags & KRF_REVERSE)
 
 	// NOTE: currently, this also frees keyrange_data
-	void *keyrange_protobuf;
-	void (*destroy_protobuf)(struct krange *keyrange_data);
+	// void *keyrange_protobuf;
+	// void (*destroy_protobuf)(struct krange *keyrange_data);
 } krange_t;
 
 
