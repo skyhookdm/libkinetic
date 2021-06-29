@@ -414,10 +414,10 @@ kstatus_t extract_cmdstatus_code(kproto_cmd_t *protobuf_command)
 	    !protobuf_command->status	||
 	    !protobuf_command->status->has_code) {
 		debug_printf("extract_getstatus_code: no cmd");
-		return(K_EINTERNAL);
+		return (K_EINTERNAL);
 	}
 
-	return(protobuf_command->status->code);
+	return (protobuf_command->status->code);
 }
 
 kstatus_t
