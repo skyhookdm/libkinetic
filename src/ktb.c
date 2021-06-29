@@ -187,15 +187,18 @@ ki_create(int ktd, ktype_t t)
 	/* additional setup is required */
 	switch(t) {
 	case KITER_T:
-		i_iterinit(ktd, (kiter_t *)p); break;
-	case KBATCH_T:
-		b_startbatch(ktd, (kbatch_t *)p); break;
+		i_iterinit(ktd, (kiter_t *) p);
 		break;
+
+	case KBATCH_T:
+		b_startbatch(ktd, (kbatch_t *) p);
+		break;
+
 	default:
 		break;
 	}
 
-	return(p);
+	return (p);
 }
 
 ktb_t*
@@ -297,7 +300,7 @@ ki_destroy(void *p)
 	k = ktb_base(p);
 
 	/* additional destruction is required */
-	switch(k->ktb_type) {
+	switch (k->ktb_type) {
 	case KITER_T:
 		i_iterdestroy((kiter_t *) p);
 		break;
@@ -305,11 +308,12 @@ ki_destroy(void *p)
 		break;
 	}
 
-	memset(k, 0xEF, k->ktb_len); /* clear the magic number at a minimum */
+	/* clear the magic number at a minimum */
+	memset(k, 0xEF, k->ktb_len);
 
 	KI_FREE(k);
 
-	return(K_OK);
+	return (K_OK);
 }
 
 uint32_t
