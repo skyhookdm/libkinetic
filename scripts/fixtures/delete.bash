@@ -368,10 +368,10 @@ function fixture_case_rangedelete_inclusive() {
 
 # Append test cases we want to "export" to `fixture_testcases` array
 fixture_testcases[0]="fixture_case_pointdelete"
-# fixture_testcases[1]="fixture_case_atomicdelete"
-# fixture_testcases[2]="fixture_case_writethroughdelete"
-# fixture_testcases[3]="fixture_case_rangedelete_exclusive"
-# fixture_testcases[4]="fixture_case_rangedelete_inclusive"
+fixture_testcases[1]="fixture_case_atomicdelete"
+fixture_testcases[2]="fixture_case_writethroughdelete"
+fixture_testcases[3]="fixture_case_rangedelete_exclusive"
+fixture_testcases[4]="fixture_case_rangedelete_inclusive"
 
 
 # ------------------------------
