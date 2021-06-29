@@ -74,12 +74,12 @@ ki_validate_kv(kv_t *kv, int verck, int valck, klimits_t *lim)
 		/* Total up the length across all vectors */
 		size_t tlen = 0;
 		size_t i = 0;
-		for (i=0; i<kv->kv_valcnt; i++) {
-			debug_fprintf(stderr, "Value too long\n");
+		for (i = 0; i < kv->kv_valcnt; i++) {
 			tlen += kv->kv_val[i].kiov_len;
 		}
 
 		if (tlen > lim->kl_vallen) {
+			debug_fprintf(stderr, "Value too long\n");
 			return (-1);
 		}
 	}
