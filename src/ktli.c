@@ -904,7 +904,7 @@ ktli_poll(int kts, int timeout)
 
 		/* Update the timeleft, if caller passed a timeout */
 		if (timeout) {
-			timeleft =- (interval.tv_nsec - remain.tv_nsec);
+			timeleft -= (interval.tv_nsec - remain.tv_nsec);
 			if (timeleft <= 0) {
 				errno = ETIMEDOUT;
 				return(-1);
