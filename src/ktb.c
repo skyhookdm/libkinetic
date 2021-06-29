@@ -35,8 +35,13 @@
 #include "list.h"
 
 
+// i_* functions defined in `iter.c`
+void i_rangeclean(krange_t *kr);
+
 int  i_iterinit(int ktd, kiter_t *kit);
+void i_iterclean(kiter_t *kit);
 void i_iterdestroy(kiter_t *kit);
+
 extern char *ki_ktype_label[];
 
 /*
@@ -255,8 +260,25 @@ ki_clean(void *p)
 
 	k = ktb_base(p);
 
+        // NOTE: (#50) for range, clean key data first, if any
+	if (k->ktb_ctx && k->ktb_destroy) {
+		// list_destroy calls our supplied destructor on elements of `ktb_ctx`
+		list_destroy((LIST *) k->ktb_ctx, (void *) k->ktb_destroy);
+
+		// de-init; a new list will be alloc'd if/when this ktb is reused
+		k->ktb_ctx = NULL;
+	}
+
 	/* additional cleaning is required */
-	switch(k->ktb_type) {
+	switch (k->ktb_type) {
+	case KRANGE_T:
+		i_rangeclean((krange_t *) p);
+		break;
+
+	case KITER_T:
+		i_iterclean((kiter_t *) p);
+		break;
+
 	case KAPPLET_T:
 		/*
 		 * Special case for kapplet.
@@ -270,14 +292,6 @@ ki_clean(void *p)
 
 	default:
 		break;
-	}
-
-	if (k->ktb_ctx && k->ktb_destroy) {
-		// list_destroy calls our supplied destructor on elements of `ktb_ctx`
-		list_destroy((LIST *) k->ktb_ctx, (void *) k->ktb_destroy);
-
-		// de-init; a new list will be alloc'd if/when this ktb is reused
-		k->ktb_ctx = NULL;
 	}
 
 	return (K_OK);

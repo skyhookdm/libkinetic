@@ -133,15 +133,24 @@ i_iterinit(int ktd, kiter_t *ckit)
 void
 i_rangeclean(krange_t *kr)
 {
-	if (kr) {
-		ki_keydestroy(kr->kr_keys, kr->kr_keyscnt);
+	ki_keydestroy(kr->kr_start, kr->kr_startcnt);
+	ki_keydestroy(kr->kr_end  , kr->kr_endcnt  );
 
-		ki_keydestroy(kr->kr_start, kr->kr_startcnt);
+	memset(kr, 0, sizeof(krange_t));
+}
 
-		ki_keydestroy(kr->kr_end, kr->kr_endcnt);
+/**
+ *  This is called by ki_clean.
+ *  This just delegates a clean call to each key range structure.
+ */
+void
+i_iterclean(kiter_t *ckit)
+{
+	struct kiter *kit = (struct kiter *) ckit;
 
-		memset(kr, 0, sizeof(krange_t));
-	}
+	ki_clean(kit->ki_rreq );
+	ki_clean(kit->ki_rwin1);
+	ki_clean(kit->ki_rwin2);
 }
 
 /**
@@ -150,14 +159,7 @@ i_rangeclean(krange_t *kr)
 void
 i_iterdestroy(kiter_t *ckit)
 {
-	struct kiter *kit = (struct kiter *)ckit;
-
-	if (!kit)
-		return;
-
-	i_rangeclean(kit->ki_rreq);
-	i_rangeclean(kit->ki_rwin1);
-	i_rangeclean(kit->ki_rwin2);
+	struct kiter *kit = (struct kiter *) ckit;
 
 	ki_destroy(kit->ki_rreq);
 	kit->ki_rreq = NULL;
@@ -167,8 +169,6 @@ i_iterdestroy(kiter_t *ckit)
 
 	ki_destroy(kit->ki_rwin2);
 	kit->ki_rwin2 = NULL;
-
-	return;
 }
 
 /**
@@ -272,7 +272,9 @@ ki_next(kiter_t *ckit)
 
 		/* Clean up the start key and the keys buffer, keep the endkey */
 		ki_keydestroy(curwin->kr_start, curwin->kr_startcnt);
-		ki_keydestroy(curwin->kr_keys, curwin->kr_keyscnt);
+
+		// NOTE: (#50) we do **not** want to keydestroy pointers to protobuf data
+		// ki_keydestroy(curwin->kr_keys, curwin->kr_keyscnt);
 
 		/* Use the last key for the start window range */
 		curwin->kr_start    = lastkey;

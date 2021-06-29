@@ -329,16 +329,22 @@ ki_rangecpy(krange_t *dst, krange_t *src)
 	}
 
 	/* Copy keys list, this allocates new space and copies the key */
+	// NOTE: (#50) as far as I've seen, this code is not needed. Deprecating
+	/*
 	dst->kr_keyscnt = src->kr_keyscnt;
 	dst->kr_keys    = ki_keydup(src->kr_keys, src->kr_keyscnt);
 	if (src->kr_keys && !dst->kr_keys) {
 		ki_keydestroy(dst->kr_start, dst->kr_startcnt);
-		ki_keydestroy(dst->kr_end, dst->kr_endcnt);
+		ki_keydestroy(dst->kr_end  , dst->kr_endcnt  );
 		return (NULL);
 	}
+	*/
 
-	dst->kr_flags = src->kr_flags;
-	dst->kr_count = src->kr_count;
+	// NOTE: (#50) only `extract_keyrange` should touch kr_keys
+	dst->kr_keys    = NULL;
+	dst->kr_keyscnt = 0;
+	dst->kr_flags   = src->kr_flags;
+	dst->kr_count   = src->kr_count;
 
 	return (dst);
 }
