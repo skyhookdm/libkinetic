@@ -29,8 +29,11 @@
 void
 kctl_range_usage(struct kargs *ka)
 {
-        fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
-		ka->ka_progname, ka->ka_cmdstr);
+	fprintf(stderr
+		,"Usage: %s [..] %s [CMD OPTIONS]\n"
+		,ka->ka_progname, ka->ka_cmdstr
+	);
+
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
 	fprintf(stderr, "\t-n count     Number of keys in range [unlimited]\n");
 	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
@@ -64,77 +67,86 @@ kctl_range_usage(struct kargs *ka)
 int
 kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 {
- 	extern char     *optarg;
-        extern int	optind, opterr, optopt;
-        char		c, *cp, *rkey;
-	char 		*start = NULL, *end = NULL;
+	extern char	*optarg;
+	extern int	optind, opterr, optopt;
+	char		c, *cp, *rkey;
+	char		*start = NULL, *end = NULL;
 	int		i;
-	int 		starti = 0, endi = 0;
-        int 		count = KVR_COUNT_INF;
+	int		starti  = 0, endi = 0;
+	int		count   = KVR_COUNT_INF;
 	int		reverse = 0;
-	int		adump = 0, hdump = 0;
+	int		adump   = 0, hdump = 0;
 	kstatus_t 	krc;
 	krange_t	*kr;
 	kiter_t		*kit;
 	struct kiovec	startkey[1] = {{0, 0}};
-	struct kiovec	endkey[1] = {{0, 0}};
+	struct kiovec	endkey[1]   = {{0, 0}};
 	struct kiovec	*k;
 	
-        while ((c = getopt(argc, argv, "rs:S:e:E:n:AXh?")) != EOF) {
-                switch (c) {
+	while ((c = getopt(argc, argv, "rs:S:e:E:n:AXh?")) != EOF) {
+
+		switch (c) {
 		case 'r':
 			reverse = 1;
 			break;
+
 		case 'n':
 			if (optarg[0] == '-') {
-				fprintf(stderr, "*** Negative count %s\n",
-				       optarg);
+				fprintf(stderr, "*** Negative count %s\n", optarg);
 				CMD_USAGE(ka);
 				return(-1);
 			}
 
 			count = strtol(optarg, &cp, 0);
 			if (!cp || *cp != '\0' || count==0) {
-				fprintf(stderr, "*** Invalid count %s\n",
-				       optarg);
+				fprintf(stderr, "*** Invalid count %s\n", optarg);
 				CMD_USAGE(ka);
 				return(-1);
 			}
 			break;
+
 		case 's':
 			if (starti) {
 				fprintf(stderr, "only one of -[sS]\n");
 				CMD_USAGE(ka);
-				return(-1);
+				return (-1);
 			}
+
 			start = optarg;
 			break;
+
 		case 'S':
 			if (start) {
 				fprintf(stderr, "only one of -[sS]\n");
 				CMD_USAGE(ka);
 				return(-1);
 			}
+
 			starti = 1;
-			start = optarg;
+			start  = optarg;
 			break;
+
 		case 'e':
 			if (end) {
 				fprintf(stderr, "only one of -[eE]\n");
 				CMD_USAGE(ka);
 				return(-1);
 			}
+
 			end = optarg;
 			break;
+
 		case 'E':
 			if (endi) {
 				fprintf(stderr, "only one of -[eE]\n");
 				CMD_USAGE(ka);
 				return(-1);
 			}
-			end = optarg;
+
+			end  = optarg;
 			endi = 1;
 			break;
+
 		case 'A':
 			adump = 1;
 			if (hdump) {
@@ -142,6 +154,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
+
 			break;
 		case 'X':
 			hdump = 1;
@@ -150,14 +163,16 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
+
 			break;
+
 		case 'h':
-                case '?':
-                default:
-                        CMD_USAGE(ka);
+		case '?':
+		default:
+			CMD_USAGE(ka);
 			return(-1);
 		}
-        }
+	}
 
 	/* Check for erroneous params */
 	if (argc - optind > 0) {
@@ -228,137 +243,156 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 		KR_FLAG_SET(kr, KRF_REVERSE);
 	}
 
-	kr->kr_count = ((count < 0)?KVR_COUNT_INF:count);
+	kr->kr_count = (count < 0) ? KVR_COUNT_INF : count;
 
 	/*
 	 * If verbose dump the range we are getting.
 	 * Keys can be large so just print first 5 chars 
 	 * of each key defining the range
 	 * Use range notation for start, end:
-	 * 	[ or ] = inclusive of the element,
-	 * 	( or ) = exclusive of the element
+	 *  [ or ] = inclusive of the element,
+	 *  ( or ) = exclusive of the element
 	 */
 	if (ka->ka_verbose)  {
 		int l;
 		printf("Key Range %s", starti?"[":"(");
+
 		if (!start) {
 			printf("{FIRSTKEY}");
-		} else {
+		}
+		else {
 			l = strlen(start);
-			if (adump)
+			if (adump) {
 				asciidump(start, (l>5?5:l));
-			else
-				if (l > 5)
-					printf("%.5s", start);
-				else
-					printf("%s", start);
+			}
+			else {
+				if (l > 5) { printf("%.5s", start); }
+				else       { printf("%s"  , start); }
+			}
 		}
 
 		printf(",");
-		
+
 		if (!end ) {
 			printf("{LASTKEY}");
-		} else {
+		}
+		else {
 			l = strlen(end);
 			if (adump)
 				asciidump(end, (l>5?5:l));
-			else
-				if (l > 5)
-					printf("%.5s", end);
-				else
-					printf("%s", end);
+			else {
+				if (l > 5) { printf("%.5s", end); }
+				else       { printf("%s"  , end); }
+			}
 		}
 
-
 		printf("%s:",endi?"]":")");
-		
-		if (count > 0)
-			printf("%u\n", count);
-		else
-			printf("unlimited\n");
+
+		if (count > 0) { printf("%u\n", count); }
+		else           { printf("unlimited\n"); }
 	}
 
 	/*
 	 * Iterate over all the keys and print them out
 	 *
-	 * If 0 < count <= MAX keys per range call(count=-1 is unlimited)
+	 * If 0 < count <= MAX keys per range call (count = -1 is unlimited)
 	 * then use a single ki_range call, no need to iterate.
 	 * Of course this is unnecessary but allows the caller to test
 	 * ki_range call directly without going through the key iterator code.
 	 */
 	if ((count > 0) && (count <= ka->ka_limits.kl_rangekeycnt)) {
-		if (ka->ka_verbose) printf("Single Range Call...\n");
+		if (ka->ka_verbose) { printf("Single Range Call...\n"); }
 
 		krc = ki_getrange(ktd, kr);
-		if(krc != K_OK) {
-			fprintf(stderr, "%s: Unable to get key range: %s\n",
-				ka->ka_cmdstr, ki_error(krc));
-			return(-1);
+		if (krc != K_OK) {
+			fprintf(stderr
+				,"%s: Unable to get key range: %s\n"
+				,ka->ka_cmdstr, ki_error(krc)
+			);
+
+			return (-1);
 		}
 
 		if (!kr->kr_keyscnt) {
-			printf("No Keys Found.\n");
-			return(0);
+			printf ("No Keys Found.\n");
+			return (0);
 		}
-		
-		for(int i=0; i<kr->kr_keyscnt; i++) {
+
+		for (int i = 0; i < kr->kr_keyscnt; i++) {
 			if (ka->ka_verbose) {
 				printf("%u: ", i);
 			}
 
 			if (hdump) {
-				hexdump((char *)kr->kr_keys[i].kiov_base,
-					kr->kr_keys[i].kiov_len);
-			}else if (adump) {
-			        asciidump((char *)kr->kr_keys[i].kiov_base,
-					  kr->kr_keys[i].kiov_len), printf("\n");
-			} else {
+				hexdump(
+					 (char *) kr->kr_keys[i].kiov_base
+					,         kr->kr_keys[i].kiov_len
+				);
+			}
+
+			else if (adump) {
+				asciidump(
+					 (char *) kr->kr_keys[i].kiov_base
+					,         kr->kr_keys[i].kiov_len
+				);
+				printf("\n");
+			}
+
+			else {
 				/* add null byte to print ads a string */
-				rkey = strndup((char *)kr->kr_keys[i].kiov_base,
-					       kr->kr_keys[i].kiov_len);
+				rkey = strndup(
+					 (char *) kr->kr_keys[i].kiov_base
+					,         kr->kr_keys[i].kiov_len
+				);
+
 				printf("%s\n", rkey);
 				free(rkey);
 			}
 		}
 
 		/* Success so return */
-		return(0);
+		return (0);
 	}
 
 	/*
 	 * Number of keys requested are larger than a single ki_range call
 	 * can return, so use IterateKeyRangethe key iterator.
 	 */
-	if (ka->ka_verbose) printf("Iterating...\n");
+	if (ka->ka_verbose) { printf("Iterating...\n"); }
 
-	/* Create the kinetic range iterator */
+	// Create the kinetic range iterator
 	if (!(kit = ki_create(ktd, KITER_T))) {
 		fprintf(stderr, "*** Memory Failure\n");
 		return (-1);
 	}
 
-	/* Iterate */
-	i=0;
-	for (k = ki_start(kit, kr); k; k = ki_next(kit)) {
+	// Iterate
+	i = 0;
 
+	for (k = ki_start(kit, kr); k; k = ki_next(kit)) {
 		if (ka->ka_verbose) {
 			printf("%u: ", i++);
 		}
-		
-		/* Dump the key */
+
+		// Dump the key
 		if (hdump) {
 			hexdump(k->kiov_base, k->kiov_len);
-		} else if (adump) {
+		}
+
+		else if (adump) {
 			asciidump(k->kiov_base, k->kiov_len);
 			printf("\n");
-		} else {
-			/* add null byte to print ads a string */
-			rkey = strndup((char *)k->kiov_base, k->kiov_len);
+		}
+
+		else {
+			// add null byte to print as a string
+			rkey = strndup((char *) k->kiov_base, k->kiov_len);
 			printf("%s\n", rkey);
 			free(rkey);
 		}
 	}
 
+	// Destroy the iterator we created
 	ki_destroy(kit);
 	ki_destroy(kr);
 

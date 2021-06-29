@@ -215,16 +215,20 @@ print_version()
 
 	kver = ki_create(-1, KVERSION_T);
 	ki_version(kver);
-	
-	if (kctl_vers_num) /* if is just to get rid of compiler warnings */
-		sprintf(kctl_vers, "%d.%d.%d",
-		KCTL_VERS_MAJOR, KCTL_VERS_MINOR, KCTL_VERS_PATCH);
 
-	printf("KCTL Version: %s\n",		 kctl_vers);
+	// `if` is just to get rid of compiler warnings
+	if (kctl_vers_num)  {
+		sprintf(kctl_vers
+			,"%d.%d.%d"
+			,KCTL_VERS_MAJOR, KCTL_VERS_MINOR, KCTL_VERS_PATCH
+		);
+	}
+
+	printf("KCTL Version: %s\n"            , kctl_vers);
 	printf("Kinetic Protobuf Version: %s\n", kver->kvn_pb_kinetic_vers);
-	printf("Kinetic Library Version: %s\n",	 kver->kvn_ki_vers);
+	printf("Kinetic Library Version: %s\n" , kver->kvn_ki_vers);
 	printf("Kinetic Library Git Hash: %s\n", kver->kvn_ki_githash);
-	printf("Protobuf C Version: %s\n",	 kver->kvn_pb_c_vers);
+	printf("Protobuf C Version: %s\n"      , kver->kvn_pb_c_vers);
 
 	ki_destroy(kver);
 }
@@ -391,7 +395,7 @@ kctl(int argc, char *argv[], struct kargs *ka)
 
 	ktd = kctl_start(ka);
 	if (ktd < 0) {
-		fprintf(stderr, "%s: UNable to start\n", ka->ka_progname);
+		fprintf(stderr, "%s: Unable to start\n", ka->ka_progname);
 		return(EINVAL);
 	}
 
