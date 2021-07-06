@@ -766,8 +766,8 @@ extract_exec_response(struct kresult_message *resp_msg, kapplet_t *app)
 
 	// set data in app structure, but caller will manage this data
 	// TODO: if we want, these can just be pointers to protobuf data
-	app->ka_msg       = strdup(resp_cmd->status->statusmessage);
-	app->ka_stdout    = strdup(dmsg);
+	app->ka_msg       = resp_cmd->status->statusmessage;
+	app->ka_stdout    = dmsg;
 	app->ka_stdoutlen = dmsglen;
 
 	if (app->ka_msg == NULL || app->ka_stdout == NULL) {
@@ -779,10 +779,6 @@ extract_exec_response(struct kresult_message *resp_msg, kapplet_t *app)
 
  extract_eex:
 	debug_printf("extract_exec: error exit\n");
-
-	// use system free because the allocation is done by strdup
-	free(app->ka_msg);
-	free(app->ka_stdout);
 	destroy_command(resp_cmd);
 
 	// Just make sure we don't return an ok message
