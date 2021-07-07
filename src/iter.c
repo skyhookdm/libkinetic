@@ -133,8 +133,13 @@ i_iterinit(int ktd, kiter_t *ckit)
 void
 i_rangeclean(krange_t *kr)
 {
+    /* (#50): wherever these keys are allocated is where they should be destroyed.
+     * This means that these should be managed similarly to kv keys, where the caller
+     * allocates and releases them.
+     *
 	ki_keydestroy(kr->kr_start, kr->kr_startcnt);
 	ki_keydestroy(kr->kr_end  , kr->kr_endcnt  );
+    */
 
 	memset(kr, 0, sizeof(krange_t));
 }
