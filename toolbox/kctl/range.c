@@ -394,12 +394,6 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	// Destroy the iterator we created
 	ki_destroy(kit);
-
-	// Clear stack-based data, then destroy original key range
-	kr->kr_start    = NULL;
-	kr->kr_startcnt = 0;
-	kr->kr_end      = NULL;
-	kr->kr_endcnt   = 0;
 	ki_destroy(kr);
 
 	return (0);
