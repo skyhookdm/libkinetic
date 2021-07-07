@@ -441,7 +441,7 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 	kv->kv_val[0].kiov_len  = 0;
 
 	if (krc == K_OK) {
-		ki_destroy(kv);
+		ki_clean(kv);
 		return (0);
 	}
 
