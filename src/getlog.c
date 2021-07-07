@@ -58,20 +58,22 @@ void destroy_getlog_ctx(void *ctx_ptr) {
 	if (ctx_data->response_cmd) { destroy_command(ctx_data->response_cmd); }
 
 	// Second, release each array of pointers that now point to free'd memory
-	if (getlog_data->kgl_util) { KI_FREE(getlog_data->kgl_util); }
-	if (getlog_data->kgl_temp) { KI_FREE(getlog_data->kgl_temp); }
-	if (getlog_data->kgl_stat) { KI_FREE(getlog_data->kgl_stat); }
+	if (getlog_data) {
+		if (getlog_data->kgl_util) { KI_FREE(getlog_data->kgl_util); }
+		if (getlog_data->kgl_temp) { KI_FREE(getlog_data->kgl_temp); }
+		if (getlog_data->kgl_stat) { KI_FREE(getlog_data->kgl_stat); }
 
-	if (getlog_data->kgl_conf.kcf_serial) {
-		KI_FREE(getlog_data->kgl_conf.kcf_serial);
-	}
+		if (getlog_data->kgl_conf.kcf_serial) {
+			KI_FREE(getlog_data->kgl_conf.kcf_serial);
+		}
 
-	if (getlog_data->kgl_conf.kcf_wwn) {
-		KI_FREE(getlog_data->kgl_conf.kcf_wwn);
-	}
+		if (getlog_data->kgl_conf.kcf_wwn) {
+			KI_FREE(getlog_data->kgl_conf.kcf_wwn);
+		}
 
-	if (getlog_data->kgl_conf.kcf_interfaces) {
-		KI_FREE(getlog_data->kgl_conf.kcf_interfaces);
+		if (getlog_data->kgl_conf.kcf_interfaces) {
+			KI_FREE(getlog_data->kgl_conf.kcf_interfaces);
+		}
 	}
 
 	// Finally, free the ctx pointer, itself
@@ -101,7 +103,6 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	kpdu_t rpdu;
 	kmsghdr_t msg_hdr;
 	kcmdhdr_t cmd_hdr;
-	kgetlog_t glog2;
 	ksession_t *ses;
 	struct kresult_message kmreq, kmresp;
 
@@ -255,7 +256,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 	}
 	UNPACK_PDU(&rpdu, ((uint8_t *)(kiov->kiov_base)));
 
-    /* Does the PDU match what was given in the recvmsg */
+	/* Does the PDU match what was given in the recvmsg */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_MSG];
 	if (rpdu.kp_msglen + rpdu.kp_vallen != kiov->kiov_len) {
 		debug_printf("getlog: PDU decode\n");
@@ -263,7 +264,7 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex_recvmsg;
 	}
 
-    // End: Added PDU checking code based on src/batch.c
+	// End: Added PDU checking code based on src/batch.c
 
 	kmresp = unpack_kinetic_message(kiov->kiov_base, kiov->kiov_len);
 	if (kmresp.result_code == FAILURE) {
@@ -272,19 +273,9 @@ ki_getlog(int ktd, kgetlog_t *glog)
 		goto glex_resp;
 	}
 
-	/* NOTES:
-	 *	- we use glog2 here in case we want to validate it separately 
-	 *	  from glog
-	 *	- on success, we memcpy glog2. So _don't_ destroy it, 
-	 *	  otherwise glog will have free'd  pointers.
-	 *	- on failure, extract_getlog will have already destroyed 
-	 *	  glog2 as much as possible
-	 */
-	krc = extract_getlog(&kmresp, &glog2);
-
-	// if successful, memcpy into glog (no separate validation at the moment)
-	// otherwise    , extract_getlog should have cleaned up glog2
-	if (krc == K_OK) { memcpy(glog, &glog2, sizeof(kgetlog_t)); }
+	// (#50) We no longer need a copy, because extract_getlog will rollback
+	// glog data on failure
+	krc = extract_getlog(&kmresp, glog);
 
 	/* clean up */
  glex_resp:
@@ -529,8 +520,10 @@ void extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
 kstatus_t
 extract_getlog(struct kresult_message *resp_msg, kgetlog_t *getlog_data)
 {
-	kstatus_t krc = K_EINTERNAL;
+	int           needs_rollback = 0;
+	kstatus_t     krc            = K_EINTERNAL;
 	kproto_msg_t *getlog_resp_msg;
+	kgetlog_t     rollback_data;
 
 	// commandbytes should exist
 	getlog_resp_msg = (kproto_msg_t *) resp_msg->result_message;
@@ -589,6 +582,9 @@ extract_getlog(struct kresult_message *resp_msg, kgetlog_t *getlog_data)
 	// 0 is success, < 0 is failure. Use this for all the extract functions
 	int extract_result;
 
+	// save original getlog data somewhere so that we can rollback on failure
+	memcpy(&rollback_data, getlog_data, sizeof(kgetlog_t));
+	needs_rollback = 1;
 	kproto_getlog_t *resp = resp_cmd->body->getlog;
 
 	getlog_data->kgl_typecnt = resp->n_types;
@@ -656,6 +652,13 @@ extract_getlog(struct kresult_message *resp_msg, kgetlog_t *getlog_data)
  extract_glex:
 	debug_printf("extract_getlog: error exit\n");
 	destroy_getlog_ctx(ctx_pair);
+
+	// if getlog data was saved; roll it back
+	// NOTE: the allocations are tracked in ki ctx, so no need to free any
+	//       pointers here, even on success
+	if (needs_rollback) {
+		memcpy(getlog_data, &rollback_data, sizeof(kgetlog_t));
+	}
 
 	// Just make sure we don't return an ok message
 	if (krc == K_OK) { krc = K_EINTERNAL; }
