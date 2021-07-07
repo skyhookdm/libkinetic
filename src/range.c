@@ -51,7 +51,10 @@ void destroy_range_ctx(void *ctx_ptr) {
 	if (ctx_data->response_cmd) { destroy_command(ctx_data->response_cmd); }
 
 	// Second, destroy the kiovec array (contains pointers to the list of keys).
-	if (keyrange_data && keyrange_data->kr_keys) {
+	// NOTE: maybe should figure out why kr_keys is free'd a second time
+	if (   keyrange_data
+	    && keyrange_data->kr_keys
+	    && keyrange_data->kr_keys != UNALLOC_VAL) {
 		KI_FREE(keyrange_data->kr_keys);
 	}
 
