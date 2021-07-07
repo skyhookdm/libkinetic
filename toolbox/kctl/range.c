@@ -402,6 +402,6 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	kr->kr_endcnt   = 0;
 	ki_destroy(kr);
 
-	return(0);
+	return (0);
 }
 

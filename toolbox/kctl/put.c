@@ -261,7 +261,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		}
 
 		ka->ka_vallen	= st.st_size;
-		ka->ka_val	= (char *)malloc(ka->ka_vallen);
+		ka->ka_val	= (char *) malloc(ka->ka_vallen);
 		if (!ka->ka_val) {
 			fprintf(stderr, "*** Unable to alloc %lu bytes\n",
 				ka->ka_vallen);
@@ -363,7 +363,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		       (ka->ka_vallen / m * 1000000 / 1024.0));
 	}
 
-	if (ka->ka_val) free(ka->ka_val);
+	if (ka->ka_val) { free(ka->ka_val); }
 	ki_destroy(kv);
 	return(rc);
 }
@@ -406,9 +406,12 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 
 	if (ka->ka_verbose) {
 		printf ("Key:             ");
-		for(i=0; i<kv->kv_keycnt; i++)
+
+		for (i=0; i<kv->kv_keycnt; i++) {
 			asciidump(kv->kv_key[i].kiov_base,
 				  kv->kv_key[i].kiov_len);
+		}
+
 		printf("\n");
 		printf("Batch:           %p\n", (bat?ka->ka_batch:NULL));
 		printf("Compare & Swap:  %s\n", cas?"Enabled":"Disabled");
