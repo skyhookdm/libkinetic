@@ -852,13 +852,14 @@ ktli_receive_unsolicited(int kts, struct kio **kio)
  * @param kts A connected kinetic session descriptor.
  * @param timeout Number of micro seconds to wait, approximate
  *
+ * Always returns -1 or a nonzero # of cq items (cqn)
  */
 int
 ktli_poll(int kts, int timeout)
 {
 	enum ktli_sstate st;
 	struct ktli_queue *cq;
-	int timeleft;
+	int timeleft, cqn;
 	struct timespec interval, remain;
 
 	errno = 0;
@@ -888,9 +889,9 @@ ktli_poll(int kts, int timeout)
 		pthread_mutex_lock(&cq->ktq_m);
 
 		/* Check the for completed items */
-		if (list_size(cq->ktq_list)) {
+		if ((cqn = list_size(cq->ktq_list))) {
 			pthread_mutex_unlock(&cq->ktq_m);
-			return(0);
+			return(cqn);
 		}
 
 		/* see if someone pulled the rug out from under us */
