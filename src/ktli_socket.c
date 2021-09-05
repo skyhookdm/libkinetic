@@ -34,6 +34,8 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <sys/uio.h>
+#include <openssl/ssl.h>
+#include <openssl/err.h>
 
 //#define KTLI_ZEROCOPY 1
 
@@ -48,6 +50,14 @@ static int ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt);
 static int ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt);
 static int ktli_socket_poll(void *dh, int timeout);
 
+typedef struct device_handle {
+	int	dh_dd;		/* Socket descriptor for non TLS conns */
+	char 	*dh_host;	/* Preserve host for logging */
+	char	*dh_port;	/* Preserve port for logging */
+	SSL_CTX *dh_ctx;	/* TLS conn context */
+	SSL 	*dh_ssl;	/* TLS conn descriptor */
+} dhandle_t;
+
 struct ktli_driver_fns socket_fns = {
 	.ktli_dfns_open		= ktli_socket_open,
 	.ktli_dfns_close	= ktli_socket_close,
@@ -58,61 +68,111 @@ struct ktli_driver_fns socket_fns = {
 	.ktli_dfns_poll		= ktli_socket_poll,
 };
 
+
 static void *
 ktli_socket_open()
 {
-	int *dd;
+	dhandle_t *dh;
 
-	dd = malloc(sizeof(int));
-	if (!dd) {
+	/*
+	 * Just setup the device handle and go,
+	 * real work is in ktli_socket_connect()
+	 */
+	dh = calloc(1, sizeof(dhandle_t));
+	if (!dh) {
 		errno = ENOMEM;
 		return(NULL);
 	}
 
-	/*
-	 * This is just a place holder file descriptor, real work is done
-	 * in ktli_socket_connect() and dup-ed to this descriptor.
-	 * ipv4 and ipv6 are both supported.
-	 */
-	*dd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	return((void *)dd);
+	/* Since 0 is a valid file descriptor init dd to -1 */
+	dh->dh_dd = -1;
+
+	return((void *)dh);
 }
 
+
 static int
-ktli_socket_close(void *dh)
+ktli_socket_close(void *vdh)
 {
-	int dd;
+	dhandle_t *dh = (dhandle_t *)vdh;
 
 	if (!dh) {
-		errno = -EINVAL;
+		errno = EINVAL;
 		return(-1);
 	}
-	dd = *(int *)dh;
 
-	/* Ignoring close errs, could end up with a descriptor leak */
-	close(dd);
+	/* Just in case disconnect was not called */
+        /* Ignoring close errs, could end up with a descriptor leak */
+	if (dh->dh_dd > -1)	close(dh->dh_dd);
+	if (dh->dh_host)	free(dh->dh_host);
+	if (dh->dh_port)	free(dh->dh_port);
+	if (dh->dh_ssl)		SSL_free(dh->dh_ssl);
+	if (dh->dh_ctx)		SSL_CTX_free(dh->dh_ctx);
 	free(dh);
 
 	return (0);
 }
 
-int
-ktli_socket_connect(void *dh, char *host, char *port, int usetls)
+
+/*
+ * Connect the SSL portion of the connection, if requested
+ */
+static int
+ktli_socket_connectSSL(dhandle_t *dh)
 {
+	int err, rc;
+
+	do {
+		SSL_set_fd(dh->dh_ssl, dh->dh_dd);
+		rc = SSL_connect(dh->dh_ssl);
+		if (rc == 1) {
+			return(0);
+		}
+
+		err = SSL_get_error(dh->dh_ssl, rc);
+
+		if (err == SSL_ERROR_WANT_READ ||
+		    err == SSL_ERROR_WANT_WRITE) {
+			/* Max 1 second between retries */
+			ktli_socket_poll(dh, 1000);
+
+		} else {
+			printf("SSL Connect: error\n");
+			errno = ENOPROTOOPT;
+			return(-1);
+		}
+	} while (1);
+}
+
+
+int
+ktli_socket_connect(void *vdh, char *host, char *port, int usetls)
+{
+	dhandle_t *dh = (dhandle_t *)vdh;
 	struct addrinfo hints;
 	struct addrinfo *result, *rp;
-	int dd, sfd, rc, on = 1, MiB, flags;
+	int sfd, rc, on = 1, MiB, flags;
 
 	if (!dh || !host || !port) {
-		errno = -EINVAL;
+		errno = EINVAL;
 		return (-1);
 	}
-	dd = *(int *)dh;
 
-	/* for now TLS not supported, may be another driver, maybe not */
+	dh->dh_host = strdup(host);
+	dh->dh_port = strdup(port);
+
 	if (usetls) {
-		errno = EINVAL;
-		return(-1);
+		SSL_library_init();
+		OpenSSL_add_all_algorithms();
+		dh->dh_ctx = SSL_CTX_new(SSLv23_client_method());
+		dh->dh_ssl = SSL_new(dh->dh_ctx);
+		if(!dh->dh_ctx || !dh->dh_ssl) {
+			fprintf(stderr, "Error setting up TLS: %s\n",
+				ERR_lib_error_string(ERR_peek_last_error()));
+			errno = ENOPROTOOPT;
+			return(-1);
+		}
+		SSL_set_mode(dh->dh_ssl, SSL_MODE_AUTO_RETRY);
 	}
 
 	/* Obtain address(es) matching host/port */
@@ -201,7 +261,7 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 	    printf("Putting in the cork\n");
 	   */
 
-	   setsockopt(dd, IPPROTO_TCP, TCP_CORK, &on, sizeof(on));
+	   setsockopt(sfd, IPPROTO_TCP, TCP_CORK, &on, sizeof(on));
 #endif
 
 	   /*
@@ -225,44 +285,120 @@ ktli_socket_connect(void *dh, char *host, char *port, int usetls)
 		   return(-1);
 	   }
 
-	   /* Dup over sfd to placeholder descriptor dd */
-	   if (dup2(sfd, dd) < 0) {
-		   return(-1);
-	   }
+	   /* Save the socket descriptor */
+	   dh->dh_dd = sfd;
+
+	   /* If requested connect via SSL */
+	   if (dh->dh_ssl) return(ktli_socket_connectSSL(dh));
 
 	   return(0);
 }
 
+
 int
-ktli_socket_disconnect(void *dh)
+ktli_socket_disconnect(void *vdh)
 {
-	int rc, dd;
+	dhandle_t *dh = (dhandle_t *)vdh;
 
 	if (!dh) {
-		errno = -EINVAL;
+		errno = EINVAL;
 		return(-1);
 	}
 
-	dd = *(int *)dh;
-	rc = shutdown(dd, SHUT_RDWR);
+	/* Socket is created in connect so undo connect here */
+	shutdown(dh->dh_dd, SHUT_RDWR);
+	if (dh->dh_dd > -1)	close(dh->dh_dd);
+	if (dh->dh_host)	free(dh->dh_host);
+	if (dh->dh_port)	free(dh->dh_port);
+	if (dh->dh_ssl)		SSL_free(dh->dh_ssl);
+	if (dh->dh_ctx)		SSL_CTX_free(dh->dh_ctx);
 
-	return(rc);
+	memset(dh, 0, sizeof(dhandle_t));
+	dh->dh_dd = -1;
+       
+	return(0);
 }
 
-int
-ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
+
+static int
+ktli_socket_sendSSL(dhandle_t *dh, struct iovec *msg, int msgcnt)
 {
-#ifdef KTLI_ZEROCOPY
-	struct msghdr hdr = {NULL, 0, NULL, 0, NULL, 0, 0};
-#endif
-	struct iovec *iov;
-	int i, len, dd, iovs, curv, bw, tbw, cnt;
+	int curv, bw, tbw, cnt, err;
 
 	if (!dh || !msgcnt) {
 		errno = -EINVAL;
 		return(-1);
 	}
-	dd = *(int *)dh;
+
+	/*
+	 * SSL_write can do partial writes, handle em
+	 * Loop through the vectors, partial write means there can be
+	 * successive loop iterations that are trying to complet one vector
+	 * element.  loop ends when all vectors are exhausted
+	 * cnt is used for loop stats
+	 */
+	for (curv=0,tbw=0,cnt=1; curv<msgcnt; cnt++) {
+
+		/* Allow for empty iovs */
+		if (!msg[curv].iov_len) {
+			curv++;
+			continue;
+		}
+		bw = SSL_write(dh->dh_ssl,
+			       msg[curv].iov_base, msg[curv].iov_len);
+
+		if (bw > 0) {
+			/* This always continues the loop */
+			if (bw == msg[curv].iov_len) {
+				/* This vector element is exhausted */
+				curv++;
+			} else {
+				msg[curv].iov_base += bw;
+				msg[curv].iov_len  -= bw;
+				tbw += bw;
+
+			}
+			continue;
+		}
+
+		/* Error Cases */
+		err = SSL_get_error(dh->dh_ssl, bw);
+                if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+			/*
+			 * Underlying BIO is not ready for write,
+			 * should retry.
+			 */
+			continue;
+		}
+
+		/* This send is toast, bailing */
+		printf("ktli_socket_sendSSL: failed: %s\n",
+		       ERR_reason_error_string(err));
+		perror("ktli_socket_sendSSL: ");
+		errno = EIO;
+		return(-1);
+	}
+
+	return(tbw);
+}
+
+
+int
+ktli_socket_send(void *vdh, struct kiovec *msg, int msgcnt)
+{
+	dhandle_t *dh = (dhandle_t *)vdh;
+
+#ifdef KTLI_ZEROCOPY
+	struct msghdr hdr = {NULL, 0, NULL, 0, NULL, 0, 0};
+#endif
+	struct iovec *iov;
+	int i, len, iovs, curv, bw, tbw, cnt;
+
+	if (!dh || !msgcnt) {
+		errno = -EINVAL;
+		return(-1);
+	}
+
 
 	/*
 	 * Copy the kiov to a std iov for use with writev
@@ -283,6 +419,14 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 	}
 	iovs = msgcnt;
 
+	/* If TLS then sendSSL */
+	if (dh->dh_ssl) {
+		/* new iov is used so that it can be manipulated in sendSSL */
+		bw = ktli_socket_sendSSL(dh, iov, iovs);
+		free(iov);
+		return(bw);
+	}
+
 	/*
 	 * NONBLOCKING sockets can do partial writes, handle em
 	 * init the current vector and total bytes read,
@@ -293,9 +437,9 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 #ifdef KTLI_ZEROCOPY
 		hdr.msg_iov = &iov[curv];
 		hdr.msg_iovlen = iovs-curv;
-		bw = sendmsg(dd, &hdr, MSG_ZEROCOPY);
+		bw = sendmsg(dh->dh_dd, &hdr, MSG_ZEROCOPY);
 #else
-		bw = writev(dd, &iov[curv], iovs-curv);
+		bw = writev(dh->dh_dd, &iov[curv], iovs-curv);
 #endif
 		if (bw <= 0) {
 			/*
@@ -329,7 +473,8 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 		 *
 		 * If cork is used, need to flush by resetting NODELAY.
 		 */
-		setsockopt(dd, IPPROTO_TCP, TCP_NODELAY, &on,  sizeof(on));
+		setsockopt(dh->dh_dd, I
+			   PPROTO_TCP, TCP_NODELAY, &on,  sizeof(on));
 #endif
 
 		/* run through the io vectors that can be fully consumed */
@@ -369,20 +514,85 @@ ktli_socket_send(void *dh, struct kiovec *msg, int msgcnt)
 	return(tbw);
 }
 
-/*
- * Receive a message into a pre-allocated kiovec array.
- */
-int
-ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
+
+static int
+ktli_socket_receiveSSL(dhandle_t *dh, struct iovec *msg, int msgcnt)
 {
-	struct iovec *iov;
-	int i, len, dd, iovs, curv, br, tbr, cnt;
+	int curv, br, tbr, cnt, err;
 
 	if (!dh || !msgcnt) {
 		errno = -EINVAL;
 		return(-1);
 	}
-	dd = *(int *) dh;
+
+	/*
+	 * SSL_write can do partial writes, handle em
+	 * Loop through the vectors, partial write means there can be
+	 * successive loop iterations that are trying to complet one vector
+	 * element.  loop ends when all vectors are exhausted
+	 * cnt is used for loop stats
+	 */
+	for (curv=0,tbr=0,cnt=1; curv<msgcnt; cnt++) {
+
+		/* Allow for empty iovs */
+		if (!msg[curv].iov_len) {
+			curv++;
+			continue;
+		}
+
+		br = SSL_read(dh->dh_ssl,
+			       msg[curv].iov_base, msg[curv].iov_len);
+
+		if (br > 0) {
+			/* This always continues the loop */
+			if (br == msg[curv].iov_len) {
+				/* This vector element is full */
+				curv++;
+			} else {
+				msg[curv].iov_base += br;
+				msg[curv].iov_len  -= br;
+				tbr += br;
+
+			}
+			continue;
+		}
+
+		/* Error Cases */
+		err = SSL_get_error(dh->dh_ssl, br);
+                if (err == SSL_ERROR_WANT_READ || err == SSL_ERROR_WANT_WRITE) {
+			/*
+			 * Underlying BIO is not ready for write,
+			 * should retry.
+			 */
+			continue;
+		}
+
+		/* This send is toast, bailing */
+		printf("ktli_socket_receiveSSL: failed: %s\n",
+		       ERR_reason_error_string(err));
+		perror("ktli_socket_receiveSSL: ");
+		errno = EIO;
+		return(-1);
+	}
+
+	return(tbr);
+}
+
+
+/*
+ * Receive a message into a pre-allocated kiovec array.
+ */
+int
+ktli_socket_receive(void *vdh, struct kiovec *msg, int msgcnt)
+{
+	dhandle_t *dh = (dhandle_t *)vdh;
+	struct iovec *iov;
+	int i, len, iovs, curv, br, tbr, cnt;
+
+	if (!dh || !msgcnt) {
+		errno = -EINVAL;
+		return(-1);
+	}
 
 	/*
 	 * Copy the kiov to a std iov for use with readv
@@ -403,13 +613,21 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 	}
 	iovs = msgcnt;
 
+	/* If TLS then receiveSSL */
+	if (dh->dh_ssl) {
+		/* new iov is used so that it can be manipulated in sendSSL */
+		br = ktli_socket_receiveSSL(dh, iov, iovs);
+		free(iov);
+		return(br);
+	}
+
 	/*
 	 * NONBLOCKING sockets can do partial reads, handle em
 	 * init the current vector and total bytes read,
 	 * then loop until complete
 	 */
 	for (curv=0,tbr=0,cnt=1;;cnt++) {
-		br = readv(dd, &iov[curv], iovs-curv);
+		br = readv(dh->dh_dd, &iov[curv], iovs-curv);
 		if (br <= 0) {
 			/*
 			 * Although EAGAIN and EWOULDBLOCK are equivalent,
@@ -473,9 +691,10 @@ ktli_socket_receive(void *dh, struct kiovec *msg, int msgcnt)
 }
 
 int
-ktli_socket_poll(void *dh, int timeout)
+ktli_socket_poll(void *vdh, int timeout)
 {
 	int rc;
+	dhandle_t *dh = (dhandle_t *)vdh;
 	struct pollfd pfd;
 
 	if (!dh) {
@@ -483,7 +702,7 @@ ktli_socket_poll(void *dh, int timeout)
 		return(-1);
 	}
 
-	pfd.fd = *(int *)dh;
+	pfd.fd = dh->dh_dd;
 	pfd.events = POLLIN;
 
 	rc = poll(&pfd, 1, timeout);
