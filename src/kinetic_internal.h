@@ -149,6 +149,9 @@ int ki_validate_glog2(kgetlog_t *glrq, kgetlog_t *glrsp);
 int ki_validate_kstats(kstats_t *kst);
 int ki_validate_kapplet(kapplet_t *app, klimits_t *lim);
 
+/* Not exported to the world, used by ki_device() */
+kstatus_t ki_pinop(int ktd, void *pin, size_t pinlen, kdevop_t op);
+
 int b_batch_addop(kb_t *kb, kcmdhdr_t *kc);
 kstatus_t b_startbatch(int ktd, kbatch_t *kb);
 

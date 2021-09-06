@@ -289,6 +289,9 @@ ProtobufCBinaryData create_command_bytes(kcmdhdr_t *cmd_hdr, void *proto_cmd_dat
 			proto_cmdbdy.manageapplet = (kproto_kapplet_t *) proto_cmd_data;
 			break;
 
+		case KMT_PINOP:
+			proto_cmdbdy.pinop = (kproto_kpinop_t *) proto_cmd_data;
+			break;
 		default:
 			// TODO: not yet implemented, or an invalid message type
 			break;
@@ -633,15 +636,18 @@ void ki_setseq(struct kiovec *msg, int msgcnt, uint64_t seq) {
 	tmp_msg->commandbytes = pack_kinetic_command(tmp_cmd);
 	destroy_command(tmp_cmd);
 
-	// TODO: figure out if there's a better way to fail if hmac or repack fail
-	// NOTE: hmac.data currently has the passed in hmac key, so don't free it
-	compute_hmac(
-		tmp_msg,
-		(char *) tmp_msg->hmacauth->hmac.data,
-		tmp_msg->hmacauth->hmac.len
-	);
+	// if HMAC AUTH calculate the HMAC. If PIN AUTH nothing to do
+	// TODO: is there a better way to fail if hmac or repack fail
+	// NOTE: hmac.data currently has the passed in hmac key, don't free it
+	if ((tmp_msg->has_authtype) &&
+	    (tmp_msg->authtype == (kauth_t)KAT_HMAC)) {
+		compute_hmac(tmp_msg,
+			     (char *)tmp_msg->hmacauth->hmac.data,
+			     tmp_msg->hmacauth->hmac.len);
+	}
 
-	// Free the previous packed message and then set it to the newly packed message
+	// Free the previous packed message and
+	// then set it to the newly packed message
 	KI_FREE(msg[KIOV_MSG].kiov_base);
 	pack_kinetic_message(
 		tmp_msg,

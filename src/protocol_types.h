@@ -54,6 +54,8 @@ typedef Com__Seagate__Kinetic__Proto__Command__GetLog         kproto_getlog_t;
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device kgetlog_device_info;
 typedef Com__Seagate__Kinetic__Proto__Command__ManageApplet   kproto_kapplet_t;
 
+typedef Com__Seagate__Kinetic__Proto__Command__PinOperation   kproto_kpinop_t;
+
 // ------------------------------
 // Aliases for protobuf enums
 

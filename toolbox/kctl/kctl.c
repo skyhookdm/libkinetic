@@ -29,6 +29,9 @@
 #include <kinetic/kinetic.h>
 #include "kctl.h"
 
+char stdport[] = "8123";
+char tlsport[] = "8443";
+
 /* Initialization must be in same struct defintion order */
 struct kargs kargs = {
 	/* .field       = default values, */
@@ -42,7 +45,7 @@ struct kargs kargs = {
 	.ka_user 	= 1,
 	.ka_hkey	= (char *)"asdfasdf",
 	.ka_host	= (char *)"127.0.0.1",
-	.ka_port	= "8123",
+	.ka_port	= stdport,
 	.ka_usetls	= 0,
 	.ka_clustervers = -1,
 	.ka_batch	= NULL,
@@ -68,10 +71,10 @@ extern int kctl_stats(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_flush(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_exec(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_device(int argc, char *argv[], int kts, struct kargs *ka);
 
 #if 0
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
-extern int kctl_lock(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_acl(int argc, char *argv[], int kts, struct kargs *ka);
 #endif
 
@@ -96,14 +99,13 @@ struct ktable {
 	{ KCTL_STATS,   "stats",   "Enable command statistics", &kctl_stats},
 	{ KCTL_FLUSH,   "flush",   "Flush key values caches", &kctl_flush},
 	{ KCTL_EXEC,    "exec",    "Execute a func on the kinetic device", &kctl_exec},
+	{ KCTL_DEVICE,  "device",  "[Un]Lock, erase the kinetic device", &kctl_device},
 
 #if 0
 	{ KCTL_SETCLUSTERV,
 	                "cluster", "Set device cluster version", &kctl_cluster},
 	{ KCTL_SETLOCKPIN,
 	                "setlock", "Set the lock PIN", &kctl_lock},
-	{ KCTL_LOCK,    "lock",    "Lock the kinetic device", &kctl_lock},
-	{ KCTL_UNLOCK,  "unlock",  "Unlock the kinetic device", &kctl_lock},
 	{ KCTL_ACL,     "acl",     "Create/Modify ACL", &kctl_acl},
 #endif
 
@@ -241,7 +243,7 @@ main(int argc, char *argv[])
 	extern int   optind, opterr, optopt;
 	FILE *f;
 	char         c, *cp;
-	int          i;
+	int          i, pflag=0;
 
 	kargs.ka_progname = argv[0];
 	
@@ -256,13 +258,16 @@ main(int argc, char *argv[])
 			break;
 
 		case 'p':
+			pflag=1;
 			kargs.ka_port = optarg;
 			break;
 
 		case 'c':
 			kargs.ka_clustervers = strtol(optarg, &cp, 0);
 			if (!cp || *cp != '\0') {
-				fprintf(stderr, "*** Invalid Cluster Version %s\n", optarg);
+				fprintf(stderr,
+					"*** Invalid Cluster Version %s\n",
+					optarg);
 				usage();
 			}
 			break;
@@ -277,6 +282,13 @@ main(int argc, char *argv[])
 			break;
 
 		case 's':
+			if (!pflag) {
+				/*
+				 * As a convenience, adjust the default port
+				 * to the TLS port is none has been provided.
+				 */
+				kargs.ka_port = tlsport;
+			}
 			kargs.ka_usetls = 1;
 			break;
 

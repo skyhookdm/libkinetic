@@ -31,7 +31,7 @@ extern "C" {
 
 /* this is the log level set for the program */
 #ifndef LOGLEVEL
-    #define LOGLEVEL LOGLEVEL_NONE
+#define LOGLEVEL LOGLEVEL_NONE
 #endif
 
 /* macros that use the log level */
@@ -94,6 +94,9 @@ kstatus_t ki_submitbatch(int ktd, kbatch_t *kb);
 
 /* Kinetic applet exec interface */
 kstatus_t ki_exec(int ktd, kapplet_t *app);
+
+/* Kinetic device operations [secure]erase, [un]lock, scan, optimize */
+kstatus_t ki_device(int ktd, void *pin, size_t pinlen, kdevop_t op);
 
 /* Kinetic asynchronous NOOP interface */
 kstatus_t ki_aio_noop(int ktd, void *cctx, kio_t **kio);

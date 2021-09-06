@@ -70,10 +70,38 @@ enum {
 };
 
 
+/*
+ * Device Operations are mostly mapped onto Kinetic PIN operations,
+ * but other device operations will be supported like media scan
+ * and optimize
+ */
+#define POP(pop) COM__SEAGATE__KINETIC__PROTO__COMMAND__PIN_OPERATION__PIN_OP_TYPE__##pop
+
+typedef enum kdevop {
+	/* PINOP  #'s fixed by kinetic.proto */
+	KDO_INVALID	 = POP(INVALID_PINOP),		/* -1 */
+
+	KDO_GRP1	 = 0,
+	KDO_UNLOCK	 = POP(UNLOCK_PINOP),		/*  1 */
+	KDO_LOCK	 = POP(LOCK_PINOP),		/*  2 */
+	KDO_ERASE	 = POP(ERASE_PINOP),		/*  3 */
+	KDO_SECURE_ERASE = POP(SECURE_ERASE_PINOP),	/*  4 */
+	KDO_GRP1_LAST	 = 5,
+
+	/*
+	 * Other operations which are handled differently by kinetic.proto
+	 * but are still device operations
+	 */
+	KDO_GRP2	 = 0x8000,
+	KDO_SCAN	 = (KDO_GRP2 | 1),
+	KDO_OPTIMIZE	 = (KDO_GRP2 | 2),
+	KDO_GRP2_LAST	 = (KDO_GRP2 | 3),
+
+} kdevop_t;
+
 // Kinetic Status Codes
 #define CSSC(cssc) COM__SEAGATE__KINETIC__PROTO__COMMAND__STATUS__STATUS_CODE__##cssc
 
-//typedef Com__Seagate__Kinetic__Proto__Command__Status__StatusCode kstatus_code_t;
 typedef enum kstatus {
 	/* Error #'s fixed by kinetic.proto */
 	K_INVALID_SC	= CSSC(INVALID_STATUS_CODE),	/* -1 */
@@ -487,6 +515,7 @@ typedef struct  kstats {
 	kopstat_t 	kst_noops;
 	kopstat_t 	kst_flushs;
 	kopstat_t 	kst_execs;
+	kopstat_t 	kst_pinops;
 
 #if 0
 	kopstat_t 	kst_cbats;	/* Create Batch */
