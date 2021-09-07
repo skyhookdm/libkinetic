@@ -131,7 +131,7 @@ ki_open(char *host, char *port, uint32_t usetls, int64_t id, char *hkey)
 	ks->ks_ch.kch_clustvers = -1;	  /* Cluster Version Number */
 	ks->ks_ch.kch_connid    = -1;	  /* Connection ID */
 	ks->ks_ch.kch_timeout   = 0;	  /* Timeout Period */
-	ks->ks_ch.kch_pri       = NORMAL; /* Request Priority */
+	ks->ks_ch.kch_pri       = KPT_NORMAL; /* Request Priority */
 	ks->ks_ch.kch_quanta    = 0;      /* Time Quanta */
 	ks->ks_ch.kch_qexit     = 0;      /* Boolean: Quick Exit */
 

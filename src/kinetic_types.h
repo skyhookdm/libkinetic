@@ -336,6 +336,52 @@ typedef void kio_t;
 
 
 /**
+ * Kinetic PIN Types
+ */
+typedef enum kpin_type {
+	KPIN_INVALID	= -1,
+	KPIN_LOCK	=  1,
+	KPIN_ERASE	=  2,
+} kpin_type_t;
+
+/**
+ * Kinetic ACL types
+ */
+#define KAPT(kapt) COM__SEAGATE__KINETIC__PROTO__COMMAND__SECURITY__ACL__PERMISSION__##kapt
+
+typedef Com__Seagate__Kinetic__Proto__Command__Security__ACL__Permission kacl_perm_t;
+enum {
+	KAPT_INVALID		= KAPT(INVALID_PERMISSION),	/* -1 */
+	KAPT_READ		= KAPT(READ),			/*  0 */
+	KAPT_WRITE		= KAPT(WRITE),			/*  1 */
+	KAPT_DELETE		= KAPT(DELETE),			/*  2 */
+	KAPT_RANGE		= KAPT(RANGE),			/*  3 */
+	KAPT_SETUP		= KAPT(SETUP),			/*  4 */
+	KAPT_P2POP		= KAPT(P2POP),			/*  5 */
+	KAPT_GETLOG		= KAPT(GETLOG),			/*  7 */
+	KAPT_SECURITY		= KAPT(SECURITY),		/*  8 */
+	KAPT_POWER_MANAGEMENT	= KAPT(POWER_MANAGEMENT),	/*  9 */
+	KAPT_MANAGE_APPLET	= KAPT(MANAGE_APPLET),		/* 10 */
+};
+
+typedef struct kacl_scope {
+	uint64_t	kas_offset;
+	void		*kas_val;
+	size_t          kas_vallen;
+	kacl_perm_t	kas_perm;
+	int		kas_tlsreq;
+} kacl_scope_t;
+
+typedef struct kacl {
+	int64_t		kacl_id;
+	void           *kacl_key;
+	size_t          kacl_keylen;
+	kacl_scope_t   *kacl_scope;
+	size_t          kacl_scopecnt;
+	kpriority_t	kacl_maxpri;
+} kacl_t;
+
+/**
  * Kinetic Applet types
  */
 #define CSMAT(csmat)	COM__SEAGATE__KINETIC__PROTO__COMMAND__MANAGE_APPLET__MANAGE_APPLET_TYPE__##csmat
@@ -516,6 +562,7 @@ typedef struct  kstats {
 	kopstat_t 	kst_flushs;
 	kopstat_t 	kst_execs;
 	kopstat_t 	kst_pinops;
+	kopstat_t 	kst_securitys;
 
 #if 0
 	kopstat_t 	kst_cbats;	/* Create Batch */

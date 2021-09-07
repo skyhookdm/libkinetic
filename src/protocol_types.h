@@ -53,67 +53,79 @@ typedef Com__Seagate__Kinetic__Proto__Command__Batch          kproto_batch_t;
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog         kproto_getlog_t;
 typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device kgetlog_device_info;
 typedef Com__Seagate__Kinetic__Proto__Command__ManageApplet   kproto_kapplet_t;
-
 typedef Com__Seagate__Kinetic__Proto__Command__PinOperation   kproto_kpinop_t;
+typedef Com__Seagate__Kinetic__Proto__Command__Security       kproto_ksecurity_t;
 
 // ------------------------------
 // Aliases for protobuf enums
 
 // Kinetic Message Types, ie Kinetic Ops
-#define CMT(cmt) COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__##cmt
+#define KMT(kmt) COM__SEAGATE__KINETIC__PROTO__COMMAND__MESSAGE_TYPE__##kmt
 
 typedef Com__Seagate__Kinetic__Proto__Command__MessageType kmtype_t;
 enum {
-	KMT_INVALID   = CMT(INVALID_MESSAGE_TYPE),
-	KMT_GET       = CMT(GET),
-	KMT_PUT       = CMT(PUT),
-	KMT_DEL       = CMT(DELETE),
-	KMT_GETNEXT   = CMT(GETNEXT),
-	KMT_GETPREV   = CMT(GETPREVIOUS),
-	KMT_GETRANGE  = CMT(GETKEYRANGE),
-	KMT_GETVERS   = CMT(GETVERSION),
-	KMT_SETUP     = CMT(SETUP),
-	KMT_GETLOG    = CMT(GETLOG),
-	KMT_SECURITY  = CMT(SECURITY),
-	KMT_PUSHP2P   = CMT(PEER2PEERPUSH),
-	KMT_NOOP      = CMT(NOOP),
-	KMT_FLUSH     = CMT(FLUSHALLDATA),
-	KMT_PINOP     = CMT(PINOP),
-	KMT_SCANMEDIA = CMT(MEDIASCAN),
-	KMT_OPTMEDIA  = CMT(MEDIAOPTIMIZE),
-	KMT_STARTBAT  = CMT(START_BATCH),
-	KMT_ENDBAT    = CMT(END_BATCH),
-	KMT_ABORTBAT  = CMT(ABORT_BATCH),
-	KMT_SETPOWER  = CMT(SET_POWER_LEVEL),
-	KMT_APPLET    = CMT(MANAGE_APPLET),
+	KMT_INVALID   = KMT(INVALID_MESSAGE_TYPE),
+	KMT_GET       = KMT(GET),
+	KMT_PUT       = KMT(PUT),
+	KMT_DEL       = KMT(DELETE),
+	KMT_GETNEXT   = KMT(GETNEXT),
+	KMT_GETPREV   = KMT(GETPREVIOUS),
+	KMT_GETRANGE  = KMT(GETKEYRANGE),
+	KMT_GETVERS   = KMT(GETVERSION),
+	KMT_SETUP     = KMT(SETUP),
+	KMT_GETLOG    = KMT(GETLOG),
+	KMT_SECURITY  = KMT(SECURITY),
+	KMT_PUSHP2P   = KMT(PEER2PEERPUSH),
+	KMT_NOOP      = KMT(NOOP),
+	KMT_FLUSH     = KMT(FLUSHALLDATA),
+	KMT_PINOP     = KMT(PINOP),
+	KMT_SCANMEDIA = KMT(MEDIASCAN),
+	KMT_OPTMEDIA  = KMT(MEDIAOPTIMIZE),
+	KMT_STARTBAT  = KMT(START_BATCH),
+	KMT_ENDBAT    = KMT(END_BATCH),
+	KMT_ABORTBAT  = KMT(ABORT_BATCH),
+	KMT_SETPOWER  = KMT(SET_POWER_LEVEL),
+	KMT_APPLET    = KMT(MANAGE_APPLET),
 };
 
 
 // Authorization types (`AuthType`)
-#define KMAT(ka) COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__##ka
+#define KAT(kat) COM__SEAGATE__KINETIC__PROTO__MESSAGE__AUTH_TYPE__##kat
 
 typedef Com__Seagate__Kinetic__Proto__Message__AuthType kauth_t;
 enum {
-	KAT_INVALID     = KMAT(INVALID_AUTH_TYPE),
-	KAT_HMAC        = KMAT(HMACAUTH)         ,
-	KAT_PIN         = KMAT(PINAUTH)          ,
-	KAT_UNSOLICITED = KMAT(UNSOLICITEDSTATUS),
+	KAT_INVALID     = KAT(INVALID_AUTH_TYPE),
+	KAT_HMAC        = KAT(HMACAUTH)         ,
+	KAT_PIN         = KAT(PINAUTH)          ,
+	KAT_UNSOLICITED = KAT(UNSOLICITEDSTATUS),
 };
 
 // Prioritization of commands
-#define KPCP(kp) COM__SEAGATE__KINETIC__PROTO__COMMAND__PRIORITY__##kp
+#define KPT(kpt) COM__SEAGATE__KINETIC__PROTO__COMMAND__PRIORITY__##kpt
 
 typedef Com__Seagate__Kinetic__Proto__Command__Priority kpriority_t;
 enum {
-	LOWEST  = KPCP(LOWEST)      ,
-	LOWER   = KPCP(LOWER)       ,
-	LOW     = KPCP(LOW)         ,
-	LNORMAL = KPCP(LOWERNORMAL) ,
-	NORMAL  = KPCP(NORMAL)      ,
-	HNORMAL = KPCP(HIGHERNORMAL),
-	HIGH    = KPCP(HIGH)        ,
-	HIGHER  = KPCP(HIGHER)      ,
-	HIGHEST = KPCP(HIGHEST)     ,
+	KPT_INVALID = -1	       ,	/* Not in kinetic.proto */
+	KPT_LOWEST  = KPT(LOWEST)      ,	/*  1 */
+	KPT_LOWER   = KPT(LOWER)       ,	/*  2 */
+	KPT_LOW     = KPT(LOW)         ,	/*  3 */
+	KPT_LNORMAL = KPT(LOWERNORMAL) ,	/*  4 */
+	KPT_NORMAL  = KPT(NORMAL)      ,	/*  5 */
+	KPT_HNORMAL = KPT(HIGHERNORMAL),	/*  6 */
+	KPT_HIGH    = KPT(HIGH)        ,	/*  7 */
+	KPT_HIGHER  = KPT(HIGHER)      ,	/*  8 */
+	KPT_HIGHEST = KPT(HIGHEST)     ,	/*  9 */
+};
+
+
+// Kinetic Security Operations
+#define KSOT(ksot) COM__SEAGATE__KINETIC__PROTO__COMMAND__SECURITY__SECURITY_OP_TYPE__##ksot
+
+enum {
+	KSOT_INVALID	= KSOT(INVALID_SECURITYOP),	/* -1 */
+	KSOT_ACL	= KSOT(ACL_SECURITYOP),		/*  1 */
+	KSOT_ERASE	= KSOT(ERASE_PIN_SECURITYOP),	/*  2 */
+	KSOT_LOCK	= KSOT(LOCK_PIN_SECURITYOP),	/*  3 */
 };
 
 

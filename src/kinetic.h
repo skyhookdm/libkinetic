@@ -140,6 +140,12 @@ kstatus_t ki_putstats(int ktd, kstats_t *kst);
 
 /* Kinetic utility interfaces */
 
+/* Kinetic Security interfaces */
+kstatus_t ki_setpin(int ktd,
+		    void *pin,  size_t pinlen,
+		    void *npin, size_t npinlen, kpin_type_t ptype);
+kstatus_t ki_setacls(int ktd, kacl_t *acl, size_t aclcnt);
+
 /* Kinetic information structures */
 klimits_t      ki_limits(int ktd);
 kstatus_t      ki_setclustervers(int ktd, int64_t vers);

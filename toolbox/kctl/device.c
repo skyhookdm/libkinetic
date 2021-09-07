@@ -52,7 +52,7 @@ kctl_device_usage(struct kargs *ka)
 #define CMD_USAGE(_ka) kctl_device_usage(_ka)
 
 
-// Device the kinetic server
+/* Perform a device operation on the kinetic server */
 int
 kctl_device(int argc, char *argv[], int ktd, struct kargs *ka)
 {

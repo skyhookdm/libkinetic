@@ -72,6 +72,7 @@ extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_flush(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_exec(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_device(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_pin(int argc, char *argv[], int kts, struct kargs *ka);
 
 #if 0
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
@@ -100,6 +101,7 @@ struct ktable {
 	{ KCTL_FLUSH,   "flush",   "Flush key values caches", &kctl_flush},
 	{ KCTL_EXEC,    "exec",    "Execute a func on the kinetic device", &kctl_exec},
 	{ KCTL_DEVICE,  "device",  "[Un]Lock, erase the kinetic device", &kctl_device},
+	{ KCTL_PIN,     "pin",     "Set the erase or lock PINs", &kctl_pin},
 
 #if 0
 	{ KCTL_SETCLUSTERV,

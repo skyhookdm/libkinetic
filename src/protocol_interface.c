@@ -263,38 +263,43 @@ ProtobufCBinaryData create_command_bytes(kcmdhdr_t *cmd_hdr, void *proto_cmd_dat
 
 	// stitch the Command together
 	switch(proto_cmd_hdr.messagetype) {
-		case KMT_GET:
-		case KMT_GETVERS:
-		case KMT_GETNEXT:
-		case KMT_GETPREV:
-		case KMT_PUT:
-		case KMT_DEL:
-			proto_cmdbdy.keyvalue = (kproto_kv_t *) proto_cmd_data;
-			break;
+	case KMT_GET:
+	case KMT_GETVERS:
+	case KMT_GETNEXT:
+	case KMT_GETPREV:
+	case KMT_PUT:
+	case KMT_DEL:
+		proto_cmdbdy.keyvalue = (kproto_kv_t *) proto_cmd_data;
+		break;
 
-		case KMT_GETLOG:
-			proto_cmdbdy.getlog   = (kproto_getlog_t *) proto_cmd_data;
-			break;
+	case KMT_GETLOG:
+		proto_cmdbdy.getlog   = (kproto_getlog_t *) proto_cmd_data;
+		break;
 
-		case KMT_GETRANGE:
-			proto_cmdbdy.range    = (kproto_keyrange_t *) proto_cmd_data;
-			break;
+	case KMT_GETRANGE:
+		proto_cmdbdy.range    = (kproto_keyrange_t *) proto_cmd_data;
+		break;
 
-		case KMT_STARTBAT:
-		case KMT_ENDBAT:
-			proto_cmdbdy.batch    = (kproto_batch_t *) proto_cmd_data;
-			break;
+	case KMT_STARTBAT:
+	case KMT_ENDBAT:
+		proto_cmdbdy.batch    = (kproto_batch_t *) proto_cmd_data;
+		break;
 
-		case KMT_APPLET:
-			proto_cmdbdy.manageapplet = (kproto_kapplet_t *) proto_cmd_data;
-			break;
+	case KMT_APPLET:
+		proto_cmdbdy.manageapplet = (kproto_kapplet_t *) proto_cmd_data;
+		break;
 
-		case KMT_PINOP:
-			proto_cmdbdy.pinop = (kproto_kpinop_t *) proto_cmd_data;
-			break;
-		default:
-			// TODO: not yet implemented, or an invalid message type
-			break;
+	case KMT_PINOP:
+		proto_cmdbdy.pinop = (kproto_kpinop_t *) proto_cmd_data;
+		break;
+
+	case KMT_SECURITY:
+		proto_cmdbdy.security = (kproto_ksecurity_t *) proto_cmd_data;
+		break;
+
+	default:
+		// TODO: not yet implemented, or an invalid message type
+		break;
 	}
 
 	proto_cmd.header = &proto_cmd_hdr;

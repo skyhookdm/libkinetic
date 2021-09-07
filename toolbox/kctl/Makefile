@@ -23,7 +23,7 @@ BUILDMAN =	$(BUILDDIR)/man
 
 SRCS = 		kctl.c util.c info.c get.c put.c del.c	\
 		range.c batch.c stats.c ping.c flush.c	\
-		exec.c device.c
+		exec.c device.c pin.c
 HDRS =		kctl.h
 OBJS =		$(SRCS:.c=.o)
 DEPS = 		$(SRCS:.c=.d)
