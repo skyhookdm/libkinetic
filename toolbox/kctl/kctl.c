@@ -248,8 +248,8 @@ main(int argc, char *argv[])
 	int          i, pflag=0;
 
 	kargs.ka_progname = argv[0];
-	
-	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsSu:tvVy?")) != EOF) {
+
+	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsSu:tvVy?")) != (char)EOF) {
 		switch (c) {
 		case 'h':
 			kargs.ka_host = optarg;

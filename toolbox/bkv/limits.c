@@ -47,7 +47,7 @@ b_limits(int argc, char *argv[], int ktd, struct bargs *ba)
 	int		rc;
 	bkv_limits_t 	bl;
 	
-	while ((c = getopt(argc, argv, "h?n:")) != EOF) {
+	while ((c = getopt(argc, argv, "h?n:")) != (char)EOF) {
 		switch (c) {
 		case 'h':
 		case '?':

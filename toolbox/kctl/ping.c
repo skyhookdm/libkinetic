@@ -59,7 +59,7 @@ kctl_ping(int argc, char *argv[], int ktd, struct kargs *ka)
 	kstatus_t	krc;
 	struct timespec start, stop;
 	
-        while ((c = getopt(argc, argv, "h?n:")) != EOF) {
+        while ((c = getopt(argc, argv, "h?n:")) != (char)EOF) {
                 switch (c) {
 		case 'n':
 			if (optarg[0] == '-') {

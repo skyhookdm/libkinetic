@@ -100,7 +100,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 	kstatus_t        krc;
 	struct timespec  tstart, tstop;
 
-	while ((c = getopt(argc, argv, "abcFp:s:S:e:E:n:h?")) != EOF) {
+	while ((c = getopt(argc, argv, "abcFp:s:S:e:E:n:h?")) != (char)EOF) {
 		switch (c) {
 			case 'b':
 				bat = 1;

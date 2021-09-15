@@ -59,7 +59,7 @@ b_del(int argc, char *argv[], int ktd, struct bargs *ba)
 	uint64_t	count = 0;
 	char		*rs;
 
-	while ((c = getopt(argc, argv, "h?n:")) != EOF) {
+	while ((c = getopt(argc, argv, "h?n:")) != (char)EOF) {
 		switch (c) {
 		case 'n':
 			if (optarg[0] == '-') {

@@ -57,7 +57,7 @@ kctl_batch(int argc, char *argv[], int kts, struct kargs *ka)
 	/* clear global flag vars */
 	create = submit = abort = 0;
 
-        while ((c = getopt(argc, argv, "SCA?h")) != EOF) {
+        while ((c = getopt(argc, argv, "SCA?h")) != (char)EOF) {
                 switch (c) {
 		case 'C':
 			create = 1;

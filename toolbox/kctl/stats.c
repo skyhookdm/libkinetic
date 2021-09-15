@@ -106,7 +106,7 @@ kctl_stats(int argc, char *argv[], int kts, struct kargs *ka)
 	hkey.h_rclip   = hval.h_rclip = 0;
 	hkey.h_histo   = hval.h_histo = NULL;
 	
-        while ((c = getopt(argc, argv, "Ccgh:pdNTks:S:e:E:n:?h")) != EOF) {
+        while ((c = getopt(argc, argv, "Ccgh:pdNTks:S:e:E:n:?h")) != (char)EOF) {
                 switch (c) {
 		case 'c':
 		        clear = 1;

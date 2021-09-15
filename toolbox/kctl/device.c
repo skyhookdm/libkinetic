@@ -64,7 +64,7 @@ kctl_device(int argc, char *argv[], int ktd, struct kargs *ka)
 	kstatus_t	krc;
 	kdevop_t	op;
 		
-        while ((c = getopt(argc, argv, "h?p:t")) != EOF) {
+        while ((c = getopt(argc, argv, "h?p:t")) != (char)EOF) {
                 switch (c) {
 		case 'p':
 			pin = optarg;

@@ -78,7 +78,7 @@ kctl_info(int argc, char *argv[], int kts, struct kargs *ka)
 	glog->kgl_type = glt;
 	glog->kgl_typecnt = 0;
 	
-        while ((c = getopt(argc, argv, "acCLMmOTUh?")) != EOF) {
+        while ((c = getopt(argc, argv, "acCLMmOTUh?")) != (char)EOF) {
                 switch (c) {
 		case 'a':
 			/* Everything */

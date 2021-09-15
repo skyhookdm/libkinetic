@@ -52,7 +52,7 @@ b_exists(int argc, char *argv[], int ktd, struct bargs *ba)
 	int		rc;
 	char		*rs;
 
-	while ((c = getopt(argc, argv, "h?")) != EOF) {
+	while ((c = getopt(argc, argv, "h?")) != (char)EOF) {
 		switch (c) {
 		case 'h':
 		case '?':

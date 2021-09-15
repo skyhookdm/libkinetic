@@ -83,7 +83,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct kiovec	endkey[1]   = {{0, 0}};
 	struct kiovec	*k;
 	
-	while ((c = getopt(argc, argv, "rs:S:e:E:n:AXh?")) != EOF) {
+	while ((c = getopt(argc, argv, "rs:S:e:E:n:AXh?")) != (char)EOF) {
 
 		switch (c) {
 		case 'r':

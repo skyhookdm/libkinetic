@@ -61,7 +61,7 @@ kctl_pin(int argc, char *argv[], int ktd, struct kargs *ka)
 	kstatus_t	krc;
 	kpin_type_t	ptype = KPIN_INVALID;
 	
-        while ((c = getopt(argc, argv, "h?elp:n:")) != EOF) {
+        while ((c = getopt(argc, argv, "h?elp:n:")) != (char)EOF) {
                 switch (c) {
 		case 'e':
 			if (ptype != KPIN_INVALID){

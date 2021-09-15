@@ -85,7 +85,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct kiovec	kv_val[1]  = {{0, 0}};
 	struct timespec start, stop;
 
-        while ((c = getopt(argc, argv, "bcFf:h?n:p:s:z:")) != EOF) {
+        while ((c = getopt(argc, argv, "bcFf:h?n:p:s:z:")) != (char)EOF) {
                 switch (c) {
 		case 'b':
 			bat = 1;

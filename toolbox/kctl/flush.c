@@ -46,7 +46,7 @@ kctl_flush(int argc, char *argv[], int ktd, struct kargs *ka)
         char		c;
 	kstatus_t 	krc;
 	
-        while ((c = getopt(argc, argv, "?h")) != EOF) {
+        while ((c = getopt(argc, argv, "?h")) != (char)EOF) {
                 switch (c) {
 		case 'h':
                 case '?':

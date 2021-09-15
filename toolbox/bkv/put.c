@@ -64,7 +64,7 @@ b_put(int argc, char *argv[], int ktd, struct bargs *ba)
 	uint32_t	count = 0;
 	char		c, *cp, *rs, *filename = NULL;
 
-	while ((c = getopt(argc, argv, "f:h?lz:")) != EOF) {
+	while ((c = getopt(argc, argv, "f:h?lz:")) != (char)EOF) {
 		switch (c) {
 		case 'f':
 			filename = optarg;

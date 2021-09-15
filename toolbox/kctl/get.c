@@ -88,7 +88,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct timespec start, stop;
 
 	// This while loop can return early because there are no allocs to manage
-	while ((c = getopt(argc, argv, "mAXh?")) != EOF) {
+	while ((c = getopt(argc, argv, "mAXh?")) != (char)EOF) {
 		switch (c) {
 		case 'm':
 			meta = 1;

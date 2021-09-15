@@ -195,7 +195,7 @@ main(int argc, char *argv[])
 
 	bargs.ba_progname = argv[0];
 	
-	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsu:tvVy?")) != EOF) {
+	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsu:tvVy?")) != (char)EOF) {
 		switch (c) {
 		case 'h':
 			bargs.ba_cinfo.bkvo_host = optarg;

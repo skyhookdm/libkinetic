@@ -64,7 +64,7 @@ b_get(int argc, char *argv[], int ktd, struct bargs *ba)
 	uint64_t	count = 0;
 	char		*rkey, *rs;
 
-	while ((c = getopt(argc, argv, "n:AXh?")) != EOF) {
+	while ((c = getopt(argc, argv, "n:AXh?")) != (char)EOF) {
 		switch (c) {
 		case 'n':
 			if (optarg[0] == '-') {

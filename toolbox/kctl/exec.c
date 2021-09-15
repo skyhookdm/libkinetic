@@ -91,7 +91,7 @@ kctl_exec(int argc, char *argv[], int ktd, struct kargs *ka)
 	kapplet_t	*app;
 	kstatus_t	krc;
 	
-        while ((c = getopt(argc, argv, "h?n:g:t:AX")) != EOF) {
+        while ((c = getopt(argc, argv, "h?n:g:t:AX")) != (char)EOF) {
                 switch (c) {
 		case 'g':
 			if (!asciidecode(optarg, strlen(optarg),
