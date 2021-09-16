@@ -29,6 +29,9 @@
 #include <kinetic/basickv.h>
 #include "bkv.h"
 
+char stdport[] = "8123";
+char tlsport[] = "8443";
+
 /* Initialization must be in same struct defintion order */
 struct bargs bargs = {
 	/* .field       = default values, */
@@ -39,7 +42,7 @@ struct bargs bargs = {
 	.ba_keylen	= 6,
 	.ba_val		= (char *)"<none>",
 	.ba_vallen	= 6,
-	.ba_cinfo 	= {"127.0.0.1", "8123", 1, "asdfasdf", 0},
+	.ba_cinfo 	= {"127.0.0.1", stdport, 1, "asdfasdf", 0},
 	.ba_quiet	= 0,
 	.ba_terse	= 0,
 	.ba_verbose	= 0,
@@ -191,7 +194,7 @@ main(int argc, char *argv[])
 	extern int   optind, opterr, optopt;
 	FILE *f;
 	char         c, *cp;
-	int          i, rc;
+	int          i, rc, pflag=0;
 
 	bargs.ba_progname = argv[0];
 	
@@ -206,6 +209,7 @@ main(int argc, char *argv[])
 			break;
 
 		case 'p':
+			pflag = 1;
 			bargs.ba_cinfo.bkvo_port = optarg;
 			break;
 
@@ -219,6 +223,14 @@ main(int argc, char *argv[])
 			break;
 
 		case 's':
+                        if (!pflag) {
+                                /*
+                                 * As a convenience, adjust the default port
+                                 * to the TLS port is none has been provided.
+                                 */
+				bargs.ba_cinfo.bkvo_port = tlsport;
+                        }
+
 			bargs.ba_cinfo.bkvo_usetls = 1;
 			break;
 

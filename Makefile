@@ -40,6 +40,7 @@ LDFLAGS =	-L$(BUILDDIR)/lib
 
 DISTFILES = 				\
 	./bin/kctl			\
+	./bin/bkv			\
 	./include/kinetic		\
 	./include/protobuf-c		\
 	./lib/libkinetic.a		\
