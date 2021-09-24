@@ -283,9 +283,6 @@ ki_clean(void *p)
 		/*
 		 * Special case for kapplet.
 		 */
-		if (((kapplet_t *) p)->ka_msg   ) { KI_FREE(((kapplet_t *) p)->ka_msg);    }
-		if (((kapplet_t *) p)->ka_stdout) { KI_FREE(((kapplet_t *) p)->ka_stdout); }
-
 		((kapplet_t *) p)->ka_msg       = NULL;
 		((kapplet_t *) p)->ka_stdout    = NULL;
 		((kapplet_t *) p)->ka_stdoutlen = 0;
