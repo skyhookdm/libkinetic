@@ -277,7 +277,7 @@ kctl_exec(int argc, char *argv[], int ktd, struct kargs *ka)
 		fprintf(stderr, "*** Kapplet create failure\n");
 		return (-1);
 	}
-		
+
 	app->ka_fnkey    = fnkv;
 	app->ka_fnkeycnt = count;
 	app->ka_fntype   = fntype;
@@ -350,10 +350,9 @@ kctl_exec(int argc, char *argv[], int ktd, struct kargs *ka)
 	}
 
 	if (!ka->ka_quiet)
-		printf("%s", app->ka_stdout);
+		printf("%.*s",  (int)app->ka_stdoutlen, app->ka_stdout);
 
 	/* Cleanup */
-
 	if (gkey) {
 		free(gkv->kv_val[0].kiov_base);
 		ki_destroy(gkv);
