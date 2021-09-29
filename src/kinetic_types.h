@@ -346,39 +346,71 @@ typedef enum kpin_type {
 
 /**
  * Kinetic ACL types
+ *
+ * There is a 1:1 relationship between ACLs and user IDs.  Creating an ACL
+ * creates an ID.  The ACL structure houses the ID, the password,
+ * maximum priority that ID can request and a list of permissions, called
+ * scopes.
+ *
+ * Every kinetic request provides an ID and password that must be matched with
+ * an existing ACL to be accepted. The request's priority is then checked to
+ * make sure it is <= the IDs max priority set in the ACL. To complete the
+ * request authorization, the request must then be matched with a scope within
+ * the ACL. This is accomplished by first searching the ACL's scopes for the
+ * subset of scopes that have a permission that matches the request type.
+ * In the case where requests do not operate on a key (e.g. GETLOG) there
+ * should be exactly one scope that matches the request type. Requests that
+ * operate on keys (e.g. PUT) can have more than one scope that could match
+ * the request type. In this case the matching scopes are compared
+ * the key operand of the request. The final matching scope is determined
+ * by matching a scope's subkey with request's key operand at the offset
+ * defined in the scope. This permits the definition of key spaces and
+ * granting IDs access to them.
+ *
+ * If a matching scope is not found the request is denied.  If a matching
+ * scope is found, a final check is performed to see if the connection used
+ * to deliver the request matches the 'TLS required' field in the matching
+ * scope. If the connection does not match the request is denied.
+ *
+ * ACLs can only be set as a single group and cannot be edited. To update
+ * an ACL the entire set of all ACLs including any updates must be set.
+ * Consequently there is no way to see the existing ACLs.  The admin must
+ * maintain a copy of ACLs they used to set the ACLs.
+ *
  */
 #define KAPT(kapt) COM__SEAGATE__KINETIC__PROTO__COMMAND__SECURITY__ACL__PERMISSION__##kapt
 
 typedef Com__Seagate__Kinetic__Proto__Command__Security__ACL__Permission kacl_perm_t;
-enum {
-	KAPT_INVALID		= KAPT(INVALID_PERMISSION),	/* -1 */
-	KAPT_READ		= KAPT(READ),			/*  0 */
-	KAPT_WRITE		= KAPT(WRITE),			/*  1 */
-	KAPT_DELETE		= KAPT(DELETE),			/*  2 */
-	KAPT_RANGE		= KAPT(RANGE),			/*  3 */
-	KAPT_SETUP		= KAPT(SETUP),			/*  4 */
-	KAPT_P2POP		= KAPT(P2POP),			/*  5 */
-	KAPT_GETLOG		= KAPT(GETLOG),			/*  7 */
-	KAPT_SECURITY		= KAPT(SECURITY),		/*  8 */
-	KAPT_POWER_MANAGEMENT	= KAPT(POWER_MANAGEMENT),	/*  9 */
-	KAPT_MANAGE_APPLET	= KAPT(MANAGE_APPLET),		/* 10 */
+enum kacl_permissions {
+	KAPT_INVALID	= KAPT(INVALID_PERMISSION),	/* -1 */
+	KAPT_ALL	= KAPT(INVALID_PERMISSION),	/* -1 */
+	KAPT_GET	= KAPT(READ),			/*  0 */
+	KAPT_PUT	= KAPT(WRITE),			/*  1 */
+	KAPT_DEL	= KAPT(DELETE),			/*  2 */
+	KAPT_RANGE	= KAPT(RANGE),			/*  3 */
+	KAPT_SETUP	= KAPT(SETUP),			/*  4 */
+	KAPT_P2P	= KAPT(P2POP),			/*  5 */
+	KAPT_GETLOG	= KAPT(GETLOG),			/*  7 */
+	KAPT_SECURITY	= KAPT(SECURITY),		/*  8 */
+	KAPT_POWER	= KAPT(POWER_MANAGEMENT),	/*  9 */
+	KAPT_EXEC	= KAPT(MANAGE_APPLET),		/* 10 */
 };
 
 typedef struct kacl_scope {
-	uint64_t	kas_offset;
-	void		*kas_val;
-	size_t          kas_vallen;
-	kacl_perm_t	kas_perm;
-	int		kas_tlsreq;
+	uint64_t	kas_offset;	/* Key offset to match subkey on */
+	void	       *kas_subkey;	/* Sub key to match on the key:off */
+	size_t          kas_subkeylen;	/* Sub key length */
+	kacl_perm_t	kas_perm;	/* Permission to grant if matched */
+	uint32_t	kas_tlsreq;	/* Bool: TLS is required for perm */
 } kacl_scope_t;
 
 typedef struct kacl {
-	int64_t		kacl_id;
-	void           *kacl_key;
-	size_t          kacl_keylen;
-	kacl_scope_t   *kacl_scope;
-	size_t          kacl_scopecnt;
-	kpriority_t	kacl_maxpri;
+	int64_t		kacl_id;	/* User ID to apply the ACL to */
+	void           *kacl_pass;	/* User ID password */
+	size_t          kacl_passlen;	/* Password length */
+	kpriority_t	kacl_maxpri;	/* Max priority allowed for this ID */
+	size_t          kacl_scopecnt;  /* Scope count for this ACL */
+	kacl_scope_t   *kacl_scope;	/* Scope array */
 } kacl_t;
 
 /**

@@ -73,10 +73,10 @@ extern int kctl_flush(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_exec(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_device(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_pin(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_acl(int argc, char *argv[], int kts, struct kargs *ka);
 
 #if 0
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
-extern int kctl_acl(int argc, char *argv[], int kts, struct kargs *ka);
 #endif
 
 int kctl_nohandler(int argc, char *argv[], int kts, struct kargs *ka);
@@ -102,12 +102,11 @@ struct ktable {
 	{ KCTL_EXEC,    "exec",    "Execute a func on the kinetic device", &kctl_exec},
 	{ KCTL_DEVICE,  "device",  "[Un]Lock, erase the kinetic device", &kctl_device},
 	{ KCTL_PIN,     "pin",     "Set the erase or lock PINs", &kctl_pin},
+	{ KCTL_ACL,     "acl",     "Set the Kinetic ACLs", &kctl_acl},
 
 #if 0
 	{ KCTL_SETCLUSTERV,
 	                "cluster", "Set device cluster version", &kctl_cluster},
-	{ KCTL_SETLOCKPIN,
-	                "setlock", "Set the lock PIN", &kctl_lock},
 	{ KCTL_ACL,     "acl",     "Create/Modify ACL", &kctl_acl},
 #endif
 
@@ -169,7 +168,7 @@ usage()
 	fprintf(stderr, "\t-p port      Port number [%s]\n", kargs.ka_port);
 	fprintf(stderr, "\t-s           Use SSL [no]\n");
 	fprintf(stderr, "\t-u id        User ID [%ld]\n", kargs.ka_user);
-	fprintf(stderr,	"\t-m hkey      HMAC Key [%s]\n", kargs.ka_hkey);
+	fprintf(stderr,	"\t-P pass      User Password [%s]\n", kargs.ka_hkey);
 	fprintf(stderr, "\t-c version   Client Cluster Version [0]\n");
 	fprintf(stderr,	"\t-T timeout   Timeout in seconds [%d]\n",
 		kargs.ka_timeout);
@@ -249,13 +248,13 @@ main(int argc, char *argv[])
 
 	kargs.ka_progname = argv[0];
 
-	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsSu:tvVy?")) != (char)EOF) {
+	while ((c = getopt(argc, argv, "+c:f:h:P:p:qsSu:tvVy?")) != (char)EOF) {
 		switch (c) {
 		case 'h':
 			kargs.ka_host = optarg;
 			break;
 
-		case 'm':
+		case 'P':
 			kargs.ka_hkey = optarg;
 			break;
 

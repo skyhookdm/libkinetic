@@ -42,19 +42,22 @@ typedef Com__Seagate__Kinetic__Proto__Message__HMACauth       kproto_hmacauth_t;
 typedef Com__Seagate__Kinetic__Proto__Message__PINauth        kproto_pinauth_t;
 
 // Input data for kinetic operations are contained in `Command` types
-typedef Com__Seagate__Kinetic__Proto__Command                 kproto_cmd_t;
-typedef Com__Seagate__Kinetic__Proto__Command__Body           kproto_body_t;
-typedef Com__Seagate__Kinetic__Proto__Command__Status         kproto_status_t;
+#define KCMD(kcmd) Com__Seagate__Kinetic__Proto__Command##kcmd
+typedef KCMD()				kproto_cmd_t;
+typedef KCMD(__Body)			kproto_body_t;
+typedef KCMD(__Status)			kproto_status_t;
 
-typedef Com__Seagate__Kinetic__Proto__Command__KeyValue       kproto_kv_t;
-typedef Com__Seagate__Kinetic__Proto__Command__Range          kproto_keyrange_t;
-typedef Com__Seagate__Kinetic__Proto__Command__Batch          kproto_batch_t;
+typedef KCMD(__KeyValue)		kproto_kv_t;
+typedef KCMD(__Range)			kproto_keyrange_t;
+typedef KCMD(__Batch)			kproto_batch_t;
 
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog         kproto_getlog_t;
-typedef Com__Seagate__Kinetic__Proto__Command__GetLog__Device kgetlog_device_info;
-typedef Com__Seagate__Kinetic__Proto__Command__ManageApplet   kproto_kapplet_t;
-typedef Com__Seagate__Kinetic__Proto__Command__PinOperation   kproto_kpinop_t;
-typedef Com__Seagate__Kinetic__Proto__Command__Security       kproto_ksecurity_t;
+typedef KCMD(__GetLog)			kproto_getlog_t;
+typedef KCMD(__GetLog__Device)		kgetlog_device_info;
+typedef KCMD(__ManageApplet)		kproto_kapplet_t;
+typedef KCMD(__PinOperation)		kproto_kpinop_t;
+typedef KCMD(__Security)		kproto_ksecurity_t;
+typedef KCMD(__Security__ACL)		kproto_kacl_t;
+typedef KCMD(__Security__ACL__Scope)	kproto_kscope_t;
 
 // ------------------------------
 // Aliases for protobuf enums

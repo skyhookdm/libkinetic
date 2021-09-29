@@ -560,15 +560,11 @@ ki_setpin(int ktd, void *pin, size_t pinlen,
  * Perform a round trip SECURITY command.
  */
 kstatus_t
-ki_setacls(int ktd, kacl_t *acl, size_t aclcnt)
+ki_setacls(int ktd, kacl_t *kacl, size_t kaclcnt)
 {
-	/* Currently unsupported */
-	return(K_EREJECTED);
-#if 0 	
 	return(s_security_generic(ktd,
 				  NULL, 0, NULL, 0, -1,
-				  acl, aclcnt));
-#endif
+				  kacl, kaclcnt));
 }
 
 
@@ -619,31 +615,174 @@ create_security_pin_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
 }
 
 
+/* Some defines to shortened the screwy long protobuf names */
+#define pcsec(pcsec)	com__seagate__kinetic__proto__command__security##pcsec
+#define PCSEC(pcsec)	COM__SEAGATE__KINETIC__PROTO__COMMAND__SECURITY##pcsec
+#define kproto_security_init	pcsec(__init)
+#define kproto_kacl_init	pcsec(__acl__init)
+#define kproto_kscope_init	pcsec(__acl__scope__init)
+#define SECSHA1			PCSEC(__ACL__HMACALGORITHM__HmacSHA1)
+
+/**
+ * struct kresult_message
+ * create_security_acl_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
+ *			       kacl_t *kacl, size_t kaclcnt)
+ *
+ * This is the refactoring of the more user friendly kacl_t structures into a
+ * the unreadable protobuf generated structures, so that it can then be
+ * packed into a single byte array. This code is not pretty, especially
+ * because porotobuf ACLs contain repeated message. Repeated messages require
+ * an array of pointers that point to actual messages, both the array and
+ * need to be allocated.  To further simlify the code, this code will not
+ * exploit all of the features of the defined protobuf, kinetic.proto.
+ * One such feature is that an array of permissions can be provided in
+ * each scope to reduce the number of scopes. Arrays of permissions are
+ * not supported in the kacl_scope_t structure, requiring that each
+ * permission have its own scope. There is one execption the special
+ * permission, KAPT_ALL (kas_perm == -1). ALL is not defined in the proto
+ * but is a libkinetic convention.
+ */
+
 struct kresult_message
 create_security_acl_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
-			    kacl_t *acl, size_t aclcnt)
+			    kacl_t *kacl, size_t kaclcnt)
 {
-	kproto_ksecurity_t proto_cmd_body;
+	int i, j, err=0;
+	kacl_t *ka = NULL;
+	kacl_scope_t *kas = NULL;
+	kproto_ksecurity_t psec;
+	kproto_kacl_t   **pacl = NULL;
+	kproto_kscope_t **pscp = NULL;
 	ProtobufCBinaryData command_bytes;
 
-	/* declare protobuf structs on stack */
-	com__seagate__kinetic__proto__command__security__init(&proto_cmd_body);
+#define NALLPERM 10
+	kacl_perm_t allperm[NALLPERM] = { KAPT_GET,    KAPT_PUT,
+					  KAPT_DEL,    KAPT_RANGE,
+					  KAPT_SETUP,  KAPT_P2P,
+					  KAPT_GETLOG, KAPT_SECURITY,
+					  KAPT_POWER,  KAPT_EXEC };
+	struct kresult_message km_fail = { .result_code    = FAILURE,
+					   .result_message = NULL, };
 
-	set_primitive_optional(&proto_cmd_body, securityoptype, KSOT_ACL);
-
-	/* TODO: define ACL and scope messages */
-
-	/* construct command bytes to place into message */
-	command_bytes = create_command_bytes(cmd_hdr, &proto_cmd_body);
- 
-	if (!command_bytes.data) {
-		return (struct kresult_message) {
-			.result_code    = FAILURE,
-			.result_message = NULL,
-		};
+	if (!kacl || !kaclcnt) {
+		return(km_fail);
 	}
 
-	/* return the constructed del message (or failure) */
+	/* declare security protobuf message struct on stack */
+	kproto_security_init(&psec);
+	set_primitive_optional(&psec, securityoptype, KSOT_ACL);
+
+	/*
+	 * A kproto_kacl is a repeated message, which means it is an array
+	 * of kproto_kacl ptrs. Since the number of acls is dynamic, kaclcnt,
+	 * the code needs to allocate the ptr array as well as each acl msg.
+	 * Each kproto_kacl has a kproto_kscope repeated message. Again the
+	 * number of scopes is dynamic, kacl->kacl_scopecnt, so the array
+	 * of kproto_kscope pointers must be allocated and each scope msg
+	 * must be allocated.
+	 *
+	 * Allocate the array of kproto_kacl message ptrs
+	 */
+	pacl = KI_CALLOC(kaclcnt, sizeof(kproto_kacl_t *));
+	if (!pacl) {
+		err = 1;
+		goto csam_ex;
+	}
+
+	/* Now fill it in, s tracks next available scope in the scope array */
+	for (i=0; i<kaclcnt; i++) {
+		ka = &kacl[i];				/* shorthand var */
+
+		/* Allocate the actual kproto_kacl message */
+		pacl[i] = KI_CALLOC(1, sizeof(kproto_kacl_t));
+		if (!pacl[i]) {
+			err = 1;
+			goto csam_ex;
+		}
+
+		/* Setup the protobuf ACL message */
+		kproto_kacl_init(pacl[i]);
+
+		set_primitive_optional(pacl[i], identity, ka->kacl_id);
+		set_bytes_optional(pacl[i], key,
+				   ka->kacl_pass, ka->kacl_passlen);
+		set_primitive_optional(pacl[i], hmacalgorithm, SECSHA1);
+		set_primitive_optional(pacl[i], maxpriority, ka->kacl_maxpri);
+
+		/* Allocate this ACLs array of kproto_kscope message ptrs */
+		pscp = KI_CALLOC(ka->kacl_scopecnt, sizeof(kproto_kscope_t *));
+		if (!pscp) {
+			err = 1;
+			goto csam_ex;
+		}
+
+		/* Setup the scope(s) */
+		for (j=0; j<ka->kacl_scopecnt; j++) {
+			kas = &(ka->kacl_scope[j]);	/* shorthand var */
+
+			/* Allocate the actual kproto_kscope message */
+			pscp[j] = KI_CALLOC(1, sizeof(kproto_kscope_t));
+			if (!pscp[j]) {
+				err = 1;
+				goto csam_ex;
+			}
+
+			/* Setup the protobuf scope message */
+			kproto_kscope_init(pscp[j]);
+
+			set_primitive_optional(pscp[j], offset,
+					       kas->kas_offset);
+			set_bytes_optional(pscp[j], value,
+					   kas->kas_subkey, kas->kas_subkeylen);
+			if (kas->kas_perm == (kacl_perm_t)KAPT_ALL) {
+				pscp[j]->n_permission = NALLPERM;
+				pscp[j]->permission = allperm;
+			} else {
+				pscp[j]->n_permission = 1;
+				pscp[j]->permission = &kas->kas_perm;
+			}
+			set_primitive_optional(pscp[j],
+					       tlsrequired, kas->kas_tlsreq);
+		}
+
+		/* Hang the scope messages on the acl */
+		pacl[i]->n_scope = ka->kacl_scopecnt;
+		pacl[i]->scope   = pscp;
+	}
+
+	/* Hang the acls on the security message */
+	psec.n_acl = kaclcnt;
+	psec.acl   = pacl;
+
+	/* construct command bytes to place into message */
+	command_bytes = create_command_bytes(cmd_hdr, &psec);
+	if (!command_bytes.data) {
+		err = 1;
+		goto csam_ex;
+	}
+
+ csam_ex:
+	/* Cleanup the allocations */
+	pacl = psec.acl;				/* shorthand var */
+	for (i=0; pacl && (i < psec.n_acl); i++) {
+		pscp = pacl[i]->scope;			/* shorthand var */
+		for (j=0; pscp && (j < pacl[i]->n_scope); j++) {
+			/* Free the scope message */
+			if (pscp[j]) KI_FREE(pscp[j]);
+		}
+		/* Free the scopes ptr array */
+		if (pscp) KI_FREE(pscp);
+
+		/* Free the acl message */
+		if (pacl[i]) KI_FREE(pacl[i]);
+	}
+	/* Free the acls ptr array */
+	if (pacl) KI_FREE(pacl);
+
+	if (err)
+		return(km_fail);
+
+	/* return the constructed message (or failure) */
 	return create_message(msg_hdr, command_bytes);
 }
 
