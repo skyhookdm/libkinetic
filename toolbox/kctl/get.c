@@ -30,11 +30,8 @@
 void
 kctl_get_usage(struct kargs *ka)
 {
-	fprintf(
-		stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
-		ka->ka_progname,
-		ka->ka_cmdstr
-	);
+	fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
+		ka->ka_progname, ka->ka_cmdstr);
 
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
 	fprintf(stderr, "\t-m           Get only the metadata\n");

@@ -31,11 +31,8 @@
 void
 kctl_ping_usage(struct kargs *ka)
 {
-	fprintf(
-		stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
-		ka->ka_progname,
-		ka->ka_cmdstr
-	);
+	fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
+		ka->ka_progname, ka->ka_cmdstr);
 
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
 	fprintf(stderr, "\t-n count     Number of key copies to make [1]\n");

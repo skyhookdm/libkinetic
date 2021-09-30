@@ -42,12 +42,8 @@ extern char mjson_copyright[];
 void
 kctl_acl_usage(struct kargs *ka)
 {
-	fprintf(
-		stderr,
-		"Usage: %s [..] %s [CMD OPTIONS] FILENAME\n",
-		ka->ka_progname,
-		ka->ka_cmdstr
-	);
+	fprintf(stderr,	"Usage: %s [..] %s [CMD OPTIONS] FILENAME\n",
+		ka->ka_progname, ka->ka_cmdstr);
 
 	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
 	fprintf(stderr, "\t-j           Show JSON ACL file help/sample\n");
