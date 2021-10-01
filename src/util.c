@@ -77,9 +77,11 @@ ki_keycreate(void *keybuf, size_t keylen)
 void
 ki_keydestroy(struct kiovec *key, size_t keycnt)
 {
+	int i;
+
 	if (!key) { return; }
 
-	for (int i = 0; i < keycnt; i++) {
+	for (i = 0; i < keycnt; i++) {
 		if (!key[i].kiov_base) { continue; }
 
 		KI_FREE(key[i].kiov_base);
@@ -328,9 +330,10 @@ ki_rangecpy(krange_t *dst, krange_t *src)
 		return (NULL);
 	}
 
-	/* Copy keys list, this allocates new space and copies the key */
-	// NOTE: (#50) as far as I've seen, this code is not needed. Deprecating
 	/*
+	 * Copy keys list, this allocates new space and copies the key 
+	 * NOTE: (#50) as far as I've seen, this code is not needed. Deprecating
+	 *
 	dst->kr_keyscnt = src->kr_keyscnt;
 	dst->kr_keys    = ki_keydup(src->kr_keys, src->kr_keyscnt);
 	if (src->kr_keys && !dst->kr_keys) {
@@ -340,7 +343,7 @@ ki_rangecpy(krange_t *dst, krange_t *src)
 	}
 	*/
 
-	// NOTE: (#50) only `extract_keyrange` should touch kr_keys
+	/* NOTE: (#50) only `extract_keyrange` should touch kr_keys */
 	dst->kr_keys    = NULL;
 	dst->kr_keyscnt = 0;
 	dst->kr_flags   = src->kr_flags;
@@ -400,37 +403,51 @@ ki_limits(int ktd)
 }
 
 /**
- * compute_digest defaults to sha1 for the data integrity algorithm. If provided, then
- * `digest_name` will be used. For supported digestnames, reference:
+ * compute_digest defaults to sha1 for the data integrity algorithm. 
+ * If provided, then `digest_name` will be used. For supported digestnames, 
+ * reference:
  * https://github.com/openssl/openssl/blob/master/crypto/objects/objects.txt
  */
-struct kbuffer compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name) {
-    const EVP_MD *digestfn_info;
-    if (!digest_name) { digestfn_info = EVP_get_digestbyname("sha1");      }
-    else              { digestfn_info = EVP_get_digestbyname(digest_name); }
+struct kbuffer
+compute_digest(struct kiovec *io_vec, size_t io_cnt, const char *digest_name)
+{
+	size_t io_ndx;
+	const EVP_MD *digestfn_info;
+	unsigned int   final_digestlen;
+	unsigned char *digest_result;
+	EVP_MD_CTX *mdctx;
+	struct kbuffer digest =  { .base = NULL, .len = 0 };
 
-    unsigned int   final_digestlen;
-    unsigned char *digest_result = (unsigned char *) malloc(sizeof(char) * EVP_MAX_MD_SIZE);
-    if (!digest_result) { return (struct kbuffer) { .base = NULL, .len = 0 }; }
+	if (!digest_name) {
+		digestfn_info = EVP_get_digestbyname("sha1");
+	} else {
+		digestfn_info = EVP_get_digestbyname(digest_name);
+	}
 
-    // initialize context for calculating the digest message
-    EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+	digest_result = (unsigned char *) malloc(sizeof(char) * EVP_MAX_MD_SIZE);
+	if (!digest_result) {
+		return(digest);
+	}
 
-    EVP_DigestInit_ex(mdctx, digestfn_info, NULL);
+	/* initialize context for calculating the digest message */
+	mdctx = EVP_MD_CTX_new();
 
-    // accumulate the digest message into mdctx
-    for (size_t io_ndx = 0; io_ndx < io_cnt; io_ndx++) {
-        EVP_DigestUpdate(mdctx, io_vec[io_ndx].kiov_base, io_vec[io_ndx].kiov_len);
-    }
+	EVP_DigestInit_ex(mdctx, digestfn_info, NULL);
 
-    // finalize the digest message into digest_result
-    EVP_DigestFinal_ex(mdctx, digest_result, &final_digestlen);
+	/* accumulate the digest message into mdctx */
+	for (io_ndx = 0; io_ndx < io_cnt; io_ndx++) {
+		EVP_DigestUpdate(mdctx, io_vec[io_ndx].kiov_base,
+				 io_vec[io_ndx].kiov_len);
+	}
 
-    // cleanup the context
-    EVP_MD_CTX_free(mdctx);
+	/* finalize the digest message into digest_result */
+	EVP_DigestFinal_ex(mdctx, digest_result, &final_digestlen);
 
-    return (struct kbuffer) {
-        .len  = final_digestlen,
-        .base = digest_result,
-    };
+	/* cleanup the context */
+	EVP_MD_CTX_free(mdctx);
+
+	digest.len  = final_digestlen;
+	digest.base = digest_result;
+
+	return (digest);
 }

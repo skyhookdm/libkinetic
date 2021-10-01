@@ -41,23 +41,28 @@ kctl_put_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY VALUE\n",
 		ka->ka_progname, ka->ka_cmdstr);
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-b           Add to current batch [no]\n");
-	fprintf(stderr, "\t-c           Compare and swap [no]\n");
-	fprintf(stderr, "\t-f filename  Construct a value from a file\n");
-	fprintf(stderr, "\t-z len       Construct a length len value of 0s\n");
-	fprintf(stderr, "\t-n count     Number of key copies to make [0]\n");
-	fprintf(stderr, "\t-p [wt|wb|f] Cache policy:\n");
-	fprintf(stderr, "\t             writethrough, writeback, flush [wb]\n");
-	fprintf(stderr, "\t-F           Issue a flush at completion\n");
-	fprintf(stderr, "\t-s sum       Value CRC32 sum (8 hex digits) [0] \n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nWhere, KEY and VALUE are quoted strings that can contain arbitrary\n");
-	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
-	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
 
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+		char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-b           Add to current batch [no]\n\
+	-c           Compare and swap [no]\n\
+	-f filename  Construct a value from a file\n\
+	-z len       Construct a length len value of 0s\n\
+	-n count     Number of key copies to make [0]\n\
+	-p [wt|wb|f] Cache policy:\n\
+	             writethrough, writeback, flush [wb]\n\
+	-F           Issue a flush at completion\n\
+	-s sum       Value CRC32 sum (8 hex digits) [0] \n\
+	-?           Help\n\
+\n\
+Where, KEY and VALUE are quoted strings that can contain arbitrary\n\
+hexidecimal escape sequences to encode binary characters.\n\
+Only \\xHH escape sequences are converted, ex \\xF8.\n\
+If a conversion fails the command terminates.\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 /*

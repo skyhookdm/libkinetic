@@ -30,9 +30,13 @@ kctl_flush_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-?           Help\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 /**

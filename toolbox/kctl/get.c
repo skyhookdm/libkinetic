@@ -33,21 +33,24 @@ kctl_get_usage(struct kargs *ka)
 	fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
 		ka->ka_progname, ka->ka_cmdstr);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-m           Get only the metadata\n");
-	fprintf(stderr, "\t-A           Dumps key/value as ascii w/escape seqs\n");
-	fprintf(stderr, "\t-X           Dumps key/value as both hex and ascii\n");
-	fprintf(stderr, "\t-?           Help\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-m           Get only the metadata\n\
+	-A           Dumps key/value as ascii w/escape seqs\n\
+	-X           Dumps key/value as both hex and ascii\n\
+	-?           Help\n\
+\n\
+Where, KEY is a quoted string that can contain arbitrary\n\
+hexidecimal escape sequences to encode binary characters.\n\
+Only \\xHH escape sequences are converted, ex \\xF8.\n\
+If a conversion fails the command terminates.\n\
+\n\
+By default keys and values are printed as raw strings,\n\
+including special/nonprintable chars\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
 
-	fprintf(stderr, "\nWhere, KEY is a quoted string that can contain arbitrary\n");
-	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
-	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
-
-	fprintf(stderr, "\nBy default keys and values are printed as raw strings,\n");
-	fprintf(stderr, "including special/nonprintable chars\n");
-
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	fprintf(stderr, "%s", msg);
 }
 
 extern const char *ki_ditype_label[];

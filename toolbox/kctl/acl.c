@@ -45,12 +45,16 @@ kctl_acl_usage(struct kargs *ka)
 	fprintf(stderr,	"Usage: %s [..] %s [CMD OPTIONS] FILENAME\n",
 		ka->ka_progname, ka->ka_cmdstr);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-j           Show JSON ACL file help/sample\n");
-	fprintf(stderr, "\t-n           Dry run, read/dump ACLs to be set\n");
-	fprintf(stderr, "\t-c           Show MicroJSON copyright\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-j           Show JSON ACL file help/sample\n\
+	-n           Dry run, read/dump ACLs to be set\n\
+	-c           Show MicroJSON copyright\n\
+	-?           Help\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 #define CMD_USAGE(_ka) kctl_acl_usage(_ka)

@@ -35,12 +35,22 @@ kctl_batch_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-C           Create a batch\n");
-	fprintf(stderr, "\t-S           Submit a batch\n");
-	fprintf(stderr, "\t-A           Abort a batch\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-C           Create a batch\n\
+	-S           Submit a batch\n\
+	-A           Abort a batch\n\
+	-?           Help\n\
+\n\
+Although batch can be issued on the command line, it is only functional\n\
+in interactive mode.  In interactive mode, a batch can be created (-C),\n\
+puts and deletes can be added to the batch via their -b flags and then\n\
+the batch can be submitted(-S) or aborted(-A).\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 /**

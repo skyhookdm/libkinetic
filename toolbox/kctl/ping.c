@@ -34,10 +34,14 @@ kctl_ping_usage(struct kargs *ka)
 	fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
 		ka->ka_progname, ka->ka_cmdstr);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-n count     Number of key copies to make [1]\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-n count     Number of NOOP requests to send [1]\n\
+	-?           Help\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 #define CMD_USAGE(_ka) kctl_ping_usage(_ka)

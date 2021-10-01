@@ -34,15 +34,20 @@ kctl_device_usage(struct kargs *ka)
 	fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] OPERATION\n",
 		ka->ka_progname, ka->ka_cmdstr);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-p <string>  Secret PIN for device operation\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nWhere, OPERATION is one of:\n");
-	fprintf(stderr, "\tlock         Lock the entire device\n");
-	fprintf(stderr, "\tunlock       Unlock the entire device\n");
-	fprintf(stderr, "\terase        Erase all key values\n");
-	fprintf(stderr, "\tise          Instant Secure Erase - not available on all devices\n");
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-p <string>  Secret PIN for device operation\n\
+	-?           Help\n\
+\n\
+Where, OPERATION is one of:\n\
+	lock         Lock the entire device\n\
+	unlock       Unlock the entire device\n\
+	erase        Erase all key values\n\
+	ise          Instant Secure Erase - not available on all devices\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 #define CMD_USAGE(_ka) kctl_device_usage(_ka)

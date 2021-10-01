@@ -32,16 +32,20 @@ b_exists_usage(struct bargs *ba)
 	fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
 		ba->ba_progname,ba->ba_cmdstr);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-?           Help\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-?           Help\n\
+\n\
+Where, KEY is a quoted string that can contain arbitrary\n\
+hexidecimal escape sequences to encode binary characters.\n\
+Only \\xHH escape sequences are converted, ex \\xF8.\n\
+If a conversion fails the command terminates.\n\
+\n\
+To see available COMMON OPTIONS: ./bkv -?\n";
 
-	fprintf(stderr, "\nWhere, KEY is a quoted string that can contain arbitrary\n");
-	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
-	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
-
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	fprintf(stderr, "%s", msg);
 }
+
 
 int
 b_exists(int argc, char *argv[], int ktd, struct bargs *ba)

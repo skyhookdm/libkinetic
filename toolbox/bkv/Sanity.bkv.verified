@@ -46,7 +46,7 @@ an increasing sequence number to KEY until the entire value is
 stored. Ex. if KEY is "mykey", then the first key stored is
 "mykey.000". Used in conjunction with get -n <count>.
 
-To see available COMMON OPTIONS: ./kctl -?
+To see available COMMON OPTIONS: ./bkv -?
 bkv> put -f /etc/hosts -z 3145728 bkv.sanity.4
 **** No -f and -z
 Usage: ./bkv [..] put [CMD OPTIONS] KEY VALUE
@@ -68,7 +68,7 @@ an increasing sequence number to KEY until the entire value is
 stored. Ex. if KEY is "mykey", then the first key stored is
 "mykey.000". Used in conjunction with get -n <count>.
 
-To see available COMMON OPTIONS: ./kctl -?
+To see available COMMON OPTIONS: ./bkv -?
 bkv> echo
 
 bkv> echo Get tests
@@ -146,7 +146,7 @@ conjunction with put -l.
 By default keys and values are printed as raw strings,
 including special/nonprintable chars
 
-To see available COMMON OPTIONS: ./kctl -?
+To see available COMMON OPTIONS: ./bkv -?
 bkv> echo Get error case, flags misuse
 Get error case, flags misuse
 bkv> get -A -X bkv.sanity.put.2
@@ -172,7 +172,7 @@ conjunction with put -l.
 By default keys and values are printed as raw strings,
 including special/nonprintable chars
 
-To see available COMMON OPTIONS: ./kctl -?
+To see available COMMON OPTIONS: ./bkv -?
 bkv> echo
 
 bkv> echo Exists tests
@@ -219,7 +219,7 @@ by appending an increasing sequence number to KEY. Ex. if KEY is
 "mykey", then the first key deleted is "mykey.000". Used in
 conjunction with put -l.
 
-To see available COMMON OPTIONS: ./kctl -?
+To see available COMMON OPTIONS: ./bkv -?
 bkv> echo
 
 bkv> echo Limits test

@@ -13,7 +13,9 @@
  * License for more details.
  *
  */
+#include <locale.h>
 #include <stdio.h>
+#include <wchar.h>      /* wint_t */
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
@@ -48,30 +50,35 @@ kctl_stats_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-T           Enable time statistics\n");
-	fprintf(stderr, "\t-d           Print Delete Statistics\n");
-	fprintf(stderr, "\t-g           Print Get Statistics\n");
-	fprintf(stderr, "\t-p           Print Put Statistics\n");
-	fprintf(stderr, "\t-N           Print Noop/Ping Statistics\n");
-	fprintf(stderr, "\t-c           Clear All Statistics\n");
-	fprintf(stderr, "\t Key Value Statistics Options\n");
-	fprintf(stderr, "\t-k           Print KV Statistics on a key range\n");
-	fprintf(stderr, "\t-h \'k\'|\'v\'[:L:U:B[:R:C]]\n");
-	fprintf(stderr, "\t             Print KV histogram params for either keys or values\n");
-	fprintf(stderr, "\t               L = lower bound; U = upper bound\n");
-	fprintf(stderr, "\t               B = buckets\n");
-	fprintf(stderr, "\t               R = rows to print; C = rows to clip\n");
-	fprintf(stderr, "\t               defaults [k:0:maxkey:50:20:0][v:0:maxval:50:20:0]\n");
-	fprintf(stderr, "\t-C           Print histogram as CSV\n");
-	fprintf(stderr, "\t Key Value Statistics Range Options\n");
-	fprintf(stderr, "\t-n count     Number of keys in range [unlimited]\n");
-	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
-	fprintf(stderr, "\t-S KEY       Range start key, inclusive\n");
-	fprintf(stderr, "\t-e KEY       Range end key, non inclusive\n");
-	fprintf(stderr, "\t-E KEY       Range end key, inclusive\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-T           Enable time statistics\n\
+	-d           Print Delete Statistics\n\
+	-g           Print Get Statistics\n\
+	-p           Print Put Statistics\n\
+	-N           Print Noop/Ping Statistics\n\
+	-c           Clear All Statistics\n\
+	 Key Value Statistics Options\n\
+	-k           Print KV Statistics on a key range\n\
+	-h \'k\'|\'v\'[:L:U:B[:R:C]]\n\
+	             Print KV histogram params for either keys or values\n\
+	               L = lower bound; U = upper bound\n\
+	               B = buckets\n\
+	               R = rows to print; C = rows to clip\n\
+	               defaults [k:0:maxkey:50:20:0][v:0:maxval:50:20:0]\n\
+	-C           Print histogram as CSV\n\
+	 Key Value Statistics Range Options\n\
+	-n count     Number of keys in range [unlimited]\n\
+	-s KEY       Range start key, non inclusive\n\
+	-S KEY       Range start key, inclusive\n\
+	-e KEY       Range end key, non inclusive\n\
+	-E KEY       Range end key, inclusive\n\
+	-?           Help\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 /**
@@ -476,6 +483,7 @@ ascii_histo(struct histo *h, char *msg)
 
 	if (!h) return;
 
+	setlocale(LC_ALL, "");
 	printf("\nHistogram: %s\n", msg);
 
 	/* find the max countin the histo */
@@ -506,22 +514,33 @@ ascii_histo(struct histo *h, char *msg)
 
 		cheight = rheight * r; /* Current Height */
 
+/*
+ * Box drawing unicode characters.
+ * https://en.wikipedia.org/wiki/Box-drawing_character
+ */
+#define HLINE 		0x2500
+#define VLINE 		0x2502
+#define LLOWERCORNER	0x2514
+#define LHALFBLOCK	0x258C
+
 		/* Y Axis */
 		if ((r == (h->h_rows - 1)) || clipped) {
 			if (clipped) {
 				clipped = 0;
-				printf("%9d\u2502", (uint32_t)cheight);
+				printf("%9d%lc", (uint32_t)cheight,
+				       (wint_t)VLINE); 
 			} else {
-				printf("%9d\u2502", maxcnt);
+				printf("%9d%lc", maxcnt,
+				       (wint_t)VLINE);
 			}
 		} else {
-			printf("%9s\u2502", "");
+			printf("%9s%lc", "", (wint_t)VLINE);
 		}
 
 		/* Print the row */
 		for (b = 0; b < h->h_buckets; b++) {
 			if (h->h_histo[b] && h->h_histo[b] >= (int)cheight)
-				printf("\u258C");
+				printf("%lc", (wint_t)LHALFBLOCK);
 			else
 				printf(" ");
 		}
@@ -529,10 +548,11 @@ ascii_histo(struct histo *h, char *msg)
 
 		if (r == 0) {
 			/* X Axis */
-			/* L char */
-			printf("%9d\u2514", 0);
+			/* Left lower corner char */
+			printf("%9d%lc",0, (wint_t)LLOWERCORNER);
 			/* Horizontal line */
-			for (b = 0; b < h->h_buckets; b++) printf("\u2500");
+			for (b = 0; b < h->h_buckets; b++)
+				printf("%lc", (wint_t)HLINE);
 
 			/* X-axis values: 2 rows; tens and ones */
 			printf("\n%-10s", "");

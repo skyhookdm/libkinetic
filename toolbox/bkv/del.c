@@ -32,21 +32,24 @@ b_del_usage(struct bargs *ba)
 	fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] KEY\n",
 		ba->ba_progname,ba->ba_cmdstr);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-n count     Delete <count> keys using common base key, KEY\n");
-	fprintf(stderr, "\t-?           Help\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-n count     Delete <count> keys using common base key, KEY\n\
+	-?           Help\n\
+\n\
+Where, KEY is a quoted string that can contain arbitrary\n\
+hexidecimal escape sequences to encode binary characters.\n\
+Only \\xHH escape sequences are converted, ex \\xF8.\n\
+If a conversion fails the command terminates.\n\
+\n\
+For -n <count>, KEY is the base key and <count> keys are deleted\n\
+by appending an increasing sequence number to KEY. Ex. if KEY is\n\
+\"mykey\", then the first key deleted is \"mykey.000\". Used in\n\
+conjunction with put -l.\n\
+\n\
+To see available COMMON OPTIONS: ./bkv -?\n";
 
-	fprintf(stderr, "\nWhere, KEY is a quoted string that can contain arbitrary\n");
-	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
-	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
-
-	fprintf(stderr, "\nFor -n <count>, KEY is the base key and <count> keys are deleted\n");
-	fprintf(stderr, "by appending an increasing sequence number to KEY. Ex. if KEY is\n");
-	fprintf(stderr, "\"mykey\", then the first key deleted is \"mykey.000\". Used in\n");
-	fprintf(stderr, "conjunction with put -l.\n");
-
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	fprintf(stderr, "%s", msg);
 }
 
 int

@@ -38,27 +38,29 @@ kctl_del_usage(struct kargs *ka)
 		ka->ka_progname, ka->ka_cmdstr
 	);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-b           Add to current batch [no]\n");
-	fprintf(stderr, "\t-c           Compare and delete [no]\n");
-	fprintf(stderr, "\t-p [wt|wb|f] Persist Mode: writethrough, writeback, \n");
-	fprintf(stderr, "\t             flush [writeback]\n");
-	fprintf(stderr, "\t-F           Issue a flush at completion\n");
-	fprintf(stderr, "\t-a           Delete all keys\n");
-	fprintf(stderr, "\t-n count     Number of keys in range [unlimited]\n");
-	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
-	fprintf(stderr, "\t-S KEY       Range start key, inclusive\n");
-	fprintf(stderr, "\t-e KEY       Range end key, non inclusive\n");
-	fprintf(stderr, "\t-E KEY       Range end key, inclusive\n");
-	fprintf(stderr, "\t-?           Help\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-b           Add to current batch [no]\n\
+	-c           Compare and delete [no]\n\
+	-p [wt|wb|f] Persist Mode: writethrough, writeback, \n\
+	             flush [writeback]\n\
+	-F           Issue a flush at completion\n\
+	-a           Delete all keys\n\
+	-n count     Number of keys in range [unlimited]\n\
+	-s KEY       Range start key, non inclusive\n\
+	-S KEY       Range start key, inclusive\n\
+	-e KEY       Range end key, non inclusive\n\
+	-E KEY       Range end key, inclusive\n\
+	-?           Help\n\
+\n\
+Where, KEY is a quoted string that can contain arbitrary\n\
+hexidecimal escape sequences to encode binary characters.\n\
+Only \\xHH escape sequences are converted, ex \\xF8.\n\
+If a conversion fails the command terminates.\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
 
-	// R"foo(....)foo" is a non escape char evaluated string literal
-	fprintf(stderr, "\nWhere, KEY is a quoted string that can contain arbitrary\n");
-	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
-	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
-
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	fprintf(stderr, "%s", msg);
 }
 
 /*

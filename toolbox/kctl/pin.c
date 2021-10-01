@@ -31,16 +31,20 @@
 void
 kctl_pin_usage(struct kargs *ka)
 {
-	fprintf(stderr,	"Usage: %s [..] %s (-e|-l) -n <str> [CMD OPTIONS]\n",
+	fprintf(stderr,	"Usage: %s [..] %s <-e|-l> -n <str> [CMD OPTIONS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-e           Set the Erase PIN\n");
-	fprintf(stderr, "\t-l           Set the Lock PIN\n");
-	fprintf(stderr, "\t-p <string>  Current PIN\n");
-	fprintf(stderr, "\t-n <string>  New PIN\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-e           Set the Erase PIN\n\
+	-l           Set the Lock PIN\n\
+	-p <string>  Current PIN\n\
+	-n <string>  New PIN\n\
+	-?           Help\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 #define CMD_USAGE(_ka) kctl_pin_usage(_ka)

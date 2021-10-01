@@ -127,7 +127,7 @@ usage()
 			kargs.ka_progname);
 	}
 
-	fprintf(stderr,	"CMD [CMD OPTIONS] [KEY [VALUE]]\n");
+	fprintf(stderr,	"[CMD [CMD OPTIONS]]\n");
 	fprintf(stderr, "\nWhere, CMD is any one of these:\n");
 
 
@@ -160,6 +160,8 @@ usage()
 			"CMD -h", "Shows help for CMD");
 		return;
 	}
+
+	fprintf(stderr, "\nIf no CMD is given, interactive mode is invoked.\n");
 
 	/* COMMON options */
 	fprintf(stderr, "\nWhere, COMMON OPTIONS are [default]:\n");

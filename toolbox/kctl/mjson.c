@@ -625,7 +625,7 @@ static int json_internal_read_object(const char *cp,
 		    break;
 		}
 #if defined(__GNUC__) && __GNUC__ >= 7
-	    __attribute__ ((fallthrough))
+	    __attribute__ ((fallthrough));
 #endif /* __GNUC__ >= 7 */
 
 	case post_element:

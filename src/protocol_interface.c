@@ -521,8 +521,9 @@ kstatus_t extract_cmdhdr(struct kresult_message *response_msg,
 
 size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count) {
 	size_t total_len = 0;
+	size_t fragment_ndx;
 
-	for (size_t fragment_ndx = 0; fragment_ndx < fragment_count; fragment_ndx++) {
+	for (fragment_ndx = 0; fragment_ndx < fragment_count; fragment_ndx++) {
 		total_len += byte_fragments[fragment_ndx].kiov_len;
 	}
 
@@ -530,11 +531,13 @@ size_t calc_total_len(struct kiovec *byte_fragments, size_t fragment_count) {
 }
 
 int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames, size_t keycnt) {
+	size_t key_ndx;
+
 	// return error if params don't meet assumptions
 	if (keynames == NULL) { return 0; }
 
 	size_t total_keylen = 0;
-	for (size_t key_ndx = 0; key_ndx < keycnt; key_ndx++) {
+	for (key_ndx = 0; key_ndx < keycnt; key_ndx++) {
 		total_keylen += keynames[key_ndx].kiov_len;
 	}
 
@@ -544,7 +547,7 @@ int keyname_to_proto(ProtobufCBinaryData *proto_keyname, struct kiovec *keynames
 
 	// gather key name fragments into key buffer
 	char *key_buffer_alias = key_buffer;
-	for (size_t key_ndx = 0; key_ndx < keycnt; key_ndx++) {
+	for (key_ndx = 0; key_ndx < keycnt; key_ndx++) {
 		memcpy(
 			key_buffer_alias,
 			keynames[key_ndx].kiov_base,

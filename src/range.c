@@ -40,34 +40,41 @@ typedef struct range_ctx {
 } range_ctx_t;
 
 
-void destroy_range_ctx(void *ctx_ptr) {
-	// If we have nothing to do; return.
+/**
+ * Internal prototypes
+ */
+struct kresult_message
+create_rangekey_message(kmsghdr_t *, kcmdhdr_t *, krange_t *);
+
+
+void
+destroy_range_ctx(void *ctx_ptr)
+{
+	/* If we have nothing to do; return. */
 	if (!ctx_ptr) { return; }
 
 	range_ctx_t *ctx_data      = (range_ctx_t *) ctx_ptr;
 	krange_t    *keyrange_data = ctx_data->keyrange_data;
 
-	// First, release the allocated memory for the protobuf message data
-	if (ctx_data->response_cmd) { destroy_command(ctx_data->response_cmd); }
+	/* First, release the allocated memory for the protobuf message data */
+	if (ctx_data->response_cmd) {
+		destroy_command(ctx_data->response_cmd);
+	}
 
-	// Second, destroy the kiovec array (contains pointers to the list of keys).
-	// NOTE: maybe should figure out why kr_keys is free'd a second time
+	/*
+	 * Second, destroy the kiovec array (contains ptrs to the list of keys).
+	 * NOTE: maybe should figure out why kr_keys is free'd a second time
+	 */
 	if (   keyrange_data
 	    && keyrange_data->kr_keys
 	    && keyrange_data->kr_keys != UNALLOC_VAL) {
 		KI_FREE(keyrange_data->kr_keys);
 	}
 
-	// Finally, free the ctx pointer, itself
+	/* Finally, free the ctx pointer, itself */
 	KI_FREE(ctx_ptr)
 }
 
-
-/**
- * Internal prototypes
- */
-struct kresult_message
-create_rangekey_message(kmsghdr_t *, kcmdhdr_t *, krange_t *);
 
 /**
  * ki_getrange(int ktd, krange_t *kr)
@@ -83,26 +90,26 @@ create_rangekey_message(kmsghdr_t *, kcmdhdr_t *, krange_t *);
 kstatus_t
 ki_getrange(int ktd, krange_t *kr)
 {
-	int rc, n;              // numeric return codes
+	int rc, n;			/* numeric return codes */
 	int freestart=0;		/* bools to remember if ki_range */
 	int freeend=0;			/* needs to free either start or end */
-	kstatus_t krc;            // return code and messages
-	struct kio *kio;          // KTLI compliant req and resp
-	struct kiovec *kiov;      // shortcut var to reduce line lengths
-	struct ktli_config *cf;   // connection configuration
-	uint8_t ppdu[KP_PLENGTH]; // packed PDU (protocol data unit)
-	kpdu_t pdu;		  // req PDU
-	kpdu_t rpdu;              // response PDU
-	kmsghdr_t msg_hdr;        // header of a kinetic `Message`
-	kcmdhdr_t cmd_hdr;        // header of a kinetic `Command`
-	ksession_t *ses;          // reference to the kinetic session
+	kstatus_t krc;			/* return code and messages */
+	struct kio *kio;		/* KTLI compliant req and resp */
+	struct kiovec *kiov;		/* shorthand var to reduce line lens */
+	struct ktli_config *cf;		/* connection configuration */
+	uint8_t ppdu[KP_PLENGTH];	/* packed PDU (protocol data unit) */
+	kpdu_t pdu;			/* request  PDU */
+	kpdu_t rpdu;			/* response PDU */
+	kmsghdr_t msg_hdr;		/* header of a kinetic `Message` */
+	kcmdhdr_t cmd_hdr;		/* header of a kinetic `Command` */
+	ksession_t *ses;		/* reference to the kinetic session */
 	struct kresult_message kmreq, kmresp;
 
 	#if LOGLEVEL >= LOGLEVEL_DEBUG
 	clock_t clock_rangestart = clock();
 	#endif
 
-	// Get KTLI config
+	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
 		debug_printf("range: ktli config\n");
@@ -190,7 +197,7 @@ ki_getrange(int ktd, krange_t *kr)
 		goto rex_req;
 	}
 
-	// hang the Packed PDU buffer, packing occurs later
+	/* hang the Packed PDU buffer, packing occurs later */
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = (void *) &ppdu;
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_len  = KP_PLENGTH;
 
@@ -202,9 +209,11 @@ ki_getrange(int ktd, krange_t *kr)
 	clock_t clock_reqend = clock();
 	#endif
 
-	// pack the message and hang it on the kio
-	// PAK: Error handling
-	// success: rc = 0; failure: rc = 1 (see enum kresult_code)
+	/*
+	 * pack the message and hang it on the kio
+	 * PAK: Error handling
+	 * success: rc = 0; failure: rc = 1 (see enum kresult_code)
+	 */
 	enum kresult_code pack_result = pack_kinetic_message(
 		(kproto_msg_t *) kmreq.result_message,
 		&(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base),
@@ -221,7 +230,6 @@ ki_getrange(int ktd, krange_t *kr)
 	clock_t clock_packend = clock();
 	#endif
 
-	// now that the message length is known, setup the PDU
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
@@ -240,27 +248,27 @@ ki_getrange(int ktd, krange_t *kr)
 	ktli_send(ktd, kio);
 	debug_printf("Sent Kio: %p\n", kio);
 
-	// Wait for the response
+	/* Wait for the response */
 	do {
-		// wait for something to come in
+		/* Wait for something to come in */
 		ktli_poll(ktd, 0);
 
-		// Check to see if it our response
+		/* Check to see if it our response */
 		rc = ktli_receive(ktd, kio);
 		if (rc < 0) {
 			/* Not our response, so try again */
-			if (errno == ENOENT) { continue; }
-
-			/* PAK: need to exit, receive failed */
-			else {
+			if (errno == ENOENT) {
+				continue;
+			} else {
+				/* Need to exit, receive failed */
 				debug_printf("range: kio receive failed\n");
 				krc = K_EINTERNAL;
 				goto rex_sendmsg;
 			}
 		}
 
-		// Got our response
-		else { break; }
+		/* Got our response */
+		break;
 	} while (1);
 
 	/*
@@ -372,21 +380,24 @@ ki_getrange(int ktd, krange_t *kr)
 
 
 struct kresult_message
-create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, krange_t *cmd_data) {
-	// declare protobuf structs on stack
+create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr,
+			krange_t *cmd_data)
+{
+	/* declare protobuf structs on stack */
 	kproto_keyrange_t proto_cmd_body;
+
 	com__seagate__kinetic__proto__command__range__init(&proto_cmd_body);
 
-	// extract from cmd_data into proto_cmd_body
+	/* extract from cmd_data into proto_cmd_body */
 
-	// >> Get start key
+	/* >> Get start key */
 	int extract_startkey_result = keyname_to_proto(
 		&(proto_cmd_body.startkey),
 		cmd_data->kr_start, cmd_data->kr_startcnt
 	);
 	proto_cmd_body.has_startkey = extract_startkey_result;
 
-	// >> Get end key
+	/* >> Get end key */
 	int extract_endkey_result = keyname_to_proto(
 		&(proto_cmd_body.endkey),
 		cmd_data->kr_end, cmd_data->kr_endcnt
@@ -398,50 +409,59 @@ create_rangekey_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, krange_t *cmd_da
 	set_primitive_optional(&proto_cmd_body, reverse          , KR_REVERSE(cmd_data));
 	set_primitive_optional(&proto_cmd_body, maxreturned      , cmd_data->kr_count  );
 
-	// construct command bytes to place into message
+	/* construct command bytes to place into message */
 	ProtobufCBinaryData command_bytes = create_command_bytes(cmd_hdr, &proto_cmd_body);
 
-	// since the command structure goes away after this function, cleanup the allocated key buffer
-	// (see `keyname_to_proto` above)
+	/*
+	 * since the command structure goes away after this function, 
+	 * cleanup the allocated key buffer (see `keyname_to_proto` above)
+	 */
 	KI_FREE(proto_cmd_body.startkey.data);
 	KI_FREE(proto_cmd_body.endkey.data);
 
-	// return the constructed range message (or failure)
+	/* return the constructed range message (or failure) */
 	return create_message(msg_hdr, command_bytes);
 }
 
-kstatus_t extract_keyrange(struct kresult_message *resp_msg, krange_t *kr_data){
-	// assume failure status
-	kstatus_t krc = K_EINTERNAL;
-	kproto_msg_t *kr_resp_msg;
 
-	// commandbytes should exist, but we should probably be thorough
+kstatus_t
+extract_keyrange(struct kresult_message *resp_msg, krange_t *kr_data)
+{
+	kstatus_t krc = K_EINTERNAL;	/* assume failure status */
+	kproto_msg_t *kr_resp_msg;
+	kproto_cmd_t *resp_cmd;
+	range_ctx_t *ctx_pair;
+	size_t i;
+
+	/* commandbytes should exist, but we should probably be thorough */
 	kr_resp_msg = (kproto_msg_t *) resp_msg->result_message;
 	if (!kr_resp_msg->has_commandbytes) {
 		debug_printf("extract_keyrange: no resp cmd\n");
 		return krc;
 	}
 
-	// unpack the command bytes
-	kproto_cmd_t *resp_cmd = unpack_kinetic_command(kr_resp_msg->commandbytes);
+	/* unpack the command bytes */
+	resp_cmd = unpack_kinetic_command(kr_resp_msg->commandbytes);
 	if (!resp_cmd) {
 		debug_printf("extract_keyrange: resp cmd unpack\n");
 		return krc;
 	}
 
-	// try allocating this first to simplify the error modes;
-	// on error, only the unpacked command has been allocated so far.
-	range_ctx_t *ctx_pair = (range_ctx_t *) KI_MALLOC(sizeof(range_ctx_t));
+	/*
+	 * try allocating this first to simplify the error modes;
+	 * on error, only the unpacked command has been allocated so far.
+	 */
+	ctx_pair = (range_ctx_t *) KI_MALLOC(sizeof(range_ctx_t));
 	if (!ctx_pair) {
 		destroy_command(resp_cmd);
 		debug_printf("extract_keyrange: unable to allocate context\n");
 		return krc;
 	}
 
-	// make sure we don't erroneously try to cleanup garbage pointers
+	/* make sure we don't erroneously try to cleanup garbage pointers */
 	memset(ctx_pair, 0, sizeof(range_ctx_t));
 
-	// extract the status. On failure, skip to cleanup
+	/* extract the status. On failure, skip to cleanup */
 	krc = extract_cmdstatus_code(resp_cmd);
 	if (krc != K_OK) {
 		debug_printf("extract_keyrange: status\n");
@@ -458,18 +478,23 @@ kstatus_t extract_keyrange(struct kresult_message *resp_msg, krange_t *kr_data){
 		,.keyrange_data = kr_data
 	};
 
-	// Since everything seemed successful, let's pop this data on our cleaning stack
+	/*
+	 * Since everything seemed successful,
+	 * let's pop this data on our cleaning stack
+	 */
 	krc = ki_addctx(kr_data, (void *) ctx_pair, destroy_range_ctx);
 	if (krc != K_OK) {
 		debug_printf("extract_keyrange: failed to add context\n");
 		goto extract_rex;
 	}
 
-	// ------------------------------
-	// begin extraction of command data
-    // NOTE: We do not extract the start or end keys, so those fields are maintained by the caller.
-    //       We only need to manage the returned key list.
-	// check if there's command data to parse, otherwise cleanup and exit
+	/*
+	 * begin extraction of command data
+	 * NOTE: We do not extract the start or end keys,
+	 * so those fields are maintained by the caller.
+	 * We only need to manage the returned key list.
+	 * check if there's command data to parse, otherwise cleanup and exit
+	 */
 	kproto_keyrange_t *resp = resp_cmd->body->range;
 	size_t kr_keys_bytelen  = sizeof(struct kiovec) * resp->n_keys;
 
@@ -481,7 +506,7 @@ kstatus_t extract_keyrange(struct kresult_message *resp_msg, krange_t *kr_data){
 		goto extract_rex;
 	}
 
-	for (size_t i = 0; i < resp->n_keys; i++) {
+	for (i = 0; i < resp->n_keys; i++) {
 		kr_data->kr_keys[i].kiov_base = resp->keys[i].data;
 		kr_data->kr_keys[i].kiov_len  = resp->keys[i].len;
 	}
@@ -492,7 +517,7 @@ kstatus_t extract_keyrange(struct kresult_message *resp_msg, krange_t *kr_data){
 	debug_printf("extract_keyrange: error exit\n");
 	destroy_range_ctx(ctx_pair);
 
-	// Just make sure we don't return an ok message
+	/* Just make sure we don't return an ok message */
 	if (krc == K_OK) { krc = K_EINTERNAL; }
 
 	return krc;

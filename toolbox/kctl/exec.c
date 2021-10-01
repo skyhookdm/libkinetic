@@ -38,33 +38,37 @@ kctl_exec_usage(struct kargs *ka)
         fprintf(stderr,
 		"Usage: %s [..] %s [CMD OPTIONS] <FN KEY> [ARGS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
-	fprintf(stderr, "\nExecute the function stored in FN KEY\n");
-	fprintf(stderr, "Where, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-n count     Number of fn keys\n");
-	fprintf(stderr, "\t-g key       Get key as part of the result\n");
-	fprintf(stderr, "\t-t [native | llvm | java | ebpf]\n");
-	fprintf(stderr, "\t-A           Dumps key/value as ascii w/escape seqs\n");
-	fprintf(stderr, "\t-X           Dumps key/value as both hex and ascii\n");
-	fprintf(stderr, "\t             Function type [native]\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "Where, FN KEY is the key of the function to be executed.\n");
-	fprintf(stderr, "FN KEY is a string that can contain ASCII chars and arbitrary\n");
-	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
-	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
 
-	fprintf(stderr, "\nIf -n count is provided, then FN KEY is used as a basekey\n");
-	fprintf(stderr, "count times with the copies suffixed with an index, 0 through [count - 1]\n");
-	fprintf(stderr, "The suffix has a leading '.' and is zero padded with a length of %d.\n", MAX_DIGITS);
-	fprintf(stderr, "ex kctl exec -n 2 myfunc yields myfunc.%0*d and myfunc.%0*d \n", MAX_DIGITS, 0, MAX_DIGITS, 1);
-	fprintf(stderr, "The values from these constructed keys will be concatenated in\n");
-	fprintf(stderr, "the order provided to create a single executable function\n");
-	
+	char msg[] = "\n\
+Execute the function stored in FN KEY\n\
+Where, CMD OPTIONS are [default]:\n\
+	-n count     Number of fn keys\n\
+	-g key       Get key as part of the result\n\
+	-t [native | llvm | java | ebpf]\n\
+	             Function type [native]\n\
+	-A           Dumps key/value as ascii w/escape seqs\n\
+	-X           Dumps key/value as both hex and ascii\n\
+	-?           Help\n\
+\n\
+Where, FN KEY is the key of the function to be executed.\n\
+FN KEY is a string that can contain ASCII chars and arbitrary\n\
+hexidecimal escape sequences to encode binary characters.\n\
+Only \\xHH escape sequences are converted, ex \\xF8.\n\
+If a conversion fails the command terminates.\n\
+\n\
+If -n count is provided, then FN KEY is used as a basekey\n\
+count times with the copies suffixed with an index, 0 through [count - 1]\n\
+The suffix has a leading '.' and is zero padded with a length of 4.\n\
+ex kctl exec -n 2 myfunc yields myfunc.0000 and myfunc.0001 \n\
+The values from these constructed keys will be concatenated in\n\
+the order provided to create a single executable function\n\
+\n\
+ARGS is an optional space separated list of arguments which are\n\
+passed unaltered to the FN.\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
 
-	fprintf(stderr, "\nARGS is a space separated list of arguments which are\n");
-	fprintf(stderr, "passed unaltered to the FN.\n");
-
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	fprintf(stderr, "%s", msg);
 }
 
 

@@ -13,7 +13,9 @@
  * License for more details.
  *
  */
+#include <locale.h>
 #include <stdio.h>
+#include <wchar.h>      /* wint_t */
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -38,18 +40,23 @@ kctl_info_usage(struct kargs *ka)
 {
         fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-a           Show All [default]\n");
-	fprintf(stderr, "\t-c           Show Configuartion\n");
-	fprintf(stderr, "\t-C           Show Capacities\n");
-	fprintf(stderr, "\t-L           Show Limits\n");
-	fprintf(stderr, "\t-m           Show Most [-cCLOTU] (no messages)\n");
-	fprintf(stderr, "\t-M           Show Messages (can be large)\n");
-	fprintf(stderr, "\t-O           Show Operation Stats\n");
-	fprintf(stderr, "\t-T           Show Tempratures\n");
-	fprintf(stderr, "\t-U           Show Utilizations\n");
-	fprintf(stderr, "\t-?           Help\n");
-	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
+
+		char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-a           Show All [default]\n\
+	-c           Show Configuartion\n\
+	-C           Show Capacities\n\
+	-L           Show Limits\n\
+	-m           Show Most [-cCLOTU] (no messages)\n\
+	-M           Show Messages (can be large)\n\
+	-O           Show Operation Stats\n\
+	-T           Show Tempratures\n\
+	-U           Show Utilizations\n\
+	-?           Help\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
+
+	fprintf(stderr, "%s", msg);
 }
 
 /**
@@ -263,13 +270,15 @@ kctl_dump(kgetlog_t *glog)
 	if (temps) {
 		ktemperature_t *t = glog->kgl_temp;
 		int i;
+
+		setlocale(LC_ALL, "");
 		printf("Temperatures:\n");
 		for (i=0; i<glog->kgl_tempcnt; i++) {
-			printf("  %-18s: %.0f\u00B0C\n",
-			       t[i].kt_name, t[i].kt_cur);
-			printf("  %-18s: %.0f/%.0f/%.0f\u00B0C\n",
+			printf("  %-18s: %.0f%lc\n",
+			       t[i].kt_name, t[i].kt_cur, (wint_t)0x00B0);
+			printf("  %-18s: %.0f/%.0f/%.0f%lc\n",
 			       "  Min/Max/Target", t[i].kt_min,
-			       t[i].kt_max,t[i].kt_target);
+			       t[i].kt_max,t[i].kt_target, (wint_t)0x00B0);
 		}
 		printf("\n");
 	}

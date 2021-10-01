@@ -339,8 +339,9 @@ void extract_to_command_body(kproto_getlog_t *proto_getlog, kgetlog_t *cmd_data)
 /*
  * Externally accessible functions
  */
-// TODO: test
-struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kgetlog_t *cmd_body) {
+struct kresult_message
+create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr, kgetlog_t *cmd_body)
+{
 
 	// declare protobuf structs on stack
 	kproto_getlog_t proto_cmd_body;
@@ -355,7 +356,12 @@ struct kresult_message create_getlog_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_
 	return create_message(msg_hdr, command_bytes);
 }
 
-int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilization_t **util_data) {
+
+int
+extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilization_t **util_data)
+{
+	int ndx;
+
 	getlog_data->kgl_utilcnt = n_utils;
 
 	if (!n_utils) {
@@ -366,7 +372,7 @@ int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilizat
 	getlog_data->kgl_util = (kutilization_t *) KI_MALLOC(sizeof(kutilization_t) * n_utils);
 	if (getlog_data->kgl_util == NULL) { return -1; }
 
-	for (int ndx = 0; ndx < n_utils; ndx++) {
+	for (ndx = 0; ndx < n_utils; ndx++) {
 		getlog_data->kgl_util[ndx].ku_name = util_data[ndx]->name;
 		extract_primitive_optional(getlog_data->kgl_util[ndx].ku_value, util_data[ndx], value);
 	}
@@ -374,7 +380,12 @@ int extract_utilizations(kgetlog_t *getlog_data, size_t n_utils, kproto_utilizat
 	return 0;
 }
 
-int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperature_t **temp_data) {
+
+int
+extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperature_t **temp_data)
+{
+	int ndx;
+
 	getlog_data->kgl_tempcnt = n_temps;
 
 	// no temperatures to extract
@@ -386,7 +397,7 @@ int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperat
 	getlog_data->kgl_temp = (ktemperature_t *) KI_MALLOC(sizeof(ktemperature_t) * n_temps);
 	if (getlog_data->kgl_temp == NULL) { return -1; }
 
-	for (int ndx = 0; ndx < n_temps; ndx++) {
+	for (ndx = 0; ndx < n_temps; ndx++) {
 		getlog_data->kgl_temp[ndx].kt_name = temp_data[ndx]->name;
 
 		// use convenience macros for optional fields
@@ -399,7 +410,12 @@ int extract_temperatures(kgetlog_t *getlog_data, size_t n_temps, kproto_temperat
 	return 0;
 }
 
-int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics_t **stat_data) {
+
+int
+extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics_t **stat_data)
+{
+	int ndx;
+
 	getlog_data->kgl_statcnt = n_stats;
 
 	// no stats to extract
@@ -411,7 +427,7 @@ int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics
 	getlog_data->kgl_stat = (kstatistics_t *) KI_MALLOC(sizeof(kstatistics_t) * n_stats);
 	if (getlog_data->kgl_stat == NULL) { return -1; }
 
-	for (int ndx = 0; ndx < n_stats; ndx++) {
+	for (ndx = 0; ndx < n_stats; ndx++) {
 		// use convenience macros for optional fields
 		extract_primitive_optional(getlog_data->kgl_stat[ndx].ks_mtype     , stat_data[ndx], messagetype);
 		extract_primitive_optional(getlog_data->kgl_stat[ndx].ks_cnt       , stat_data[ndx], count);
@@ -422,7 +438,12 @@ int extract_statistics(kgetlog_t *getlog_data, size_t n_stats, kproto_statistics
 	return 0;
 }
 
-int extract_interfaces(kinterface_t **getlog_if_data, size_t n_ifs, kproto_interface_t **if_data) {
+
+int
+extract_interfaces(kinterface_t **getlog_if_data, size_t n_ifs, kproto_interface_t **if_data)
+{
+	int if_ndx;
+
 	if (!n_ifs) {
 		*getlog_if_data = NULL;
 		return 0;
@@ -431,7 +452,7 @@ int extract_interfaces(kinterface_t **getlog_if_data, size_t n_ifs, kproto_inter
 	*getlog_if_data = (kinterface_t *) KI_MALLOC(sizeof(kinterface_t) * n_ifs);
 	if (*getlog_if_data == NULL) { return -1; }
 
-	for (int if_ndx = 0; if_ndx < n_ifs; if_ndx++) {
+	for (if_ndx = 0; if_ndx < n_ifs; if_ndx++) {
 		(*getlog_if_data)[if_ndx].ki_name = if_data[if_ndx]->name;
 
 		if (if_data[if_ndx]->has_mac) {
@@ -448,7 +469,10 @@ int extract_interfaces(kinterface_t **getlog_if_data, size_t n_ifs, kproto_inter
 	return 0;
 }
 
-int extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config) {
+
+int
+extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config)
+{
 	// nothing to extract
 	if (config == NULL) {
 		// NOTE: this may be repetitive
@@ -493,7 +517,10 @@ int extract_configuration(kgetlog_t *getlog_data, kproto_configuration_t *config
 	return 0;
 }
 
-void extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits) {
+
+void
+extract_limits(kgetlog_t *getlog_data, kproto_limits_t *limits)
+{
 	// NOTE: This is probably repetitive
 	memset(&(getlog_data->kgl_limits), 0, sizeof(klimits_t));
 

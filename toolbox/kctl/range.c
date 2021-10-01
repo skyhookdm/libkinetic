@@ -34,34 +34,29 @@ kctl_range_usage(struct kargs *ka)
 		,ka->ka_progname, ka->ka_cmdstr
 	);
 
-	fprintf(stderr, "\nWhere, CMD OPTIONS are [default]:\n");
-	fprintf(stderr, "\t-n count     Number of keys in range [unlimited]\n");
-	fprintf(stderr, "\t-s KEY       Range start key, non inclusive\n");
-	fprintf(stderr, "\t-S KEY       Range start key, inclusive\n");
-	fprintf(stderr, "\t-e KEY       Range end key, non inclusive\n");
-	fprintf(stderr, "\t-E KEY       Range end key, inclusive\n");
-	fprintf(stderr, "\t-r           Reverse the order\n");
-	fprintf(stderr, "\t-A           Show keys as encoded ascii strings\n");
-	fprintf(stderr, "\t-X           Show keys as hex and ascii\n");
-	fprintf(stderr, "\t-?           Help\n");
+	char msg[] = "\n\
+Where, CMD OPTIONS are [default]:\n\
+	-n count     Number of keys in range [unlimited]\n\
+	-s KEY       Range start key, non inclusive\n\
+	-S KEY       Range start key, inclusive\n\
+	-e KEY       Range end key, non inclusive\n\
+	-E KEY       Range end key, inclusive\n\
+	-r           Reverse the order\n\
+	-A           Show keys as encoded ascii strings\n\
+	-X           Show keys as hex and ascii\n\
+	-?           Help\n\
+\n\
+Where, KEY is a quoted string that can contain arbitrary\n\
+hexidecimal escape sequences to encode binary characters.\n\
+Only \\xHH escape sequences are converted, ex \\xF8.\n\
+If a conversion fails the command terminates.\n\
+\n\
+If no start (-sS] or stop (-sS) key is given, it is\n\
+equivalent to: -S <First Key> and -E <Last Key>\n\
+\n\
+To see available COMMON OPTIONS: ./kctl -?\n";
 
-	fprintf(stderr,
-		"\nWhere, KEY is a quoted string that can contain arbitrary\n");
-	fprintf(stderr,
-		"hexidecimal escape sequences to encode binary characters.\n");
-
-	// R"foo(....)foo" is a non escape char evaluated string literal 
-	fprintf(stderr,
-		R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
-	fprintf(stderr,
-		"\nIf a conversion fails the command terminates.\n");
-
-	fprintf(stderr,
-		"\nIf no start (-sS] or stop (-sS) key is given, it is\n");
-	fprintf(stderr,
-		"equivalent to: -S <First Key> and -E <Last Key>\n");
-	fprintf(stderr,
-		"\nTo see available COMMON OPTIONS: ./kctl -?\n");
+	fprintf(stderr, "%s", msg);
 }
 
 int
@@ -318,7 +313,7 @@ kctl_range(int argc, char *argv[], int ktd, struct kargs *ka)
 			return (0);
 		}
 
-		for (int i = 0; i < kr->kr_keyscnt; i++) {
+		for (i = 0; i < kr->kr_keyscnt; i++) {
 			if (ka->ka_verbose) {
 				printf("%u: ", i);
 			}
