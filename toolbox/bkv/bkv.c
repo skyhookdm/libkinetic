@@ -60,7 +60,7 @@ extern int b_put(int argc, char *argv[], int kts, struct bargs *ba);
 extern int b_del(int argc, char *argv[], int kts, struct bargs *ba);
 extern int b_exists(int argc, char *argv[], int kts, struct bargs *ba);
 extern int b_limits(int argc, char *argv[], int kts, struct bargs *ba);
-int kctl_nohandler(int argc, char *argv[], int kts, struct bargs *ba);
+int bkv_nohandler(int argc, char *argv[], int kts, struct bargs *ba);
 
 struct btable {
 	enum bkv_cmd btab_cmd;
@@ -77,7 +77,7 @@ struct btable {
 	{ BKV_LIMITS,	"limits",	"Display BKV limits",	&b_limits},
 
 	/* End of Table (EOT) KEEP LAST */
-	{ BKV_EOT, "nocmd", "nohelp", &kctl_nohandler},
+	{ BKV_EOT, "nocmd", "nohelp", &bkv_nohandler},
 };
 
 int	bkv(int, char *[], struct bargs *ba);
@@ -152,11 +152,12 @@ usage()
         exit(2);
 }
 
+
 // Yes or no user input
 void
 print_args(struct bargs *ba)
 {
-#define PA_LABEL_WIDTH  "12"
+#define PA_LABEL_WIDTH  "16"
 	printf("%" PA_LABEL_WIDTH "s kinetic%s://%ld:%s@%s:%s/%s\n", "URL:",
 	       ba->ba_cinfo.bkvo_usetls?"s":"",
 	       ba->ba_cinfo.bkvo_id, ba->ba_cinfo.bkvo_pass,
@@ -164,8 +165,8 @@ print_args(struct bargs *ba)
 
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Host:", ba->ba_cinfo.bkvo_host);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Port:", ba->ba_cinfo.bkvo_port);
-	printf("%" PA_LABEL_WIDTH "s %ld\n","UserID:", ba->ba_cinfo.bkvo_id);
-	printf("%" PA_LABEL_WIDTH "s %s\n", "UserPass:",
+	printf("%" PA_LABEL_WIDTH "s %ld\n","User ID:", ba->ba_cinfo.bkvo_id);
+	printf("%" PA_LABEL_WIDTH "s %s\n", "User Password:",
 	       ba->ba_cinfo.bkvo_pass);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Use TLS:",
 	       ba->ba_cinfo.bkvo_usetls);
@@ -187,6 +188,72 @@ print_version()
 }
 
 
+/**
+ * Permit several BKV environment variables to override the defaults
+ */
+void
+bkv_getenv(struct bargs *ba)
+{
+	char *val, *lval, *cp;
+	int i, port=0;
+	uint32_t tls;
+	int64_t id; 
+
+	if ((val = getenv("BKV_USER"))) {
+		id = strtoll(optarg, &cp, 0);
+		if (!cp || *cp != '\0') {
+			fprintf(stderr,
+				"*** Warning: Invalid USER in environment\n");
+		} else {
+			ba->ba_cinfo.bkvo_id = id;
+		}
+	}
+		
+	if ((val = getenv("BKV_PASS"))) {
+		ba->ba_cinfo.bkvo_pass = val;
+	}
+		
+	if ((val = getenv("BKV_HOST"))) {
+		ba->ba_cinfo.bkvo_host = val;
+	}
+		
+	if ((val = getenv("BKV_PORT"))) {
+		ba->ba_cinfo.bkvo_port = val;
+		port = 1;
+	}
+		
+	if ((val = getenv("BKV_USETLS"))) {
+		/* Support either 0/nonzero or true/false/yes/no */
+		tls = (strtol(val, &cp, 0)?1:0);
+		if (!cp || *cp != '\0') {
+			/* Failed numeric check, look for true/false/yes/no */
+			lval = strdup(val);
+
+			/* Canonicalize */
+			for (i=0; i<strlen(val); i++)
+				lval[i] = tolower(val[i]);
+			
+			if (!strcmp(lval, "true") || !strcmp(lval, "yes"))
+				ba->ba_cinfo.bkvo_usetls = 1;
+			else if (!strcmp(lval, "false") || !strcmp(lval, "no"))
+				ba->ba_cinfo.bkvo_usetls = 0;
+			else
+				fprintf(stderr,
+					"*** Warning: Invalid USETLS in environment\n");
+			free(lval);
+		} else {
+			/* Only set it if it was a good numeric conversion */
+			ba->ba_cinfo.bkvo_usetls = tls;
+		}
+
+		/*
+		 * As a convenience, adjust the default port
+		 * to the TLS port is none has been provided.
+		 */
+		if (ba->ba_cinfo.bkvo_usetls && !port) 
+			bargs.ba_cinfo.bkvo_port = tlsport;
+	}
+}
 int
 main(int argc, char *argv[])
 {
@@ -197,7 +264,9 @@ main(int argc, char *argv[])
 	int          i, rc, pflag=0;
 
 	bargs.ba_progname = argv[0];
-	
+
+	bkv_getenv(&bargs);
+
 	while ((c = getopt(argc, argv, "+c:f:h:m:p:qsu:tvVy?")) != (char)EOF) {
 		switch (c) {
 		case 'h':
@@ -579,7 +648,7 @@ b_interactive(struct bargs *ba)
 	}
 
 	if (ba->ba_verbose)
-		printf("\nkctl exiting\n");
+		printf("\nbkv exiting\n");
 
 	bkv_close(ktd);
 
@@ -587,7 +656,7 @@ b_interactive(struct bargs *ba)
 }
 
 int
-kctl_nohandler(int argc, char *argv[], int kts, struct bargs *ba)
+bkv_nohandler(int argc, char *argv[], int kts, struct bargs *ba)
 {
 
 	fprintf( stderr,  "Illegal call - Should never be called\n");

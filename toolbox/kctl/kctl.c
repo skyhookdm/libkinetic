@@ -43,7 +43,7 @@ struct kargs kargs = {
 	.ka_val		= (char *)"<none>",
 	.ka_vallen	= 6,
 	.ka_user 	= 1,
-	.ka_hkey	= (char *)"asdfasdf",
+	.ka_pass	= (char *)"asdfasdf",
 	.ka_host	= (char *)"127.0.0.1",
 	.ka_port	= stdport,
 	.ka_usetls	= 0,
@@ -170,7 +170,7 @@ usage()
 	fprintf(stderr, "\t-p port      Port number [%s]\n", kargs.ka_port);
 	fprintf(stderr, "\t-s           Use SSL [no]\n");
 	fprintf(stderr, "\t-u id        User ID [%ld]\n", kargs.ka_user);
-	fprintf(stderr,	"\t-P pass      User Password [%s]\n", kargs.ka_hkey);
+	fprintf(stderr,	"\t-P pass      User Password [%s]\n", kargs.ka_pass);
 	fprintf(stderr, "\t-c version   Client Cluster Version [0]\n");
 	fprintf(stderr,	"\t-T timeout   Timeout in seconds [%d]\n",
 		kargs.ka_timeout);
@@ -192,15 +192,15 @@ usage()
 void
 print_args(struct kargs *ka)
 {
-#define PA_LABEL_WIDTH  "12"
+#define PA_LABEL_WIDTH  "16"
 	printf("%" PA_LABEL_WIDTH "s kinetic%s://%ld:%s@%s:%s/%s\n", "URL:",
-	       ka->ka_usetls?"s":"", ka->ka_user, ka->ka_hkey,
+	       ka->ka_usetls?"s":"", ka->ka_user, ka->ka_pass,
 	       ka->ka_host, ka->ka_port, ka->ka_cmdstr);
 
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Host:", ka->ka_host);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Port:", ka->ka_port);
-	printf("%" PA_LABEL_WIDTH "s %ld\n","UserID:", ka->ka_user);
-	printf("%" PA_LABEL_WIDTH "s %s\n", "HMAC Key:", ka->ka_hkey);
+	printf("%" PA_LABEL_WIDTH "s %ld\n","User ID:", ka->ka_user);
+	printf("%" PA_LABEL_WIDTH "s %s\n", "User Password:", ka->ka_pass);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Use TLS:", ka->ka_usetls);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Timeout:", ka->ka_timeout);
 	printf("%" PA_LABEL_WIDTH "s %ld\n", "Cluster Version:",
@@ -239,6 +239,76 @@ print_version()
 }
 
 
+/**
+ * Permit several KCTL environment variables to override the defaults
+ */
+void
+kctl_getenv(struct kargs *ka)
+{
+	char *val, *lval, *cp;
+	int i, port=0;
+	uint32_t tls;
+	int64_t user;
+
+	if ((val = getenv("KCTL_USER"))) {
+		user = strtoll(optarg, &cp, 0);
+		if (!cp || *cp != '\0') {
+			fprintf(stderr,
+				"*** Warning: Invalid USER in environment\n");
+		} else {
+			/* Only set it if it was a good numeric conversion */
+			ka->ka_user = user;
+		}
+	}
+		
+	if ((val = getenv("KCTL_PASS"))) {
+		ka->ka_pass = val;
+	}
+		
+	if ((val = getenv("KCTL_HOST"))) {
+		ka->ka_host = val;
+	}
+		
+	if ((val = getenv("KCTL_PORT"))) {
+		ka->ka_port = val;
+		port = 1;
+	}
+
+	/* Order is import, usetls check must follow port check */
+	if ((val = getenv("KCTL_USETLS"))) {
+		/* Support either 0/nonzero or true/false/yes/no */
+		tls = (strtol(val, &cp, 0)?1:0);
+		if (!cp || *cp != '\0') {
+			/* Failed numeric check, look for true/false/yes/no */
+			lval = strdup(val);
+
+			/* Canonicalize */
+			for (i=0; i<strlen(val); i++)
+				lval[i] = tolower(val[i]);
+			
+			if (!strcmp(lval, "true") || !strcmp(lval, "yes"))
+				ka->ka_usetls = 1;
+			else if (!strcmp(lval, "false") || !strcmp(lval, "no"))
+				ka->ka_usetls = 0;
+			else
+				fprintf(stderr,
+					"*** Warning: Invalid USETLS in environment\n");
+			free(lval);
+		} else {
+			/* Only set it if it was a good numeric conversion */
+			ka->ka_usetls = tls;
+		}
+
+		/*
+		 * As a convenience, adjust the default port
+		 * to the TLS port is none has been provided.
+		 */
+		if (ka->ka_usetls && !port) 
+			ka->ka_port = tlsport;
+	}
+}
+
+
 int
 main(int argc, char *argv[])
 {
@@ -250,6 +320,8 @@ main(int argc, char *argv[])
 
 	kargs.ka_progname = argv[0];
 
+	kctl_getenv(&kargs);
+		
 	while ((c = getopt(argc, argv, "+c:f:h:P:p:qsSu:tvVy?")) != (char)EOF) {
 		switch (c) {
 		case 'h':
@@ -257,7 +329,7 @@ main(int argc, char *argv[])
 			break;
 
 		case 'P':
-			kargs.ka_hkey = optarg;
+			kargs.ka_pass = optarg;
 			break;
 
 		case 'p':
@@ -383,10 +455,8 @@ kctl_start(struct kargs *ka)
 {
 	int ktd;
 
-	ktd = ki_open(
-		ka->ka_host, ka->ka_port,
-		ka->ka_usetls, ka->ka_user, ka->ka_hkey
-	);
+	ktd = ki_open(ka->ka_host, ka->ka_port,
+		      ka->ka_usetls, ka->ka_user, ka->ka_pass);
 
 	if (ktd < 0) {
 		fprintf(stderr, "%s: Connection Failed\n", ka->ka_progname);
@@ -395,7 +465,8 @@ kctl_start(struct kargs *ka)
 
 	ka->ka_limits = ki_limits(ktd);
 	if (!ka->ka_limits.kl_keylen) {
-		fprintf(stderr, "%s: Unable to get kinetic limits\n", ka->ka_progname);
+		fprintf(stderr, "%s: Unable to get kinetic limits\n",
+			ka->ka_progname);
 		return(-1);
 	}
 

@@ -57,7 +57,7 @@ struct kargs {
 	char		*ka_val;	/* raw unencoded value buffer */
 	size_t		ka_vallen;	/* raw unencoded value buffer len */
 	int64_t		ka_user;	/* connection user ID  */
-	char		*ka_hkey;	/* connection user ID password */
+	char		*ka_pass;	/* connection user ID password */
 	char		*ka_host;	/* connection host  */
 	char 		*ka_port;	/* connection port, ex "8123", */
 					/* 8443 (TLS), "kinetic" */
