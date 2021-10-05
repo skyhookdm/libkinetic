@@ -200,7 +200,7 @@ bkv_getenv(struct bargs *ba)
 	int64_t id; 
 
 	if ((val = getenv("BKV_USER"))) {
-		id = strtoll(optarg, &cp, 0);
+		id = strtoll(val, &cp, 0);
 		if (!cp || *cp != '\0') {
 			fprintf(stderr,
 				"*** Warning: Invalid USER in environment\n");

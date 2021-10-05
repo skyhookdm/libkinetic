@@ -251,7 +251,7 @@ kctl_getenv(struct kargs *ka)
 	int64_t user;
 
 	if ((val = getenv("KCTL_USER"))) {
-		user = strtoll(optarg, &cp, 0);
+		user = strtoll(val, &cp, 0);
 		if (!cp || *cp != '\0') {
 			fprintf(stderr,
 				"*** Warning: Invalid USER in environment\n");
