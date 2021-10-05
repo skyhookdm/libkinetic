@@ -36,7 +36,8 @@ hexdump(const void* data, size_t size)
 	char offset[10];	/* Byte Offset string */
 	char line[81];		/* Current line */
 	char lline[81];		/* Last line for comparison */
-	char *sep = " |  ";	/* Seporator string */ 
+#define SEPSTR " |  "
+	char sep[81];		/* Built separator string */
 	size_t lines, l, i, j, bpl=16, lb, bsl=3, lo, repeat = 0;
 
 	/* 
@@ -70,9 +71,10 @@ hexdump(const void* data, size_t size)
 				((unsigned char*)data)[i+j]);
 		} 
 
-		/* Hex Ascii Separator, variable width */
-		sprintf(line, "%s%*s", line,
-			(int)(((bpl - lb) * bsl) + strlen(sep)), sep);
+		/* Add Hex Ascii Separator, variable width */
+		sprintf(sep, "%*s",
+			(int)(((bpl - lb) * bsl) + strlen(SEPSTR)), SEPSTR);
+		strcat(line, sep);
 		
 		/* Ascii dump */
 		lo = strlen(line);
