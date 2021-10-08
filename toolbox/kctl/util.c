@@ -39,6 +39,7 @@ hexdump(const void* data, size_t size)
 	char lline[81];		/* Last line for comparison */
 #define SEPSTR " |  "
 	char sep[81];		/* Built separator string */
+	char hexch[5];		/* Formatted hex character */
 	size_t lines, l, i, j, bpl=16, lb, bsl=3, lo, repeat = 0;
 
 	/*
@@ -68,8 +69,8 @@ hexdump(const void* data, size_t size)
 		/* Hex dump */
 		line[0] = '\0';
 		for (j = 0; j < lb; ++j) {
-			sprintf(line, "%s%02X ", line,
-				((unsigned char*)data)[i+j]);
+			sprintf(hexch, "%02X ", ((unsigned char*)data)[i+j]);
+			strcat(line, hexch);
 		}
 
 		/* Add Hex Ascii Separator, variable width */
