@@ -47,6 +47,9 @@ DISTFILES = 				\
 	./lib/libkinetic.so		\
 	./lib/libkinetic.so.1		\
 	./lib/libkinetic.so.1.0.0	\
+	./lib/libprotobuf-c.a		\
+	./lib/libprotobuf-c.so.1	\
+	./lib/libprotobuf-c.so.1.0.0	\
 	./src				\
 
 all: $(BUILDDIR) $(LPROTOBUF) $(LLIST) $(LKINETIC) $(TBDIR) # $(TESTDIR) $(LGTEST)

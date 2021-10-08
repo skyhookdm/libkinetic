@@ -39,9 +39,9 @@ DYNAMIC =	-Wl,-Bdynamic
 # removing the STATIC var below permits dynamic linking, but
 # the shared libs will need to be installed or LD_LIBRARY_PATH
 # used to locate the shared libs
-LDLIBS = 	-lreadline 				\
-		$(STATIC) -lkinetic 			\
-		$(DYNAMIC) -lpthread -lssl -lcrypto
+LDLIBS = 	$(STATIC) -lreadline 			\
+		-lkinetic	 			\
+		$(DYNAMIC) -lcurses -lpthread -lssl -lcrypto
 
 SANITY =	Sanity.bkv
 SANITYO =	Sanity.bkv.out

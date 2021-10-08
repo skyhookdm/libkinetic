@@ -90,8 +90,8 @@ $(KINETIC):	links $(OBJS)
 
 $(KINETICSOVL): $(KINETIC)
 	gcc -shared -Wl,-soname,$(KINETICSOV) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
-	$(LN) -fs ./$(KINETICSOVL) $(KINETICSOV)
-	$(LN) -fs ./$(KINETICSOV) $(KINETICSO)
+	$(LN) -fs $(KINETICSOVL) $(KINETICSOV)
+	$(LN) -fs $(KINETICSOV) $(KINETICSO)
 
 #
 # This is specifically for basickv. basickv.h is the only exported include
