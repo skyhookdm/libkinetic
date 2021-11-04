@@ -22,8 +22,13 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <inttypes.h>
-#include <endian.h>
 #include <errno.h>
+
+#if defined(__APPLE__)
+    #include <machine/endian.h>
+#else
+    #include <endian.h>
+#endif
 
 #include "kio.h"
 #include "ktli.h"
