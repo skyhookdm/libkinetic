@@ -13,7 +13,7 @@
  * License for more details.
  *
  */
-#ifndef _BASICKV_H
+#ifndef _BASIC_KV_H
 #define _BASIC_KV_H
 #include <stdint.h>
 

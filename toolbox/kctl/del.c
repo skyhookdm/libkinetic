@@ -495,6 +495,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 
 				ki_destroy(kit);
 				ki_destroy(kr);
+
 				return (-1);
 			}
 

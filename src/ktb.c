@@ -35,8 +35,13 @@
 #include "list.h"
 
 
+// i_* functions defined in `iter.c`
+void i_rangeclean(krange_t *kr);
+
 int  i_iterinit(int ktd, kiter_t *kit);
+void i_iterclean(kiter_t *kit);
 void i_iterdestroy(kiter_t *kit);
+
 extern char *ki_ktype_label[];
 
 /*
@@ -143,6 +148,9 @@ ktb_buf_len(ktype_t t)
 	case KSTATS_T:
 		return((uint32_t)sizeof(kstats_t));
 
+	case KAPPLET_T:
+		return((uint32_t)sizeof(kapplet_t));
+
 	default:
 		return(0);
 	}
@@ -184,15 +192,18 @@ ki_create(int ktd, ktype_t t)
 	/* additional setup is required */
 	switch(t) {
 	case KITER_T:
-		i_iterinit(ktd, (kiter_t *)p); break;
-	case KBATCH_T:
-		b_startbatch(ktd, (kbatch_t *)p); break;
+		i_iterinit(ktd, (kiter_t *) p);
 		break;
+
+	case KBATCH_T:
+		b_startbatch(ktd, (kbatch_t *) p);
+		break;
+
 	default:
 		break;
 	}
 
-	return(p);
+	return (p);
 }
 
 ktb_t*
@@ -248,12 +259,39 @@ ki_clean(void *p)
 	if (!ktb_isvalid(p)) { return (K_EINVAL); }
 
 	k = ktb_base(p);
+
+        // NOTE: (#50) for range, clean key data first, if any
 	if (k->ktb_ctx && k->ktb_destroy) {
 		// list_destroy calls our supplied destructor on elements of `ktb_ctx`
 		list_destroy((LIST *) k->ktb_ctx, (void *) k->ktb_destroy);
 
 		// de-init; a new list will be alloc'd if/when this ktb is reused
 		k->ktb_ctx = NULL;
+	}
+
+	/* additional cleaning is required */
+	switch (k->ktb_type) {
+	case KRANGE_T:
+		i_rangeclean((krange_t *) p);
+		break;
+
+	case KITER_T:
+		i_iterclean((kiter_t *) p);
+		break;
+
+	case KAPPLET_T:
+		/*
+		 * Special case for kapplet.
+		 */
+		if (((kapplet_t *) p)->ka_msg   ) { KI_FREE(((kapplet_t *) p)->ka_msg);    }
+		if (((kapplet_t *) p)->ka_stdout) { KI_FREE(((kapplet_t *) p)->ka_stdout); }
+
+		((kapplet_t *) p)->ka_msg       = NULL;
+		((kapplet_t *) p)->ka_stdout    = NULL;
+		((kapplet_t *) p)->ka_stdoutlen = 0;
+
+	default:
+		break;
 	}
 
 	return (K_OK);
@@ -276,7 +314,7 @@ ki_destroy(void *p)
 	k = ktb_base(p);
 
 	/* additional destruction is required */
-	switch(k->ktb_type) {
+	switch (k->ktb_type) {
 	case KITER_T:
 		i_iterdestroy((kiter_t *) p);
 		break;
@@ -284,11 +322,12 @@ ki_destroy(void *p)
 		break;
 	}
 
-	memset(k, 0xEF, k->ktb_len); /* clear the magic number at a minimum */
+	/* clear the magic number at a minimum */
+	memset(k, 0xEF, k->ktb_len);
 
 	KI_FREE(k);
 
-	return(K_OK);
+	return (K_OK);
 }
 
 uint32_t

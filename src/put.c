@@ -42,12 +42,12 @@ kstatus_t
 p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 		  void *cctx, kio_t **ckio)
 {
-	int rc, i, n;			/* return code, temps */
+	int rc, i, n, valck;		/* return code, temps, value check */
 	kstatus_t krc;			/* Kinetic return code */
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info */
 	kstats_t *kst;			/* Kinetic Stats */
-	kmsghdr_t msg_hdr;		/* Unpacked message header */ 
+	kmsghdr_t msg_hdr;		/* Unpacked message header */
 	kcmdhdr_t cmd_hdr;		/* Unpacked Command header */
 	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kresult_message kmreq;	/* Intermediate resp representation */
@@ -65,7 +65,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	ktli_gettime(&start);
 
 	if (!ckio) {
-		debug_printf("put: kio ptr required");
+		debug_printf("put: kio ptr required\n");
 		return(K_EINVAL);
 	}
 
@@ -75,17 +75,17 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	/* Get KTLI config, Kinetic session and Kinetic stats structure */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("put: ktli config");
+		debug_printf("put: ktli config\n");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
 	kst = &ses->ks_stats;
 
 	/* Validate the passed in kv, if forcing a put do no verck */
-	rc = ki_validate_kv(kv, verck, &ses->ks_l);
+	rc = ki_validate_kv(kv, verck, (valck=1), &ses->ks_l);
 	if (rc < 0) {
 		kst->kst_puts.kop_err++;
-		debug_printf("put: kv invalid");
+		debug_printf("put: kv invalid\n");
 		return(K_EINVAL);
 	}
 
@@ -93,18 +93,18 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	rc =  ki_validate_kb(kb, KMT_PUT);
 	if (kb && (rc < 0)) {
 		kst->kst_puts.kop_err++;
-		debug_printf("put: kb invalid");
+		debug_printf("put: kb invalid\n");
 		return(K_EINVAL);
 	}
 
-	/* 
-	 * create the kio structure; on failure, 
-	 * nothing malloc'd so we just return 
+	/*
+	 * create the kio structure; on failure,
+	 * nothing malloc'd so we just return
 	 */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
 		kst->kst_puts.kop_err++;
-		debug_printf("put: kio alloc");
+		debug_printf("put: kio alloc\n");
 		return(K_ENOMEM);
 	}
 	memset(kio, 0, sizeof(struct kio));
@@ -117,16 +117,16 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	 * server can authenticate and authorize the request. The command
 	 * bytes don't actually get finalized until a ktli_send is initiated.
 	 * So for now the HMAC key is hung onto the kmh_hmac field. It will
-	 * be used later on to calculate the actual HMAC which will then 
-	 * replace the HMAC key on the kmh_hmac field. 
+	 * be used later on to calculate the actual HMAC which will then
+	 * replace the HMAC key on the kmh_hmac field.
 	 *
-	 * A reference is made to the kcfg_hkey ptr in the kmreq. This 
+	 * A reference is made to the kcfg_hkey ptr in the kmreq. This
 	 * reference needs to be removed before destroying kmreq.  The
 	 * protobuf code will try to clean up this ptr which is an outside
 	 * unfreeable ptr.  See below at pex_req:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_atype = KAT_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 
@@ -139,14 +139,14 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 		cmd_hdr.kch_bid = kb->kb_bid;
 	}
 
-	/* 
+	/*
 	 * Default put checks the version strings, if they don't match
-	 * put fails.  Forcing the put avoids the version check. So if 
+	 * put fails.  Forcing the put avoids the version check. So if
 	 * checking the version, no forced put.
 	 */
 	kmreq = create_put_message(&msg_hdr, &cmd_hdr, kv, (verck?0:1));
 	if (kmreq.result_code == FAILURE) {
-		debug_printf("put: request message create");
+		debug_printf("put: request message create\n");
 		krc = K_EINTERNAL;
 		goto pex_kio;
 	}
@@ -155,7 +155,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kio->kio_magic	= KIO_MAGIC;
 	kio->kio_cmd	= KMT_PUT;
 	kio->kio_flags	= KIOF_INIT;
-	
+
 	if (kb)
 		/* This is a batch put, there is no response */
 		KIOF_SET(kio, KIOF_REQONLY);
@@ -178,7 +178,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	 * Allocate kio vectors array. Element 0 is for the PDU, element 1
 	 * is for the protobuf message, and then elements 2 and beyond are
 	 * for the value. The size is variable as the value can come in
-	 * many parts from the caller. 
+	 * many parts from the caller.
 	 * See kio.h (previously in message.h) for more details.
 	 */
 	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL + kv->kv_valcnt;
@@ -186,7 +186,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 
 	if (!kio->kio_sendmsg.km_msg) {
-		debug_printf("put: sendmesg alloc");
+		debug_printf("put: sendmesg alloc\n");
 		krc = K_ENOMEM;
 		goto pex_kmreq;
 	}
@@ -196,7 +196,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = KI_MALLOC(KP_PLENGTH);
 
 	if (!kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base) {
-		debug_printf("put: sendmesg PDU alloc");
+		debug_printf("put: sendmesg PDU alloc\n");
 		krc = K_ENOMEM;
 		goto pex_kmmsg;
 	}
@@ -217,7 +217,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	);
 
 	if (pack_result == FAILURE) {
-		debug_printf("put: sendmesg msg pack");
+		debug_printf("put: sendmesg msg pack\n");
 		krc = K_EINTERNAL;
 		goto pex_kmmsg_pdu;
 	}
@@ -238,11 +238,11 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	/* Some batch accounting */
 	if (kb) {
 		pthread_mutex_lock(&kb->kb_m);
-		
+
 		kb->kb_ops++;
 
 		/*
-		 * PAK: this is an approximation, don't know what the 
+		 * PAK: this is an approximation, don't know what the
 		 * server actually implements for batch byte limits
 		 */
 		kb->kb_bytes += (pdu.kp_msglen + pdu.kp_vallen);
@@ -257,7 +257,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 		}
 		if ((ses->ks_l.kl_batopscnt > 0) &&
 		    (kb->kb_ops > ses->ks_l.kl_batopscnt)) {
-			debug_printf("put: batch ops");
+			debug_printf("put: batch ops\n");
 			krc = K_EBATCH;
 			goto pex_kmmsg_msg;
 
@@ -266,7 +266,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 
 	/* Send the request */
 	if (ktli_send(ktd, kio) < 0) {
-		debug_printf("put: kio send");
+		debug_printf("put: kio send\n");
 		krc = K_EINTERNAL;
 		goto pex_kmmsg_msg;
 	}
@@ -275,7 +275,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
  	/*
 	 * Successful Exit.
 	 * Return the kio.
-	 * Cleanup before return, the only thing that needs to go 
+	 * Cleanup before return, the only thing that needs to go
 	 * is the unpacked protobuf request message kmreq.
 	 *
 	 * Tad bit hacky. Need to remove a reference to kcfg_hkey that
@@ -283,7 +283,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 	 * See 'Setup msg_hdr' comment above for details.
 	 */
 	*ckio = kio;
-	
+
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.data = NULL;
 	((kproto_msg_t *) kmreq.result_message)->hmacauth->hmac.len = 0;
 
@@ -331,7 +331,7 @@ p_put_aio_generic(int ktd, kv_t *kv, kb_t *kb, int verck,
 /*
  * Complete a AIO put/cas call.
  * Any error other no available response, the KIO should be cleaned up
- * and terminated. 
+ * and terminated.
  */
 kstatus_t
 p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
@@ -350,17 +350,17 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 
 	/* Setup in case of an error return */
 	if (cctx)
-		*cctx = NULL; 
+		*cctx = NULL;
 
 	if (!kio  || (kio && (kio->kio_magic !=  KIO_MAGIC))) {
-		debug_printf("put: kio invalid");
+		debug_printf("put: kio invalid\n");
 		return(K_EINVAL);
 	}
 
 	/* Get KTLI config, Kinetic session and Kinetic stats structure */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("put: ktli config");
+		debug_printf("put: ktli config\n");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
@@ -370,7 +370,7 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 	if (rc < 0) {
 		if (errno == ENOENT) {
 			/* No available response, so try again */
-			debug_printf("put: kio not available");
+			debug_printf("put: kio not available\n");
 			return(K_EAGAIN);
 		} else {
 			/* Receive really failed
@@ -380,7 +380,7 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 			 * Hence, this error means nothing to clean up
 			 */
 			kst->kst_puts.kop_err++;
-			debug_printf("put: kio receive failed");
+			debug_printf("put: kio receive failed\n");
 			return(K_EINTERNAL);
 		}
 	}
@@ -388,15 +388,15 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 	/*
 	 * Can for several reasons, i.e. TIMEOUT, FAILED, DRAINING, get a KIO
 	 * that is really in an error state, in those cases clean up the KIO
-	 * and go. 
+	 * and go.
 	 */
 	if (kio->kio_state == KIO_TIMEDOUT) {
-		debug_printf("put: kio timed out");
+		debug_printf("put: kio timed out\n");
 		kst->kst_puts.kop_err++;
 		krc = K_ETIMEDOUT;
 		goto pex;
 	} else 	if (kio->kio_state == KIO_FAILED) {
-		debug_printf("put: kio failed");
+		debug_printf("put: kio failed\n");
 		kst->kst_puts.kop_err++;
 		krc = K_ENOMSG;
 		goto pex;
@@ -405,9 +405,9 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 	/* Got a RECEIVED KIO, validate and decode */
 
 	/*
-	 * Grab the original KV and KB sent in from the caller. 
-	 * Although these are not directly passed back in the complete, 
-	 * the caller should have maintained them across the originating 
+	 * Grab the original KV and KB sent in from the caller.
+	 * Although these are not directly passed back in the complete,
+	 * the caller should have maintained them across the originating
 	 * aio call and the complete.
 	 */
 	kv = kio->kio_ckv;
@@ -418,23 +418,23 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 		krc = K_OK;
 
 #ifdef KBATCH_SEQTRACKING
-		/* 
+		/*
 		 * Batch receives only the sendmsg KIO back, no resp.
-		 * Therefore the rest of this put routine is not needed 
+		 * Therefore the rest of this put routine is not needed
 		 * except for the cleanup.
 		 *
 		 * Unpack the send message to get the final sequence
-		 * number. The seq# represents an op in a batch. When the 
-		 * batch is committed the server will return all of the 
-		 * sequence numbers for each op in the batch. By preserving 
-		 * each of the sent sequence numbers the batchend call can 
-		 * validate all sequence numbers/ops are accounted for. 
+		 * number. The seq# represents an op in a batch. When the
+		 * batch is committed the server will return all of the
+		 * sequence numbers for each op in the batch. By preserving
+		 * each of the sent sequence numbers the batchend call can
+		 * validate all sequence numbers/ops are accounted for.
 		 */
 		kiov = &kio->kio_sendmsg.km_msg[KIOV_MSG];
 		kmbat = unpack_kinetic_message(kiov->kiov_base,
 						kiov->kiov_len);
 		if (kmbat.result_code == FAILURE) {
-			debug_printf("put: sendmsg unpack");
+			debug_printf("put: sendmsg unpack\n");
 			krc = K_EINTERNAL;
 			goto pex;
 		}
@@ -444,31 +444,31 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 			/* Preserve the req on the batch */
 			b_batch_addop(kb, &cmd_hdr);
 		}
-		
+
 		destroy_message(kmbat.result_message);
 #endif /* KBATCH_SEQTRACKING */
 
 		/* normal exit, jump past all response handling */
 		goto pex;
 	}
-	       
+
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		debug_printf("put: PDU bad length");
+		debug_printf("put: PDU bad length\n");
 		krc = K_EINTERNAL;
 		goto pex;
 	}
 	UNPACK_PDU(&pdu, ((uint8_t *)(kiov->kiov_base)));
 
-	/* 
+	/*
 	 * Does the PDU match what was given in the recvmsg
-	 * Value is always there even if len = 0 
+	 * Value is always there even if len = 0
 	 */
 	kiov = kio->kio_recvmsg.km_msg;
 	if ((pdu.kp_msglen != kiov[KIOV_MSG].kiov_len) ||
 	    (pdu.kp_vallen != kiov[KIOV_VAL].kiov_len))    {
-		debug_printf("put: PDU decode");
+		debug_printf("put: PDU decode\n");
 		krc = K_EINTERNAL;
 		goto pex;
 	}
@@ -477,7 +477,7 @@ p_put_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base,
 					kiov[KIOV_MSG].kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		debug_printf("put: msg unpack");
+		debug_printf("put: msg unpack\n");
 		krc = K_EINTERNAL;
 		goto pex;
 	}
@@ -571,7 +571,7 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 {
 	kstatus_t ks;
 	kio_t *kio;
-			
+
 	ks = p_put_aio_generic(ktd, kv, kb, verck, NULL, &kio);
 	if (ks != K_OK) {
 		return(ks);
@@ -584,10 +584,10 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 			if (errno == ETIMEDOUT)
 				continue;
 		}
-		
-		/* 
+
+		/*
 		 * Poll either succeeded or failed, either way call
-		 * complete. In the case of error, the complete will 
+		 * complete. In the case of error, the complete will
 		 * try to retrieve the failed KIO
 		 */
 		ks = p_put_aio_complete(ktd, kio, NULL);
@@ -595,8 +595,8 @@ p_put_generic(int ktd, kv_t *kv, kb_t *kb, int verck)
 
 		/* Found the key or an error occurred, time to go */
 		break;
-			
-	} while (1);	
+
+	} while (1);
 
 	return(ks);
 }
@@ -752,80 +752,78 @@ struct kresult_message create_put_message(kmsghdr_t *msg_hdr, kcmdhdr_t *cmd_hdr
 	return create_message(msg_hdr, command_bytes);
 }
 
-void destroy_protobuf_putkey(kv_t *kv_data) {
-	if (!kv_data) { return; }
-
-	// destroy protobuf allocated memory
-	destroy_command((kproto_kv_t *) kv_data->kv_protobuf);
-}
-
 kstatus_t extract_putkey(struct kresult_message *resp_msg, kv_t *kv_data) {
 	// assume failure status
-	kstatus_t krc = K_INVALID_SC;
+	kstatus_t krc = K_EINTERNAL;
 	kproto_msg_t *kv_resp_msg;
 
+	// commandbytes should exist
 	kv_resp_msg = (kproto_msg_t *) resp_msg->result_message;
-
-	// check commandbytes exists
 	if (!kv_resp_msg->has_commandbytes) {
-		debug_printf("extract_putkey: no resp cmd");
-		return(K_EINTERNAL);
+		debug_printf("extract_putkey: no resp cmd\n");
+		return krc;
 	}
 
 	// unpack command, and hang it on kv_data to be destroyed at any time
-	kproto_cmd_t *resp_cmd;
-	resp_cmd = unpack_kinetic_command(kv_resp_msg->commandbytes);
+	kproto_cmd_t *resp_cmd = unpack_kinetic_command(kv_resp_msg->commandbytes);
 	if (!resp_cmd) {
-		debug_printf("extract_putkey: resp cmd unpack");
-		return(K_EINTERNAL);
+		debug_printf("extract_putkey: resp cmd unpack\n");
+		return krc;
 	}
-	kv_data->kv_protobuf = resp_cmd;
-
-	// set destructor to be called later
-	kv_data->destroy_protobuf = destroy_protobuf_putkey;
 
 	// extract the status. On failure, skip to cleanup
 	krc = extract_cmdstatus_code(resp_cmd);
 	if (krc != K_OK) {
-		debug_printf("extract_putkey: status");
+		debug_printf("extract_putkey: status\n");
+		goto extract_pex;
+	}
+
+	// check if there's command data to parse, otherwise cleanup and exit
+	if (!resp_cmd->body || !resp_cmd->body->keyvalue) {
+		debug_printf("extract_putkey: command missing body or kv\n");
+		goto extract_pex;
+	}
+
+	// Since everything seemed successful, let's pop this data on our cleaning stack
+	krc = ki_addctx(kv_data, resp_cmd, destroy_command);
+	if (krc != K_OK) {
+		debug_printf("extract_putkey: failed to add context\n");
 		goto extract_pex;
 	}
 
 	// ------------------------------
 	// begin extraction of command data
+	// extract key name, db version, tag, and data integrity algorithm
+	kproto_kv_t *resp_kv = resp_cmd->body->keyvalue;
 
-	// check if there's command data to parse, otherwise cleanup and exit
-	if (!resp_cmd->body || !resp_cmd->body->keyvalue) {
-		debug_printf("extract_putkey: command missing body or kv");
-		goto extract_pex;
-	}
-	kproto_kv_t *resp = resp_cmd->body->keyvalue;
+	// NOTE: Only modify kv_keycnt if we would change kv_key
+	// (otherwise kv_key and kv_keycnt fall out of sync)
+	if (resp_kv->has_key) { kv_data->kv_keycnt = 1; }
+	extract_bytes_optional(
+		kv_data->kv_key->kiov_base, kv_data->kv_key->kiov_len,
+		resp_kv, key
+	);
 
-	// get the command data from the response
-	// NOTE: this is tricky. Only modify the value if the response
-	// returns a key (otherwise kv_key and kv_keycnt fall out of sync)
-	if (resp->has_key) {
-		kv_data->kv_keycnt = 1;
-	}
+	extract_bytes_optional(
+		kv_data->kv_ver, kv_data->kv_verlen,
+		resp_kv, dbversion
+	);
 
-	// extract key name, db version, tag, and data integrity algorithm	
-	extract_bytes_optional(kv_data->kv_key->kiov_base,
-			       kv_data->kv_key->kiov_len, resp, key);
-    	extract_bytes_optional(kv_data->kv_ver,
-			       kv_data->kv_verlen, resp, dbversion);
-	extract_bytes_optional(kv_data->kv_disum,
-			       kv_data->kv_disumlen, resp, tag);
-	extract_primitive_optional(kv_data->kv_ditype, resp, algorithm);
-	
+	extract_bytes_optional(
+		kv_data->kv_disum, kv_data->kv_disumlen,
+		resp_kv, tag
+	);
+
+	extract_primitive_optional(kv_data->kv_ditype, resp_kv, algorithm);
+
 	return krc;
 
  extract_pex:
+	debug_printf("extract_putkey: error exit\n");
+	destroy_command(resp_cmd);
 
 	// Just make sure we don't return an ok message
-	if (krc == K_OK) {
-		debug_printf("extract_putkey: error exit");
-		krc = K_EINTERNAL;
-	}
+	if (krc == K_OK) { krc = K_EINTERNAL; }
 
 	return krc;
 }

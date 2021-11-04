@@ -54,19 +54,20 @@ ki_keycreate(void *keybuf, size_t keylen)
 {
 	struct kiovec *key;
 
-	if (!keybuf || keylen > MAXKEYLEN)
-		return(NULL);
+	if (!keybuf || keylen > MAXKEYLEN) {
+		return (NULL);
+	}
 
 	/* Create the kiovec array */
 	key = (struct kiovec *)KI_MALLOC(sizeof(struct kiovec));
 	if (!key) {
-		return(NULL);
+		return (NULL);
 	}
 
 	/* Hang the user provided buffer */
 	key[0].kiov_base = keybuf;
-	key[0].kiov_len = keylen;
-	return(key);
+	key[0].kiov_len  = keylen;
+	return (key);
 }
 
 /**
@@ -76,22 +77,18 @@ ki_keycreate(void *keybuf, size_t keylen)
 void
 ki_keydestroy(struct kiovec *key, size_t keycnt)
 {
-	int i;
+	if (!key) { return; }
 
-	if (!key)
-		return;
+	for (int i = 0; i < keycnt; i++) {
+		if (!key[i].kiov_base) { continue; }
 
-	for(i=0;i<keycnt;i++) {
-		if (key[i].kiov_base) {
-			KI_FREE(key[i].kiov_base);
-			key[i].kiov_base = 0;
-			key[i].kiov_len = 0;
-		}
+		KI_FREE(key[i].kiov_base);
+
+		key[i].kiov_base = NULL;
+		key[i].kiov_len  = 0;
 	}
 
 	KI_FREE(key);
-
-	return;
 }
 
 /**
@@ -164,31 +161,29 @@ ki_keydup(struct kiovec *key, size_t keycnt)
 	int i;
 	struct kiovec *new;
 
-	if (!keycnt)
-		return(NULL);
+	if (!keycnt) { return(NULL); }
 
 	/* Create and clear the kiovec array */
-	new = (struct kiovec *)KI_MALLOC(sizeof(struct kiovec) * keycnt);
-	if (!new) {
-		return(NULL);
-	}
+	new = (struct kiovec *) KI_MALLOC(sizeof(struct kiovec) * keycnt);
+	if (!new) { return(NULL); }
+
 	memset(new, 0, sizeof(struct kiovec) * keycnt);
 
 	/* Copy the key */
-	for(i = 0; i < keycnt; i++) {
+	for (i = 0; i < keycnt; i++) {
 		new[i].kiov_len  = key[i].kiov_len;
 		new[i].kiov_base = KI_MALLOC(key[i].kiov_len);
 
 		if (!new[i].kiov_base) {
 			ki_keydestroy(new, i-1);
 			KI_FREE(new);
-			return(NULL);
+			return (NULL);
 		}
 
 		memcpy(new[i].kiov_base, key[i].kiov_base, key[i].kiov_len);
 	}
 
-	return(new);
+	return (new);
 }
 
 /**
@@ -312,45 +307,46 @@ ki_keylast(size_t len)
 /**
  * ki_rangecpy
  *
- * Duplicate the given range, functionally a dup without the ki_create
+ * Duplicate the given range, functionally a dup without the ki_create.
+ * Its a legal range to have an empty start and end key.
  */
 krange_t *
 ki_rangecpy(krange_t *dst, krange_t *src)
 {
-	if (!dst) {
-		return(NULL);
-	}
-
-	/* Its a legal range to have an empty start and end key */
+	if (!dst) { return (NULL); }
 
 	/* Copy start key, this allocates new space and copies the key */
 	dst->kr_startcnt = src->kr_startcnt;
-	dst->kr_start = ki_keydup(src->kr_start, src->kr_startcnt);
-	if (src->kr_start && !dst->kr_start) {
-		return(NULL);
-	}
+	dst->kr_start    = ki_keydup(src->kr_start, src->kr_startcnt);
+	if (src->kr_start && !dst->kr_start) { return (NULL); }
 
 	/* Copy end key, this allocates new space and copies the key */
 	dst->kr_endcnt = src->kr_endcnt;
-	dst->kr_end = ki_keydup(src->kr_end, src->kr_endcnt);
+	dst->kr_end    = ki_keydup(src->kr_end, src->kr_endcnt);
 	if (src->kr_end && !dst->kr_end) {
 		ki_keydestroy(dst->kr_start, dst->kr_startcnt);
-		return(NULL);
+		return (NULL);
 	}
 
 	/* Copy keys list, this allocates new space and copies the key */
+	// NOTE: (#50) as far as I've seen, this code is not needed. Deprecating
+	/*
 	dst->kr_keyscnt = src->kr_keyscnt;
-	dst->kr_keys = ki_keydup(src->kr_keys, src->kr_keyscnt);
+	dst->kr_keys    = ki_keydup(src->kr_keys, src->kr_keyscnt);
 	if (src->kr_keys && !dst->kr_keys) {
 		ki_keydestroy(dst->kr_start, dst->kr_startcnt);
-		ki_keydestroy(dst->kr_end, dst->kr_endcnt);
-		return(NULL);
+		ki_keydestroy(dst->kr_end  , dst->kr_endcnt  );
+		return (NULL);
 	}
+	*/
 
-	dst->kr_flags = src->kr_flags;
-	dst->kr_count = src->kr_count;
+	// NOTE: (#50) only `extract_keyrange` should touch kr_keys
+	dst->kr_keys    = NULL;
+	dst->kr_keyscnt = 0;
+	dst->kr_flags   = src->kr_flags;
+	dst->kr_count   = src->kr_count;
 
-	return(dst);
+	return (dst);
 }
 
 
@@ -362,22 +358,21 @@ ki_rangecpy(krange_t *dst, krange_t *src)
 krange_t *
 ki_rangedup(int ktd, krange_t *kr)
 {
-	krange_t *new;
+	krange_t *range_dup;
 
-	if (!kr)
-		return(NULL);
+	if (!kr) { return (NULL); }
 
-	if ((new = ki_create(ktd, KRANGE_T)) == NULL) {
-		return(NULL);
+	if ((range_dup = ki_create(ktd, KRANGE_T)) == NULL) {
+		return (NULL);
 	}
 
 	/* duplicate the passed in krange_t */
-	if (ki_rangecpy(new, kr) < 0) {
-		ki_destroy(new);
-		return(NULL);
+	if (ki_rangecpy(range_dup, kr) < 0) {
+		ki_destroy(range_dup);
+		return (NULL);
 	}
 
-	return(new);
+	return (range_dup);
 }
 
 /**

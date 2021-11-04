@@ -42,7 +42,7 @@ kstatus_t
 g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 		  void *cctx, kio_t **ckio)
 {
-	int rc, n, verck;		/* return code, temp, version check */
+	int rc, n, verck, valck;	/* return code, temp, vers/val check */
 	kstatus_t krc;			/* Kinetic return code */
 	struct kio *kio;		/* Built and returned KIO */
 	ksession_t *ses;		/* KTLI Session info  */
@@ -65,7 +65,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	ktli_gettime(&start);
 
 	if (!ckio) {
-		debug_printf("get: kio ptr required");
+		debug_printf("get: kio ptr required\n");
 		return(K_EINVAL);
 	}
 
@@ -75,7 +75,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("get: ktli config");
+		debug_printf("get: ktli config\n");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
@@ -87,7 +87,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	case KMT_GETPREV:
 		if (!altkv) {
 			kst->kst_gets.kop_err++;
-			debug_printf("get: altkv required");
+			debug_printf("get: altkv required\n");
 			return(K_EINVAL);
 		}
 		
@@ -97,32 +97,32 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	case KMT_GETVERS:
 		if (!kv) {
 			kst->kst_gets.kop_err++;
-			debug_printf("get: kv required");
+			debug_printf("get: kv required\n");
 			return(K_EINVAL);
 		}
 		break;
 
 	default:
 		kst->kst_gets.kop_err++;
-		debug_printf("get: bad command");
+		debug_printf("get: bad command\n");
 		return(K_EINVAL);
 	}
 
 	/* Validate the passed in kv and if necessary the altkv */
 	/* verck=0 to ignore version field in the check */
-	rc = ki_validate_kv(kv, (verck=0), &ses->ks_l);
+	rc = ki_validate_kv(kv, (verck=0), (valck=1), &ses->ks_l);
 	if (rc < 0) {
 		kst->kst_gets.kop_err++;
-		debug_printf("get: kv invalid");
+		debug_printf("get: kv invalid\n");
 		return(K_EINVAL);
 	}
 
 	if (altkv) {
 		/* verck=0 to ignore version field in the check */
-		rc = ki_validate_kv(altkv, (verck=0), &ses->ks_l);
+		rc = ki_validate_kv(altkv, (verck=0), (valck=1), &ses->ks_l);
 		if (rc < 0) {
 			kst->kst_gets.kop_err++;
-			debug_printf("get: altkv invalid");
+			debug_printf("get: altkv invalid\n");
 			return(K_EINVAL);
 		}
 	}
@@ -134,7 +134,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
 		kst->kst_gets.kop_err++;
-		debug_printf("get: kio alloc");
+		debug_printf("get: kio alloc\n");
 		return(K_ENOMEM);
 	}
 	memset(kio, 0, sizeof(struct kio));
@@ -156,7 +156,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	 * unfreeable ptr.  See below at gex_req:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_atype = KAT_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 
@@ -166,7 +166,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 
 	kmreq = create_getkey_message(&msg_hdr, &cmd_hdr, kv);
 	if (kmreq.result_code == FAILURE) {
-		debug_printf("get: request message create");
+		debug_printf("get: request message create\n");
 		krc = K_ENOMEM;
 		goto gex_kio;
 	}
@@ -199,7 +199,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 
 	if (!kio->kio_sendmsg.km_msg) {
-		debug_printf("get: sendmesg alloc");
+		debug_printf("get: sendmesg alloc\n");
 		krc = K_ENOMEM;
 		goto gex_kmreq;
 	}
@@ -209,7 +209,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = KI_MALLOC(KP_PLENGTH);
 
 	if (!kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base) {
-		debug_printf("get: sendmesg PDU alloc");
+		debug_printf("get: sendmesg PDU alloc\n");
 		krc = K_ENOMEM;
 		goto gex_kmmsg;
 	}
@@ -223,7 +223,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 	);
 
 	if (pack_result == FAILURE) {
-		debug_printf("get: sendmesg msg pack");
+		debug_printf("get: sendmesg msg pack\n");
 		krc = K_EINTERNAL;
 		goto gex_kmmsg_pdu;
 	}
@@ -238,7 +238,7 @@ g_get_aio_generic(int ktd, kv_t *kv, kv_t *altkv, kmtype_t msg_type,
 
 	/* Send the request */
 	if (ktli_send(ktd, kio) < 0) {
-		debug_printf("get: kio send");
+		debug_printf("get: kio send\n");
 		krc = K_EINTERNAL;
 		goto gex_kmmsg_msg;
 	}
@@ -322,14 +322,14 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 		*cctx = NULL; 
 
 	if (!kio  || (kio && (kio->kio_magic !=  KIO_MAGIC))) {
-		debug_printf("get: kio invalid");
+		debug_printf("get: kio invalid\n");
 		return(K_EINVAL);
 	}
 	
 	/* Get KTLI config, Kinetic session and Kinetic stats structure */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("put: ktli config");
+		debug_printf("put: ktli config\n");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
@@ -339,7 +339,7 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 	if (rc < 0) {
 		if (errno == ENOENT) {
 			/* No available response, so try again */
-			debug_printf("get: kio not available");
+			debug_printf("get: kio not available\n");
 			return(K_EAGAIN);
 		} else {
 			/* Receive really failed
@@ -349,7 +349,7 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 			 * Hence, this error means nothing to clean up
 			 */
 			kst->kst_gets.kop_err++;
-			debug_printf("get: kio receive failed");
+			debug_printf("get: kio receive failed\n");
 			return(K_EINTERNAL);
 		}
 	}
@@ -360,12 +360,12 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 	 * and go.
 	 */
 	if (kio->kio_state == KIO_TIMEDOUT) {
-		debug_printf("get: kio timed out");
+		debug_printf("get: kio timed out\n");
 		kst->kst_gets.kop_err++;
 		krc = K_ETIMEDOUT;
 		goto gex;
 	} else 	if (kio->kio_state == KIO_FAILED) {
-		debug_printf("get: kio failed");
+		debug_printf("get: kio failed\n");
 		kst->kst_gets.kop_err++;
 		krc = K_ENOMSG;
 		goto gex;
@@ -385,7 +385,7 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		debug_printf("get: PDU bad length");
+		debug_printf("get: PDU bad length\n");
 		krc = K_EINTERNAL;
 		goto gex;
 	}
@@ -398,7 +398,7 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kiov = kio->kio_recvmsg.km_msg;
 	if ((pdu.kp_msglen != kiov[KIOV_MSG].kiov_len) ||
 	    (pdu.kp_vallen != kiov[KIOV_VAL].kiov_len))    {
-		debug_printf("get: PDU decode");
+		debug_printf("get: PDU decode\n");
 		krc = K_EINTERNAL;
 		goto gex;
 	}
@@ -407,7 +407,7 @@ g_get_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base,
 					kiov[KIOV_MSG].kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		debug_printf("get: msg unpack");
+		debug_printf("get: msg unpack\n");
 		krc = K_EINTERNAL;
 		goto gex;
 	}
@@ -840,7 +840,7 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	kproto_msg_t *kv_response_msg;
 	kv_response_msg = (kproto_msg_t *) response_msg->result_message;
 	if (!kv_response_msg->has_commandbytes) {
-		debug_printf("extract_getkey: command missing");
+		debug_printf("extract_getkey: command missing\n");
 		return K_EINTERNAL;
 	}
 
@@ -848,7 +848,7 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	kproto_cmd_t *response_cmd;
 	response_cmd = unpack_kinetic_command(kv_response_msg->commandbytes);
 	if (!response_cmd) {
-		debug_printf("extract_getkey: command unpack");
+		debug_printf("extract_getkey: command unpack\n");
 		return K_EINTERNAL;
 	}
 
@@ -856,18 +856,18 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	// prepare this early to make cleanup easy
 	krc = extract_cmdstatus_code(response_cmd);
 	if (krc != K_OK) {
-		debug_printf("extract_getkey: cmdstatus");
+		debug_printf("extract_getkey: cmdstatus\n");
 		goto extract_gex;
 	}
 
 	if (!response_cmd->body || !response_cmd->body->keyvalue) {
-		debug_printf("extract_getkey: command missing body or kv");
+		debug_printf("extract_getkey: command missing body or kv\n");
 		goto extract_gex;
 	}
 
 	krc = ki_addctx(kv_data, response_cmd, destroy_command);
 	if (krc != K_OK) {
-		debug_printf("extract_getkey: destroy context");
+		debug_printf("extract_getkey: failed to add context\n");
 		goto extract_gex;
 	}
 
@@ -909,14 +909,11 @@ kstatus_t extract_getkey(struct kresult_message *response_msg, kv_t *kv_data) {
 	return krc;
 
  extract_gex:
-	// call destructor to cleanup
+	debug_printf("extract_getkey: error exit\n");
 	destroy_command(response_cmd);
 
 	// Just make sure we don't return an ok message
-	if (krc == K_OK) {
-		debug_printf("extract_getkey: error exit");
-		krc = K_EINTERNAL;
-	}
+	if (krc == K_OK) { krc = K_EINTERNAL; }
 
 	return krc;
 }

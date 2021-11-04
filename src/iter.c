@@ -81,7 +81,9 @@
  */
 
 /**
- *  this is called by ki_create to init the kiter
+ *  This is called by ki_create to init the kiter
+ *  NOTE: perhaps the range should be passed here so that rreq can be
+ *  reliably reused.
  */
 int
 i_iterinit(int ktd, kiter_t *ckit)
@@ -89,15 +91,13 @@ i_iterinit(int ktd, kiter_t *ckit)
 	int rc;
 	ksession_t *ses;
 	struct ktli_config *cf;
-	struct kiter *kit = (struct kiter *)ckit;
+	struct kiter *kit = (struct kiter *) ckit;
 
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
-	if (rc < 0) {
-		return(rc);
-	}
-	ses = (ksession_t *)cf->kcfg_pconf;
+	if (rc < 0) { return (rc); }
 
+	ses	      = (ksession_t *) cf->kcfg_pconf;
 	kit->ki_rreq  = ki_create(kit->ki_ktd, KRANGE_T);
 	kit->ki_rwin1 = ki_create(kit->ki_ktd, KRANGE_T);
 	kit->ki_rwin2 = ki_create(kit->ki_ktd, KRANGE_T);
@@ -113,47 +113,58 @@ i_iterinit(int ktd, kiter_t *ckit)
 		ki_destroy(kit->ki_rwin2);
 		kit->ki_rwin2 = NULL;
 
-		return(-1);
+		return (-1);
 	}
 
-	kit->ki_ktd	= ktd;
-	kit->ki_curwin	= NULL;
-	kit->ki_curkey	= 0;
-	kit->ki_seenkeys= 0;
+	kit->ki_ktd	  = ktd;
+	kit->ki_curwin	  = NULL;
+	kit->ki_curkey	  = 0;
+	kit->ki_seenkeys  = 0;
 	kit->ki_maxkeyreq = ses->ks_l.kl_rangekeycnt;
-	kit->ki_kio	= NULL;
+	kit->ki_kio	  = NULL;
 	
-	return(0);
-}
-
-void
-i_rangeclean(krange_t *kr)
-{
-	if (kr) {
-		ki_keydestroy(kr->kr_keys, kr->kr_keyscnt);
-
-		ki_keydestroy(kr->kr_start, kr->kr_startcnt);
-
-		ki_keydestroy(kr->kr_end, kr->kr_endcnt);
-
-		memset(kr, 0, sizeof(krange_t));
-	}
+	return (0);
 }
 
 /**
- *  this is called by ki_destroy
+ *  This is called by ki_clean.
+ *  This is called after ki_clean invokes the ktb_ctx destructor.
+ */
+void
+i_rangeclean(krange_t *kr)
+{
+    /* (#50): wherever these keys are allocated is where they should be destroyed.
+     * This means that these should be managed similarly to kv keys, where the caller
+     * allocates and releases them.
+     *
+	ki_keydestroy(kr->kr_start, kr->kr_startcnt);
+	ki_keydestroy(kr->kr_end  , kr->kr_endcnt  );
+    */
+
+	memset(kr, 0, sizeof(krange_t));
+}
+
+/**
+ *  This is called by ki_clean.
+ *  This just delegates a clean call to each key range structure.
+ */
+void
+i_iterclean(kiter_t *ckit)
+{
+	struct kiter *kit = (struct kiter *) ckit;
+
+	ki_clean(kit->ki_rreq );
+	ki_clean(kit->ki_rwin1);
+	ki_clean(kit->ki_rwin2);
+}
+
+/**
+ *  This is called by ki_destroy.
  */
 void
 i_iterdestroy(kiter_t *ckit)
 {
-	struct kiter *kit = (struct kiter *)ckit;
-
-	if (!kit)
-		return;
-
-	i_rangeclean(kit->ki_rreq);
-	i_rangeclean(kit->ki_rwin1);
-	i_rangeclean(kit->ki_rwin2);
+	struct kiter *kit = (struct kiter *) ckit;
 
 	ki_destroy(kit->ki_rreq);
 	kit->ki_rreq = NULL;
@@ -163,8 +174,6 @@ i_iterdestroy(kiter_t *ckit)
 
 	ki_destroy(kit->ki_rwin2);
 	kit->ki_rwin2 = NULL;
-
-	return;
 }
 
 /**
@@ -174,16 +183,20 @@ struct kiovec *
 ki_start(kiter_t *ckit, krange_t *ckr)
 {
 	kstatus_t krc;
-	struct kiter *kit = (struct kiter *)ckit;
+	struct kiter *kit = (struct kiter *) ckit;
 
 	/* All of these should already exist */
 	if (!kit          || !ckr            || !ckr->kr_count ||
 	    !kit->ki_rreq || !kit->ki_rwin1  || !kit->ki_rwin2) {
-		return(NULL);
+		return (NULL);
 	}
 
+	/* Set the current window to window 1 */
+	kit->ki_curwin = kit->ki_rwin1;
+
 	/* Clean the ranges */
-	i_rangeclean(kit->ki_rreq);
+	// TODO: if we don't clean rreq each time for this iter, we can re-use it.
+	i_rangeclean(kit->ki_rreq );
 	i_rangeclean(kit->ki_rwin1);
 	i_rangeclean(kit->ki_rwin2);
 
@@ -193,15 +206,12 @@ ki_start(kiter_t *ckit, krange_t *ckr)
 	 * This is the guiding reference range for the life of the iteration
 	 */
 	if (ki_rangecpy(kit->ki_rreq, ckr) == NULL) {
-		return(NULL);
+		return (NULL);
 	}
-
-	/* Set the current window to window 1 */
-	kit->ki_curwin = kit->ki_rwin1;
 
 	/* Setup the first getrange call to use the caller provided range */ 
 	if (ki_rangecpy(kit->ki_curwin, kit->ki_rreq) == NULL) {
-		return(NULL);
+		return (NULL);
 	}
 
 	/* Set the range count appropriately */
@@ -213,12 +223,12 @@ ki_start(kiter_t *ckit, krange_t *ckr)
 	/* Fill the window */
 	krc = ki_getrange(kit->ki_ktd, kit->ki_curwin);
 	if ((krc != K_OK) || (!kit->ki_curwin->kr_count)) {
-		return(NULL);
+		return (NULL);
 	}
 
-	kit->ki_curkey = 0;
+	kit->ki_curkey   = 0;
 	kit->ki_seenkeys = 1;
-	return(&kit->ki_curwin->kr_keys[kit->ki_curkey]);
+	return (&kit->ki_curwin->kr_keys[kit->ki_curkey]);
 }
 
 /**
@@ -227,20 +237,20 @@ ki_start(kiter_t *ckit, krange_t *ckr)
 struct kiovec *
 ki_next(kiter_t *ckit)
 {
-	uint32_t keysleft;
-	kstatus_t krc;
-	krange_t *curwin;
+	uint32_t       keysleft;
+	kstatus_t      krc;
+	krange_t      *curwin;
 	struct kiovec *lastkey;
-	struct kiter *kit = (struct kiter *)ckit;
+	struct kiter  *kit = (struct kiter *) ckit;
 
 	if (!kit || !kit->ki_rreq || !kit->ki_rwin1 || !kit->ki_rwin1)
-		return(NULL);
+		return (NULL);
 	
 	/* Check the keys seen against the requested count */
-	if ((kit->ki_rreq->kr_count != KVR_COUNT_INF) &&
-	    (kit->ki_seenkeys >= kit->ki_rreq->kr_count)) {
+	if ((kit->ki_rreq->kr_count != KVR_COUNT_INF         ) &&
+	    (kit->ki_seenkeys       >= kit->ki_rreq->kr_count)) {
 		/* The range count has been exhausted, return */
-		return(NULL);
+		return (NULL);
 	}
 
 	/* 
@@ -267,13 +277,15 @@ ki_next(kiter_t *ckit)
 
 		/* Clean up the start key and the keys buffer, keep the endkey */
 		ki_keydestroy(curwin->kr_start, curwin->kr_startcnt);
-		ki_keydestroy(curwin->kr_keys, curwin->kr_keyscnt);
+
+		// NOTE: (#50) we do **not** want to keydestroy pointers to protobuf data
+		// ki_keydestroy(curwin->kr_keys, curwin->kr_keyscnt);
 
 		/* Use the last key for the start window range */
-		curwin->kr_start = lastkey;
+		curwin->kr_start    = lastkey;
 		curwin->kr_startcnt = 1;
-		curwin->kr_keys = NULL;
-		curwin->kr_keyscnt = 0;
+		curwin->kr_keys     = NULL;
+		curwin->kr_keyscnt  = 0;
 
 		/* Clear the inclusive start field to not repeat keys */
 		KR_FLAG_CLR(curwin, KRF_ISTART);
@@ -288,18 +300,19 @@ ki_next(kiter_t *ckit)
 		if ((kit->ki_rreq->kr_count == KVR_COUNT_INF) ||
 		    (keysleft > kit->ki_maxkeyreq)) {
 			kit->ki_curwin->kr_count = kit->ki_maxkeyreq;
-		} else {
+		}
+		else {
 			kit->ki_curwin->kr_count = keysleft;
 		}
 
 		/* Fill the window */
 		krc = ki_getrange(kit->ki_ktd, curwin);
 		if ((krc !=  K_OK) || (!curwin->kr_count)) {
-			return(NULL);
+			return (NULL);
 		}
 		kit->ki_curkey = 0;
 	}
 
 	kit->ki_seenkeys++;
-	return(&kit->ki_curwin->kr_keys[kit->ki_curkey]);
+	return (&kit->ki_curwin->kr_keys[kit->ki_curkey]);
 }

@@ -67,6 +67,7 @@ extern int kctl_batch(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_stats(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_ping(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_flush(int argc, char *argv[], int kts, struct kargs *ka);
+extern int kctl_exec(int argc, char *argv[], int kts, struct kargs *ka);
 
 #if 0
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
@@ -94,6 +95,7 @@ struct ktable {
 	{ KCTL_BATCH,   "batch",   "Start or End a batch", &kctl_batch},
 	{ KCTL_STATS,   "stats",   "Enable command statistics", &kctl_stats},
 	{ KCTL_FLUSH,   "flush",   "Flush key values caches", &kctl_flush},
+	{ KCTL_EXEC,    "exec",    "Execute a func on the kinetic device", &kctl_exec},
 
 #if 0
 	{ KCTL_SETCLUSTERV,
@@ -213,16 +215,20 @@ print_version()
 
 	kver = ki_create(-1, KVERSION_T);
 	ki_version(kver);
-	
-	if (kctl_vers_num) /* if is just to get rid of compiler warnings */
-		sprintf(kctl_vers, "%d.%d.%d",
-		KCTL_VERS_MAJOR, KCTL_VERS_MINOR, KCTL_VERS_PATCH);
 
-	printf("KCTL Version: %s\n",		 kctl_vers);
+	// `if` is just to get rid of compiler warnings
+	if (kctl_vers_num)  {
+		sprintf(kctl_vers
+			,"%d.%d.%d"
+			,KCTL_VERS_MAJOR, KCTL_VERS_MINOR, KCTL_VERS_PATCH
+		);
+	}
+
+	printf("KCTL Version: %s\n"            , kctl_vers);
 	printf("Kinetic Protobuf Version: %s\n", kver->kvn_pb_kinetic_vers);
-	printf("Kinetic Library Version: %s\n",	 kver->kvn_ki_vers);
+	printf("Kinetic Library Version: %s\n" , kver->kvn_ki_vers);
 	printf("Kinetic Library Git Hash: %s\n", kver->kvn_ki_githash);
-	printf("Protobuf C Version: %s\n",	 kver->kvn_pb_c_vers);
+	printf("Protobuf C Version: %s\n"      , kver->kvn_pb_c_vers);
 
 	ki_destroy(kver);
 }
@@ -389,7 +395,7 @@ kctl(int argc, char *argv[], struct kargs *ka)
 
 	ktd = kctl_start(ka);
 	if (ktd < 0) {
-		fprintf(stderr, "%s: UNable to start\n", ka->ka_progname);
+		fprintf(stderr, "%s: Unable to start\n", ka->ka_progname);
 		return(EINVAL);
 	}
 

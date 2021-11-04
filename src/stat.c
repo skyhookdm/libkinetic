@@ -103,22 +103,23 @@ ki_putstats(int ktd, kstats_t *kst)
  */
 #define KOP_BNS 1000000000L
 #define KOP_MAXINTV 1000000 /* 1M uS = 1S */
-#define ts_sub(_me, _se, _d, _m) {					\
-	(_d)  = ((_me)->tv_nsec - (_se)->tv_nsec);			\
-	if ((_d) < 0) {							\
-		--(_me)->tv_sec;					\
-		(_d) += KOP_BNS;					\
-	}								\
-	(_d) += ((_me)->tv_sec - (_se)->tv_sec) * KOP_BNS;		\
-	(_d) /= (uint64_t)1000;						\
-	if ((_d) > KOP_MAXINTV || (_d) < 0 || !(_d)) {			\
-		info_fprintf("KIOTS CHK: %s: (%lu, %lu) - (%lu, %lu) = %lu\n", \
-		       (_m),						\
-		       (_me)->tv_sec, (_me)->tv_nsec,			\
-		       (_se)->tv_sec, (_se)->tv_nsec,			\
-		       (_d));						\
-		(_d) = 0;						\
-	}								\
+#define ts_sub(_me, _se, _d, _m) {					 \
+	(_d)  = ((_me)->tv_nsec - (_se)->tv_nsec);			 \
+	if ((_d) < 0) {							 \
+		--(_me)->tv_sec;					 \
+		(_d) += KOP_BNS;					 \
+	}								 \
+	(_d) += ((_me)->tv_sec - (_se)->tv_sec) * KOP_BNS;		 \
+	(_d) /= (uint64_t)1000;						 \
+	if ((_d) > KOP_MAXINTV || (_d) < 0 || !(_d)) {			 \
+		info_fprintf(stderr,					 \
+		       "KIOTS CHK: %s: (%lu, %lu) - (%lu, %lu) = %lu\n", \
+		       (_m),						 \
+		       (_me)->tv_sec, (_me)->tv_nsec,			 \
+		       (_se)->tv_sec, (_se)->tv_nsec,			 \
+		       (_d));						 \
+		(_d) = 0;						 \
+	}								 \
 }
 
 

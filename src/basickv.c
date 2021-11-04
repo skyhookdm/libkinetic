@@ -39,7 +39,7 @@ bkv_open(bkvs_open_t *bkvo)
 		      bkvo->bkvo_id, bkvo->bkvo_pass);
 	
 	if (ktd < 0) {
-		debug_fprintf("bkv_open: Connection Failed\n");
+		debug_printf("bkv_open: Connection Failed\n");
 		return(-1);
 	}
 
@@ -61,13 +61,13 @@ bkv_limits(int ktd, bkv_limits_t *l)
 	klimits_t kil;
 	
 	if (!l) {
-		debug_fprintf("bkv_limits: Bad limits param\n");
+		debug_printf("bkv_limits: Bad limits param\n");
 		return(-1);
 	}
 		
 	kil = ki_limits(ktd);
 	if (!kil.kl_keylen) {
-		debug_fprintf("bkv_limits: Unable to get kinetic limits\n");
+		debug_printf("bkv_limits: Unable to get kinetic limits\n");
 		return(-1);
 	}
 
@@ -89,24 +89,24 @@ bkv_get(int ktd, void *key, size_t klen, void **val, size_t *vlen)
 	kstatus_t 	kstatus;
 
 	if (!key || !klen || !val || !vlen) {
-		debug_fprintf("bkv_get: Illegal arguments\n");
+		debug_printf("bkv_get: Illegal arguments\n");
 		return(-1);
 	}
 
 	kil = ki_limits(ktd);
 	if (!kil.kl_keylen) {
-		debug_fprintf("bkv_get: Unable to get kinetic limits\n");
+		debug_printf("bkv_get: Unable to get kinetic limits\n");
 		return(-1);
 	}
 
 	if (klen > kil.kl_keylen) {
-		debug_fprintf("bkv_get: Illegal key length\n");
+		debug_printf("bkv_get: Illegal key length\n");
 		return(-1);
 	}
 
 	kv = ki_create(ktd, KV_T);
 	if (!kv) {
-		debug_fprintf("bkv_get: No Mem\n");
+		debug_printf("bkv_get: No Mem\n");
 		return(-1);
 	}
 
@@ -130,10 +130,10 @@ bkv_get(int ktd, void *key, size_t klen, void **val, size_t *vlen)
 		*vlen = kv->kv_val[0].kiov_len;
 		break;
 	case K_ENOTFOUND:
-		debug_fprintf("bkv_get: No key found.\n");
+		debug_printf("bkv_get: No key found.\n");
 		return(-1);
 	default:	
-		debug_fprintf("bkv_get: failed: status code %d\n", kstatus);
+		debug_printf("bkv_get: failed: status code %d\n", kstatus);
 		return(-1);
 	}
 	
@@ -161,30 +161,30 @@ bkv_getn(int ktd, void *key, size_t klen, uint32_t n, void **val, size_t *vlen)
 	struct kiovec	kv_val[1]  = {{0, 0}};
 
 	if (!key || !klen || !n || !val || !vlen) {
-		debug_fprintf("bkv_getn: Illegal arguments\n");
+		debug_printf("bkv_getn: Illegal arguments\n");
 		return(-1);
 	}
 
 	if (n > BKV_N_MAXKEYS) {
-		debug_fprintf("bkv_getn: Too many keys requested\n");
+		debug_printf("bkv_getn: Too many keys requested\n");
 		return(-1);
 	}
 
 	kil = ki_limits(ktd);
 	if (!kil.kl_keylen) {
-		debug_fprintf("bkv_getn: Unable to get kinetic limits\n");
+		debug_printf("bkv_getn: Unable to get kinetic limits\n");
 		return(-1);
 	}
 
 	/* klen + ".000" */
 	if ((klen + 1 + BKV_N_MAXKEYS_DIGITS) > kil.kl_keylen) {
-		debug_fprintf("bkv_getn: Illegal key length\n");
+		debug_printf("bkv_getn: Illegal key length\n");
 		return(-1);
 	}
 
 	kv = ki_create(ktd, KV_T);
 	if (!kv) {
-		debug_fprintf("bkv_getn: No Mem\n");
+		debug_printf("bkv_getn: No Mem\n");
 		return(-1);
 	}
 
@@ -197,7 +197,7 @@ bkv_getn(int ktd, void *key, size_t klen, uint32_t n, void **val, size_t *vlen)
 	ival  = calloc(n, sizeof(void *));
 	ivlen = calloc(n, sizeof(size_t));
 	if (!ival || !ivlen) {
-		debug_fprintf("bkv_getn: No array memory\n");
+		debug_printf("bkv_getn: No array memory\n");
 		goto getn_out;
 	}
 	memset(ival, 0, n * sizeof(void *));
@@ -225,7 +225,7 @@ bkv_getn(int ktd, void *key, size_t klen, uint32_t n, void **val, size_t *vlen)
 		
 		kstatus = ki_get(ktd, kv);
 		if (kstatus != K_OK) {
-			debug_fprintf("bkv_getn: Failed\n");
+			debug_printf("bkv_getn: Failed\n");
 			goto getn_out;
 		}
 
@@ -242,7 +242,7 @@ bkv_getn(int ktd, void *key, size_t klen, uint32_t n, void **val, size_t *vlen)
 	/* Get a single buffer in the protected BPF address space */
 	*val = malloc(*vlen);
 	if (!*val) {
-		debug_fprintf("bkv_getn: No memory\n");
+		debug_printf("bkv_getn: No memory\n");
 		goto getn_out;
 	}
 
@@ -293,24 +293,24 @@ bkv_put(int ktd, void *key, size_t klen, void  *val, size_t vlen)
 
 	/* values can be empty, but keys are mandatory */
 	if (!key || !klen) {
-		debug_fprintf("bkv_put: Illegal arguments\n");
+		debug_printf("bkv_put: Illegal arguments\n");
 		return(-1);
 	}
 
 	kil = ki_limits(ktd);
 	if (!kil.kl_keylen) {
-		debug_fprintf("bkv_put: Unable to get kinetic limits\n");
+		debug_printf("bkv_put: Unable to get kinetic limits\n");
 		return(-1);
 	}
 
 	if (klen > kil.kl_keylen) {
-		debug_fprintf("bkv_put: Illegal key length\n");
+		debug_printf("bkv_put: Illegal key length\n");
 		return(-1);
 	}
 
 	kv = ki_create(ktd, KV_T);
 	if (!kv) {
-		debug_fprintf("bkv_put: No Mem\n");
+		debug_printf("bkv_put: No Mem\n");
 		return(-1);
 	}
 
@@ -338,9 +338,8 @@ bkv_put(int ktd, void *key, size_t klen, void  *val, size_t vlen)
 
 	kstatus = ki_put(ktd, NULL, kv);
 	
-	if(kstatus != K_OK) {
-		debug_fprintf("bkv_put kinetic: failed: status code %d\n", k
-			      status);
+	if (kstatus != K_OK) {
+		debug_printf("bkv_put kinetic: failed: status code %d\n", kstatus);
 		return(-1);
 	}
 	
@@ -372,32 +371,32 @@ bkv_putn(int ktd, void *key, size_t klen, uint32_t *n, void  *val, size_t vlen)
 
 	/* For putn values are required, 0 lens not accepted */
 	if (!key || !klen || !n || !val || !vlen) {
-		debug_fprintf("bkv_putn: Illegal arguments\n");
+		debug_printf("bkv_putn: Illegal arguments\n");
 		return(-1);
 	}
 
 	kil = ki_limits(ktd);
 	if (!kil.kl_keylen) {
-		debug_fprintf("bkv_putn: Unable to get kinetic limits\n");
+		debug_printf("bkv_putn: Unable to get kinetic limits\n");
 		return(-1);
 	}
 
 	/* check the full keylen: klen + ".000" */
 	if ((klen + 1 + BKV_N_MAXKEYS_DIGITS) > kil.kl_keylen) {
-		debug_fprintf("bkv_putn: Illegal key length\n");
+		debug_printf("bkv_putn: Illegal key length\n");
 		return(-1);
 	}
 
 	/* How many keys is this request going to generate? */
 	*n = (vlen / kil.kl_vallen) + (vlen % kil.kl_vallen?1:0);
 	if (*n > BKV_N_MAXKEYS) {
-		debug_fprintf("bkv_putn: Value requires too many keys\n");
+		debug_printf("bkv_putn: Value requires too many keys\n");
 		return(-1);
 	}
 
 	kv = ki_create(ktd, KV_T);
 	if (!kv) {
-		debug_fprintf("bkv_putn: No Mem\n");
+		debug_printf("bkv_putn: No Mem\n");
 		return(-1);
 	}
 
@@ -441,7 +440,7 @@ bkv_putn(int ktd, void *key, size_t klen, uint32_t *n, void  *val, size_t vlen)
 		
 		kstatus = ki_put(ktd, NULL, kv);
 		if (kstatus != K_OK) {
-			debug_fprintf("bkv_putn: Failed\n");
+			debug_printf("bkv_putn: Failed\n");
 			goto putn_out;
 		}
 		
@@ -471,24 +470,24 @@ bkv_del(int ktd, void *key, size_t klen)
 	kstatus_t 	kstatus;
 
 	if (!key || !klen ) {
-		debug_fprintf("bkv_del: Illegal arguments\n");
+		debug_printf("bkv_del: Illegal arguments\n");
 		return(-1);
 	}
 
 	kil = ki_limits(ktd);
 	if (!kil.kl_keylen) {
-		debug_fprintf("bkv_del: Unable to get kinetic limits\n");
+		debug_printf("bkv_del: Unable to get kinetic limits\n");
 		return(-1);
 	}
 
 	if (klen > kil.kl_keylen) {
-		debug_fprintf("bkv_del: Illegal key length\n");
+		debug_printf("bkv_del: Illegal key length\n");
 		return(-1);
 	}
 
 	kv = ki_create(ktd, KV_T);
 	if (!kv) {
-		debug_fprintf("bkv_get: No Mem\n");
+		debug_printf("bkv_get: No Mem\n");
 		return(-1);
 	}
 
@@ -509,7 +508,7 @@ bkv_del(int ktd, void *key, size_t klen)
 	kstatus = ki_del(ktd, NULL, kv);
 	
 	if(kstatus != K_OK) {
-		debug_fprintf("bkv_del: failed: status code %d\n", kstatus);
+		debug_printf("bkv_del: failed: status code %d\n", kstatus);
 		return(-1);
 	}
 	
@@ -534,30 +533,30 @@ bkv_deln(int ktd, void *key, size_t klen, uint32_t n)
 	struct kiovec	kv_val[1]  = {{0, 0}};
 
 	if (!key || !klen || !n) {
-		debug_fprintf("bkv_deln: Illegal arguments\n");
+		debug_printf("bkv_deln: Illegal arguments\n");
 		return(-1);
 	}
 
 	if (n > BKV_N_MAXKEYS) {
-		debug_fprintf("bkv_deln: Too many keys requested\n");
+		debug_printf("bkv_deln: Too many keys requested\n");
 		return(-1);
 	}
 
 	kil = ki_limits(ktd);
 	if (!kil.kl_keylen) {
-		debug_fprintf("bkv_deln: Unable to get kinetic limits\n");
+		debug_printf("bkv_deln: Unable to get kinetic limits\n");
 		return(-1);
 	}
 
 	/* klen + ".000" */
 	if ((klen + 1 + BKV_N_MAXKEYS_DIGITS) > kil.kl_keylen) {
-		debug_fprintf("bkv_deln: Illegal key length\n");
+		debug_printf("bkv_deln: Illegal key length\n");
 		return(-1);
 	}
 
 	kv = ki_create(ktd, KV_T);
 	if (!kv) {
-		debug_fprintf("bkv_deln: No Mem\n");
+		debug_printf("bkv_deln: No Mem\n");
 		return(-1);
 	}
 
@@ -584,7 +583,7 @@ bkv_deln(int ktd, void *key, size_t klen, uint32_t n)
 		
 		kstatus = ki_del(ktd, NULL, kv);
 		if (kstatus != K_OK) {
-			debug_fprintf("bkv_deln: Failed\n");
+			debug_printf("bkv_deln: Failed\n");
 			goto deln_out;
 		}
 
@@ -611,24 +610,24 @@ bkv_exists(int ktd, void *key, size_t klen)
 	kstatus_t 	kstatus;
 
 	if (!key || !klen) {
-		debug_fprintf("bkv_get: Illegal arguments\n");
+		debug_printf("bkv_get: Illegal arguments\n");
 		return(-1);
 	}
 
 	kil = ki_limits(ktd);
 	if (!kil.kl_keylen) {
-		debug_fprintf("bkv_get: Unable to get kinetic limits\n");
+		debug_printf("bkv_get: Unable to get kinetic limits\n");
 		return(-1);
 	}
 
 	if (klen > kil.kl_keylen) {
-		debug_fprintf("bkv_get: Illegal key length\n");
+		debug_printf("bkv_get: Illegal key length\n");
 		return(-1);
 	}
 
 	kv = ki_create(ktd, KV_T);
 	if (!kv) {
-		debug_fprintf("bkv_get: No Mem\n");
+		debug_printf("bkv_get: No Mem\n");
 		return(-1);
 	}
 
@@ -651,10 +650,10 @@ bkv_exists(int ktd, void *key, size_t klen)
 		return(1);
 		break;
 	case K_ENOTFOUND:
-		debug_fprintf("bkv_get: No key found.\n");
+		debug_printf("bkv_get: No key found.\n");
 		return(0);
 	default:	
-		debug_fprintf("bkv_get: failed: status code %d\n", kstatus);
+		debug_printf("bkv_get: failed: status code %d\n", kstatus);
 		return(-1);
 	}
 	

@@ -1,3 +1,18 @@
+/**
+ * Copyright 2020-2021 Seagate Technology LLC.
+ *
+ * This Source Code Form is subject to the terms of the Mozilla
+ * Public License, v. 2.0. If a copy of the MPL was not
+ * distributed with this file, You can obtain one at
+ * https://mozilla.org/MP:/2.0/.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but is provided AS-IS, WITHOUT ANY WARRANTY; including without
+ * the implied warranty of MERCHANTABILITY, NON-INFRINGEMENT or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the Mozilla Public
+ * License for more details.
+ *
+ */
 #ifndef _KIO_H
 #define _KIO_H
 #include <stdint.h>
@@ -115,6 +130,7 @@ struct kio {
 	kv_t		*kio_ckv;
         kv_t		*kio_caltkv;
 	kb_t		*kio_ckb;
+	kapplet_t	*kio_ckapp;
 
 	struct kio_tstamps kio_ts;	/* Time Stamps, used only when enabled
 					   via kio_flags */

@@ -97,7 +97,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	kpdu_t pdu;			/* Unpacked PDU structure */
 
 	if (!ckio) {
-		debug_printf("batch: kio ptr required");
+		debug_printf("batch: kio ptr required\n");
 		return(K_EINVAL);
 	}
 
@@ -107,7 +107,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("batch: ktli config");
+		debug_printf("batch: ktli config\n");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
@@ -115,7 +115,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	/* Validate the passed in kb, if any */
 	rc =  ki_validate_kb(kb, msg_type);
 	if (kb && (rc < 0)) {
-		debug_printf("batch: kb invalid");
+		debug_printf("batch: kb invalid\n");
 		return(K_EINVAL);
 	}
 
@@ -126,7 +126,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 		 * session batch ID and setting it on the batch. 
 		 */
 		if (b_atom_inc(&ses->ks_bid, &kb->kb_bid, 1) < 0) {
-			debug_printf("batch: no batch id");
+			debug_printf("batch: no batch id\n");
 			return(K_EBATCH);
 		}
 
@@ -135,13 +135,13 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 		 * on the sessions.
 		 */
 		if (b_atom_inc(&ses->ks_bats, &batcnt, 1) < 0) {
-			debug_printf("batch: batch cnt increment");
+			debug_printf("batch: batch cnt increment\n");
 			return(K_EBATCH);
 		}
 
 		if ((ses->ks_l.kl_devbatcnt > 0) &&
 		    (batcnt > ses->ks_l.kl_devbatcnt)) {
-			debug_printf("batch: too many batches");
+			debug_printf("batch: too many batches\n");
 			krc = K_EBATCH;
 			goto bex_kb;
 		}
@@ -164,7 +164,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 		break;
 
 	default:
-		debug_printf("batch: bad command");
+		debug_printf("batch: bad command\n");
 		return(K_EREJECTED);
 	}
 
@@ -174,7 +174,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	 */
 	kio = (struct kio *) KI_MALLOC(sizeof(struct kio));
 	if (!kio) {
-		debug_printf("batch: kio alloc");
+		debug_printf("batch: kio alloc\n");
 		krc = K_ENOMEM;
 		goto bex_kb;
 	}
@@ -197,7 +197,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	 * unfreeable ptr.  See below at bex_kmreq:
 	 */
 	memset((void *) &msg_hdr, 0, sizeof(msg_hdr));
-	msg_hdr.kmh_atype = KA_HMAC;
+	msg_hdr.kmh_atype = KAT_HMAC;
 	msg_hdr.kmh_id    = cf->kcfg_id;
 	msg_hdr.kmh_hmac  = cf->kcfg_hkey;
 
@@ -210,7 +210,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 
 	kmreq = create_batch_message(&msg_hdr, &cmd_hdr, kb->kb_ops);
 	if (kmreq.result_code == FAILURE) {
-		debug_printf("batch: request message create");
+		debug_printf("batch: request message create\n");
 		krc = K_EINTERNAL;
 		goto bex_kio;
 	}
@@ -234,7 +234,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 
 	if (!kio->kio_sendmsg.km_msg) {
-		debug_printf("batch: sendmesg alloc");
+		debug_printf("batch: sendmesg alloc\n");
 		krc = K_ENOMEM;
 		goto bex_kmreq;
 	}
@@ -244,7 +244,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base = KI_MALLOC(KP_PLENGTH);
 
 	if (!kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base) {
-		debug_printf("batch: sendmesg PDU alloc");
+		debug_printf("batch: sendmesg PDU alloc\n");
 		krc = K_ENOMEM;
 		goto bex_kmmsg;
 	}
@@ -258,7 +258,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	);
 
 	if (pack_result == FAILURE) {
-		debug_printf("batch: sendmesg msg pack");
+		debug_printf("batch: sendmesg msg pack\n");
 		krc = K_EINTERNAL;
 		goto bex_kmmsg_pdu;
 	}
@@ -273,7 +273,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 
 	/* Send the request */
 	if (ktli_send(ktd, kio) < 0) {
-		debug_printf("batch: kio send");
+		debug_printf("batch: kio send\n");
 		krc = K_EINTERNAL;
 		goto bex_kmmsg_msg;
 	}
@@ -333,7 +333,7 @@ b_batch_aio_generic(int ktd, kb_t *kb, kmtype_t msg_type,
 	if (msg_type == (kmtype_t) KMT_STARTBAT) {
 		/* decrement the active count */
 		if (b_atom_inc(&ses->ks_bats, &batcnt, -1) < 0) {
-			debug_printf("batch: batch cnt start decrement");
+			debug_printf("batch: batch cnt start decrement\n");
 			return(K_EBATCH);
 		}
 
@@ -370,13 +370,13 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 	/* Get KTLI config */
 	rc = ktli_config(ktd, &cf);
 	if (rc < 0) {
-		debug_printf("batch: complete ktli config");
+		debug_printf("batch: complete ktli config\n");
 		return(K_EBADSESS);
 	}
 	ses = (ksession_t *) cf->kcfg_pconf;
 
 	if (!kio  || (kio && (kio->kio_magic !=  KIO_MAGIC))) {
-		debug_printf("batch: kio invalid");
+		debug_printf("batch: kio invalid\n");
 		return(K_EINVAL);
 	}
 
@@ -384,7 +384,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 	if (rc < 0) {
 		if (errno == ENOENT) {
 			/* No available response, so try again */
-			debug_printf("batch: kio not available");
+			debug_printf("batch: kio not available\n");
 			return(K_EAGAIN);
 		} else {
 			/* Receive really failed
@@ -393,7 +393,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 			 * of that KIO was returned to caller.
 			 * Hence, this error means nothing to clean up
 			 */
-			debug_printf("batch: kio receive");
+			debug_printf("batch: kio receive\n");
 			return(K_EINTERNAL);
 		}
 	}
@@ -404,7 +404,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 	 * and go.
 	 */
 	if (kio->kio_state != KIO_RECEIVED) {
-		debug_printf("batch: kio bad state");
+		debug_printf("batch: kio bad state\n");
 		krc = K_EINTERNAL;
 		goto bex;
 	}
@@ -422,7 +422,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 	/* extract the return PDU */
 	kiov = &kio->kio_recvmsg.km_msg[KIOV_PDU];
 	if (kiov->kiov_len != KP_PLENGTH) {
-		debug_printf("batch: PDU bad length");
+		debug_printf("batch: PDU bad length\n");
 		krc = K_EINTERNAL;
 		goto bex;
 	}
@@ -435,7 +435,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kiov = kio->kio_recvmsg.km_msg;
 	if ((pdu.kp_msglen != kiov[KIOV_MSG].kiov_len) ||
 	    (pdu.kp_vallen != kiov[KIOV_VAL].kiov_len))    {
-		debug_printf("batch: PDU decode");
+		debug_printf("batch: PDU decode\n");
 		krc = K_EINTERNAL;
 		goto bex;
 	}
@@ -444,7 +444,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 	kmresp = unpack_kinetic_message(kiov[KIOV_MSG].kiov_base,
 					kiov[KIOV_MSG].kiov_len);
 	if (kmresp.result_code == FAILURE) {
-		debug_printf("batch: msg unpack");
+		debug_printf("batch: msg unpack\n");
 		krc = K_EINTERNAL;
 		goto bex;
 	}
@@ -460,7 +460,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 
 		krc = extract_seqlist(&kmresp, &seqlist, &seqlistcnt);
 		if (krc != K_OK) {
-			debug_printf("batch: seqlist extract");
+			debug_printf("batch: seqlist extract\n");
 			goto bex_endbat;
 		}
 
@@ -493,7 +493,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 
 		// Did not get an acknowledged op seq for an op seq in our list
 		if (list_size((*kb)->kb_seqs)) {
-			debug_printf("batch: unacknowledged seq");
+			debug_printf("batch: unacknowledged seq\n");
 			krc = K_EBATCH;
 		}
 	}
@@ -510,7 +510,7 @@ b_batch_aio_complete(int ktd, struct kio *kio, void **cctx)
 	     (kio->kio_cmd == (kmtype_t) KMT_ABORTBAT))) {
 		/* decrement the active count */
 		if (b_atom_inc(&ses->ks_bats, &batcnt, -1) < 0) {
-			debug_printf("batch: batch cnt end decrement");
+			debug_printf("batch: batch cnt end decrement\n");
 			return(K_EBATCH);
 		}
 
@@ -679,7 +679,7 @@ kstatus_t extract_seqlist(struct kresult_message *resp_msg, kseq_t **seqlist, si
 	// check that commandbytes exist, then unpack it
 	kb_resp_msg = (kproto_msg_t *) resp_msg->result_message;
 	if (!kb_resp_msg->has_commandbytes) {
-		debug_printf("extract_seqlist: no resp cmd");
+		debug_printf("extract_seqlist: no resp cmd\n");
 		return(K_EINTERNAL);
 	}
 
@@ -688,14 +688,14 @@ kstatus_t extract_seqlist(struct kresult_message *resp_msg, kseq_t **seqlist, si
 	kproto_cmd_t *resp_cmd;
 	resp_cmd = unpack_kinetic_command(kb_resp_msg->commandbytes);
 	if (!resp_cmd) {
-		debug_printf("extract_seqlist: resp cmd unpack");
+		debug_printf("extract_seqlist: resp cmd unpack\n");
 		return(K_EINTERNAL);
 	}
 
 	// extract the status from the command data
 	krc = extract_cmdstatus_code(respcmd);
 	if (krc != K_OK) {
-		debug_printf("extract_seqlist: status");
+		debug_printf("extract_seqlist: status\n");
 		goto extract_dex;
 	}
 	
@@ -703,16 +703,17 @@ kstatus_t extract_seqlist(struct kresult_message *resp_msg, kseq_t **seqlist, si
 	// begin extraction of command data
 	// check if there's command data to parse, otherwise cleanup and exit
 	if (!resp_cmd->body || !resp_cmd->body->batch) {
-		debug_printf("extract_delkey: command missing body or kv");
+		debug_printf("extract_delkey: command missing body or kv\n");
 		goto extract_emptybatch;
 	}
 
 	// begin extraction of command body into kv_t structure
+    // TODO: this has not been updated to do proper memory management in the ktb style.
 	kproto_batch_t *resp = resp_cmd->body->batch;
 
 	if (resp->has_failedsequence) {
 		*seqlistcnt = 1;
-		*seqlist    = &(resp>failedsequence);
+		*seqlist    = &(resp->failedsequence);
 	}
 	else {
 		*seqlistcnt = resp->n_sequence;
@@ -737,14 +738,14 @@ kstatus_t extract_status(struct kresult_message *resp_msg) {
 	// check that commandbytes exist, then unpack it
 	kb_resp_msg = (kproto_msg_t *) resp_msg->result_message;
 	if (!kb_resp_msg->has_commandbytes) {
-		debug_printf("extract_status: no resp cmd");
+		debug_printf("extract_status: no resp cmd\n");
 		return(K_EINTERNAL);
 	}
 
 	kproto_cmd_t *resp_cmd;
 	resp_cmd = unpack_kinetic_command(kb_resp_msg->commandbytes);
 	if (!resp_cmd) {
-		debug_printf("extract_status: resp cmd unpack");
+		debug_printf("extract_status: resp cmd unpack\n");
 		return(K_EINTERNAL);
 	}
 

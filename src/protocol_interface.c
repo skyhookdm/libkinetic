@@ -285,6 +285,10 @@ ProtobufCBinaryData create_command_bytes(kcmdhdr_t *cmd_hdr, void *proto_cmd_dat
 			proto_cmdbdy.batch    = (kproto_batch_t *) proto_cmd_data;
 			break;
 
+		case KMT_APPLET:
+			proto_cmdbdy.manageapplet = (kproto_kapplet_t *) proto_cmd_data;
+			break;
+
 		default:
 			// TODO: not yet implemented, or an invalid message type
 			break;
@@ -310,9 +314,9 @@ struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cm
 	}
 
 	switch(msg_hdr->kmh_atype) {
-		case KA_HMAC:
+		case KAT_HMAC:
 			kinetic_msg->has_authtype = 1;
-			kinetic_msg->authtype	  = KA_HMAC;
+			kinetic_msg->authtype	  = KAT_HMAC;
 
 			kauth_hmac *msg_auth_hmac = (kauth_hmac *) KI_MALLOC(sizeof(kauth_hmac));
 			if (!msg_auth_hmac) { goto create_failure; }
@@ -332,9 +336,9 @@ struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cm
 #endif
 			break;
 
-		case KA_PIN:
+		case KAT_PIN:
 			kinetic_msg->has_authtype = 1;
-			kinetic_msg->authtype	  = KA_PIN;
+			kinetic_msg->authtype	  = KAT_PIN;
 
 			kauth_pin *msg_auth_pin = (kauth_pin *) KI_MALLOC(sizeof(kauth_pin));
 			if (!msg_auth_pin) { goto create_failure; }
@@ -350,7 +354,7 @@ struct kresult_message create_message(kmsghdr_t *msg_hdr, ProtobufCBinaryData cm
 			kinetic_msg->pinauth = msg_auth_pin;
 			break;
 
-		case KA_INVALID:
+		case KAT_INVALID:
 		default:
 			goto create_failure;
 	};
@@ -410,10 +414,10 @@ kstatus_t extract_cmdstatus_code(kproto_cmd_t *protobuf_command)
 	    !protobuf_command->status	||
 	    !protobuf_command->status->has_code) {
 		debug_printf("extract_getstatus_code: no cmd");
-		return(K_EINTERNAL);
+		return (K_EINTERNAL);
 	}
 
-	return(protobuf_command->status->code);
+	return (protobuf_command->status->code);
 }
 
 kstatus_t

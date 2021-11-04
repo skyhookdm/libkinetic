@@ -43,29 +43,45 @@ if [[ ${is_sourced} -eq 0 ]]; then
     Usage: ${0} -h <host-ip> [-m] [-r]
 
     -h: [required] IP address of kinetic server.
-    -m: [optional] check memory leaks using valgrind.
+    -m: [optional] check memory leaks using valgrind. *Disables* debug mode.
     -r: [optional] record, instead of check, pre- and post-conditions for tests.
-    -d: [optional] debug flag (only if -m is *not set*); prints command execution using 'set -x'
+    -s: [optional] setup-only flag; only runs setup   phase
+    -c: [optional] cleanup    flag; only runs cleanup phase
+    -d: [optional] debug      flag; skips cleanup phase; prints commands (using 'set -x')
     "
 
     # default values for optional args
-    valgrind_flag="false"
-    record_mode="false"
-    debug_mode="false"
+    valgrind_mode='false'
+    record_mode='false'
+    debug_mode='false'
 
-    while getopts "h:mrd" option_symbol; do
+    # default values for test phases
+    should_run_setup='true'
+    should_run_tests='true'
+    should_run_cleanup='true'
+
+    while getopts "h:mrdsc" option_symbol; do
         case "${option_symbol}" in
             h)
                 kinetic_host="${OPTARG}"
                 ;;
             m)
-                valgrind_flag="true"
+                valgrind_mode='true'
                 ;;
             r)
-                record_mode="true"
+                record_mode='true'
                 ;;
             d)
-                debug_mode="true"
+                debug_mode='true'
+                should_run_cleanup='false'
+                ;;
+            s)
+                should_run_tests='false'
+                should_run_cleanup='false'
+                ;;
+            c)
+                should_run_setup='false'
+                should_run_tests='false'
                 ;;
             *)
                 echo "${usage_msg}"
@@ -73,6 +89,12 @@ if [[ ${is_sourced} -eq 0 ]]; then
                 ;;
         esac
     done
+
+    # do this after arg parsing so arg order doesn't matter
+    if [[ "${valgrind_mode}" = 'true' ]]; then
+        debug_mode='false'
+        should_run_cleanup='true'
+    fi
 fi
 
 
@@ -185,6 +207,7 @@ function fixture_case_pointdelete() {
         [[ "${debug_mode}" = 'true' ]] && set -x
 
         ${test_command} >/dev/null
+        #${test_command}
 
         [[ "${debug_mode}" = 'true' ]] && set +x
     fi
@@ -354,14 +377,22 @@ fixture_testcases[4]="fixture_case_rangedelete_inclusive"
 # ------------------------------
 # Main Logic
 
+# >> There are 3 phases: setup, test cases, cleanup.
+
+# set readable variables for controlling phases using mode flags
 if [[ ${is_sourced} -eq 0 ]]; then
     echo "${fixture_name} |> Executing Fixture"
 
-    fixture_setup
+    # >> setup phase
+    [[ "${should_run_setup}" = 'true' ]] && fixture_setup
 
-    for fn_testcase in ${fixture_testcases[@]}; do
-        ${fn_testcase} "${valgrind_flag}"
-    done
+    # >> test phase
+    if [[ "${should_run_tests}" = 'true' ]]; then
+        for fn_testcase in ${fixture_testcases[@]}; do
+            ${fn_testcase} "${valgrind_mode}"
+        done
+    fi
 
-    fixture_cleanup
+    # >> cleanup phase
+    [[ "${should_run_cleanup}" = 'true' ]] && fixture_cleanup
 fi

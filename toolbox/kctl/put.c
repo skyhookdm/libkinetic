@@ -62,11 +62,11 @@ kctl_put_usage(struct kargs *ka)
 
 /*
  * Put a Key Value pair
- * By default kctl stores the version number as 8 digit hexidecimal ascii 
+ * By default kctl stores the version number as 8 digit hexidecimal ascii
  * number starting at "0x00000000" for new keys.
  * By default versions are ignored, compare and swap can be enabled with -c
  * This enforces the correct version is passed to the put or else it fails
- * All persistence modes are supported with -p [wt,wb,f] defaulting to 
+ * All persistence modes are supported with -p [wt,wb,f] defaulting to
  * Write Back.
  * A CRC32 check sum of the value can be stored -s sum
  */
@@ -93,7 +93,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				fprintf(stderr, "**** No active batch\n");
 				CMD_USAGE(ka);
 				return(-1);
-			}				
+			}
 			break;
 		case 'c':
 			cas = 1;
@@ -107,7 +107,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				fprintf(stderr, "**** No -z and -f\n");
 				CMD_USAGE(ka);
 				return(-1);
-			}				
+			}
 			break;
 		case 'n':
 			if (optarg[0] == '-') {
@@ -166,7 +166,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				CMD_USAGE(ka);
 				return(-1);
 			}
-			
+
 			if (zlen > ka->ka_limits.kl_vallen) {
 				fprintf(stderr, "*** zlen too long (%d > %d)\n",
 					zlen, ka->ka_limits.kl_vallen);
@@ -177,7 +177,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				fprintf(stderr, "**** No -f and -z\n");
 				CMD_USAGE(ka);
 				return(-1);
-			}				
+			}
 			break;
 		case 's':
 			if (strlen(optarg) > 8) {
@@ -210,7 +210,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			CMD_USAGE(ka);
 			return(-1);
 		}
-		
+
 	} else if ((argc - optind == 1) && (zlen > -1)) {
 		/* Construct zero value buffer of length zlen */
 		if (!asciidecode(argv[optind], strlen(argv[optind]),
@@ -259,16 +259,16 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				st.st_size, ka->ka_limits.kl_vallen);
 			return(-1);
 		}
-		
+
 		ka->ka_vallen	= st.st_size;
-		ka->ka_val	= (char *)malloc(ka->ka_vallen);
+		ka->ka_val	= (char *) malloc(ka->ka_vallen);
 		if (!ka->ka_val) {
 			fprintf(stderr, "*** Unable to alloc %lu bytes\n",
 				ka->ka_vallen);
 			CMD_USAGE(ka);
 			return(-1);
 		}
-		
+
 		fd = open(filename, O_RDONLY);
 		if (fd < 0) {
 			fprintf(stderr, "*** Unable to open file %s\n",
@@ -276,7 +276,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 			CMD_USAGE(ka);
 			return(-1);
 		}
-		
+
 		if (read(fd, ka->ka_val, ka->ka_vallen) != ka->ka_vallen){
 			fprintf(stderr, "*** Unable to read file %s\n",
 				filename);
@@ -305,7 +305,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 
 	kv->kv_val    = kv_val;
 	kv->kv_valcnt = 1;
-	
+
 	/*
 	 * Check and hang the key
 	 */
@@ -314,7 +314,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		fprintf(stderr, "*** Key and/or value too long\n");
 		return(-1);
 	}
- 
+
 	kv->kv_key[0].kiov_base = ka->ka_key;
 	kv->kv_key[0].kiov_len  = ka->ka_keylen;
 
@@ -363,7 +363,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		       (ka->ka_vallen / m * 1000000 / 1024.0));
 	}
 
-	if (ka->ka_val) free(ka->ka_val);
+	if (ka->ka_val) { free(ka->ka_val); }
 	ki_destroy(kv);
 	return(rc);
 }
@@ -379,19 +379,19 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 
 	/* Get the key's version if it exists and then increment the version */
 	krc = ki_getversion(ktd, kv);
- 	if(krc == K_OK) {
+
+	if (krc == K_OK) {
 		unsigned long nv;
 		nv = strtoul(kv->kv_ver, NULL, 16) + 1; /* increment the vers */
 		sprintf(newver, "0x%08x", (unsigned int)nv);
 		exists = 1;
-	} else { 
-		/*
-		 * Get failure likely means no existing key so no version
-		 * use default 0
-		 */
+	}
+
+	// Likely, no existing key; use 0 as default version
+	else {
 		sprintf(newver, "0x%08x", 0);
 	}
-	
+
 	kv->kv_newver	 = newver;
 	kv->kv_newverlen = VERLEN;
 	kv->kv_disum	 = &sum;
@@ -406,9 +406,12 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 
 	if (ka->ka_verbose) {
 		printf ("Key:             ");
-		for(i=0; i<kv->kv_keycnt; i++)
+
+		for (i=0; i<kv->kv_keycnt; i++) {
 			asciidump(kv->kv_key[i].kiov_base,
 				  kv->kv_key[i].kiov_len);
+		}
+
 		printf("\n");
 		printf("Batch:           %p\n", (bat?ka->ka_batch:NULL));
 		printf("Compare & Swap:  %s\n", cas?"Enabled":"Disabled");
@@ -419,11 +422,9 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 		printf("Cache Policy:    %s\n\n",
 		       ki_cpolicy_label[kv->kv_cpolicy]);
 	}
-	
-        if (cas)
-		krc = ki_cas(ktd, (bat?ka->ka_batch:NULL), kv);
-	else
-		krc = ki_put(ktd, (bat?ka->ka_batch:NULL), kv);
+
+	if (cas) { krc = ki_cas(ktd, (bat?ka->ka_batch:NULL), kv); }
+	else     { krc = ki_put(ktd, (bat?ka->ka_batch:NULL), kv); }
 
 	/* return the key the way we found it */
 	kv->kv_ver	 = NULL;
@@ -436,19 +437,20 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 	kv->kv_cpolicy	 = 0;
 	kv->kv_metaonly	 = 0;
 
-	if (krc == K_OK) (kv->destroy_protobuf)(kv);
-	kv->destroy_protobuf	= NULL;
-	kv->kv_protobuf		= NULL;
-
 	kv->kv_val[0].kiov_base = NULL;
 	kv->kv_val[0].kiov_len  = 0;
-	
-	if (krc != K_OK) {
-		fprintf(stderr, "%s: %s: %s\n",
-			ka->ka_cmdstr, ka->ka_key, ki_error(krc));
-		return(-1);
+
+	if (krc == K_OK) {
+		ki_clean(kv);
+		return (0);
 	}
-	return(0);
+
+	fprintf(stderr
+		,"%s: %s: %s\n"
+		, ka->ka_cmdstr, ka->ka_key, ki_error(krc)
+	);
+
+	return(-1);
 }
 
 
