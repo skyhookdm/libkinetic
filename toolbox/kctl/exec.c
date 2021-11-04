@@ -50,7 +50,7 @@ kctl_exec_usage(struct kargs *ka)
 	fprintf(stderr, "Where, FN KEY is the key of the function to be executed.\n");
 	fprintf(stderr, "FN KEY is a string that can contain ASCII chars and arbitrary\n");
 	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
+	fprintf(stderr, "foo(Only \\xHH escape sequences are converted, ex \xF8.)foo");
 	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
 
 	fprintf(stderr, "\nIf -n count is provided, then FN KEY is used as a basekey\n");
