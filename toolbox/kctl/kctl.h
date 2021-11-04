@@ -125,7 +125,7 @@ extern void * asciidecode(const void* , size_t, void**, size_t *);
 	(_d) += ((_me)->tv_sec - (_se)->tv_sec) * KCTL_BNS;		\
 	(_d) /= (uint64_t)1000;						\
 	if ((_d) > KCTL_MAXINTV || (_d) <= 0) {				\
-		printf("KCTL TS CHK: (%lu, %lu) - (%lu, %lu) = %lu\n",	\
+		printf("KCTL TS CHK: (%lu, %lu) - (%lu, %lu) = %llu\n",	\
 		       (_me)->tv_sec, (_me)->tv_nsec,			\
 		       (_se)->tv_sec, (_se)->tv_nsec,			\
 		       (_d));						\

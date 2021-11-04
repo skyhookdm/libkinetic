@@ -164,7 +164,7 @@ usage()
 		kargs.ka_host);
 	fprintf(stderr, "\t-p port      Port number [%s]\n", kargs.ka_port);
 	fprintf(stderr, "\t-s           Use SSL [no]\n");
-	fprintf(stderr, "\t-u id        User ID [%ld]\n", kargs.ka_user);
+	fprintf(stderr, "\t-u id        User ID [%lld]\n", kargs.ka_user);
 	fprintf(stderr,	"\t-m hkey      HMAC Key [%s]\n", kargs.ka_hkey);
 	fprintf(stderr, "\t-c version   Client Cluster Version [0]\n");
 	fprintf(stderr,	"\t-T timeout   Timeout in seconds [%d]\n",
@@ -188,17 +188,17 @@ void
 print_args(struct kargs *ka)
 {
 #define PA_LABEL_WIDTH  "12"
-	printf("%" PA_LABEL_WIDTH "s kinetic%s://%ld:%s@%s:%s/%s\n", "URL:",
+	printf("%" PA_LABEL_WIDTH "s kinetic%s://%lld:%s@%s:%s/%s\n", "URL:",
 	       ka->ka_usetls?"s":"", ka->ka_user, ka->ka_hkey,
 	       ka->ka_host, ka->ka_port, ka->ka_cmdstr);
 
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Host:", ka->ka_host);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Port:", ka->ka_port);
-	printf("%" PA_LABEL_WIDTH "s %ld\n","UserID:", ka->ka_user);
+	printf("%" PA_LABEL_WIDTH "s %lld\n","UserID:", ka->ka_user);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "HMAC Key:", ka->ka_hkey);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Use TLS:", ka->ka_usetls);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Timeout:", ka->ka_timeout);
-	printf("%" PA_LABEL_WIDTH "s %ld\n", "Cluster Version:",
+	printf("%" PA_LABEL_WIDTH "s %lld\n", "Cluster Version:",
 	       ka->ka_clustervers);
 	printf("%" PA_LABEL_WIDTH "s %p\n", "Batch:", ka->ka_batch);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Yes:", ka->ka_yes);
@@ -391,7 +391,8 @@ kctl_start(struct kargs *ka)
 int
 kctl(int argc, char *argv[], struct kargs *ka)
 {
-	int i, rc, ktd;
+	int i, ktd;
+	int rc = -1;
 
 	ktd = kctl_start(ka);
 	if (ktd < 0) {
@@ -399,7 +400,7 @@ kctl(int argc, char *argv[], struct kargs *ka)
 		return(EINVAL);
 	}
 
-	for(i=0; i<KCTL_EOT; i++) {
+	for (i = 0; i < KCTL_EOT; i++) {
 		if (ktable[i].ktab_cmd == kargs.ka_cmd) {
 			/* Found a good command, call it */
 			rc = (*ktable[i].ktab_handler)(argc, argv, ktd, ka);

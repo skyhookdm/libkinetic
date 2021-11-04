@@ -23,7 +23,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <inttypes.h>
-#include <endian.h>
 
 #define ntohll(__x) be64toh((__x))
 #define htonll(__x) htobe64((__x))

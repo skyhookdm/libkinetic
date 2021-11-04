@@ -15,9 +15,9 @@
  */
 #ifndef _KIO_H
 #define _KIO_H
+
 #include <stdint.h>
 #include <time.h>
-#include <endian.h>
 
 struct kio;
 

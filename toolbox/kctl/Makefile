@@ -13,6 +13,7 @@
 #
 # IBUILDDIR is necessary for the install target
 # as you can override BUILDDIR with you env
+CC=clang
 IBUILDDIR =	../../build
 BUILDDIR =	$(IBUILDDIR)
 BUILDINC =	$(BUILDDIR)/include
@@ -20,6 +21,14 @@ BUILDLIB =	$(BUILDDIR)/lib
 BUILDBIN =	$(BUILDDIR)/bin
 BUILDSRC =	$(BUILDDIR)/src
 BUILDMAN =	$(BUILDDIR)/man
+
+MAC_SYSLIBS=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib
+
+# for arm
+openssl_lib=/opt/homebrew/opt/openssl/lib
+
+# for amd
+# openssl_lib=/usr/local/opt/openssl/lib
 
 SRCS = 		kctl.c util.c info.c get.c put.c del.c	\
 		range.c batch.c stats.c ping.c flush.c	\
@@ -35,10 +44,10 @@ KCTLDEPS =	$(BUILDLIB)/libkinetic.a
 
 KCTL=		kctl
 CPPFLAGS = 	-I$(BUILDINC)
-CFLAGS =	-g -Wall
-LDFLAGS =	-L$(BUILDLIB)
-STATIC = 	-Wl,-Bstatic
-DYNAMIC =	-Wl,-Bdynamic
+CFLAGS =	-g -Wall -v
+LDFLAGS =	-L$(BUILDLIB) -L$(openssl_lib)
+STATIC = 	-Wl,-static
+DYNAMIC =	-Wl,-dynamic
 
 # By default this make statically links against libkinetic
 # removing the STATIC var below permits dynamic linking, but
@@ -46,7 +55,7 @@ DYNAMIC =	-Wl,-Bdynamic
 # used to locate the shared libs
 LDLIBS = 	-lreadline 				\
 		$(STATIC) -lkinetic 			\
-		$(DYNAMIC) -lpthread -lssl -lcrypto -lm
+		$(DYNAMIC) -pthread -lssl -lcrypto #-lm
 
 SANITY =	Sanity.kctl
 SANITYO =	Sanity.kctl.out

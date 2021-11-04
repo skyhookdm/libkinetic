@@ -55,7 +55,7 @@ kctl_del_usage(struct kargs *ka)
 	// R"foo(....)foo" is a non escape char evaluated string literal
 	fprintf(stderr, "\nWhere, KEY is a quoted string that can contain arbitrary\n");
 	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
+	fprintf(stderr, "Only \\xHH escape sequences are converted, ex \\xF8.");
 	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
 
 	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
@@ -350,7 +350,7 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 			uint64_t t;
 			clock_gettime(CLOCK_MONOTONIC, &tstop);
 			ts_sub(&tstop, &tstart, t);
-			printf("KCTL Stats: Del time: %lu \xC2\xB5S\n", t);
+			printf("KCTL Stats: Del time: %llu \xC2\xB5S\n", t);
 		}
 	}
 

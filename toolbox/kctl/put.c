@@ -54,7 +54,7 @@ kctl_put_usage(struct kargs *ka)
 	fprintf(stderr, "\t-?           Help\n");
 	fprintf(stderr, "\nWhere, KEY and VALUE are quoted strings that can contain arbitrary\n");
 	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
+	fprintf(stderr, "Only \\xHH escape sequences are converted, ex \\xF8.");
 	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
 
 	fprintf(stderr, "\nTo see available COMMON OPTIONS: ./kctl -?\n");
@@ -255,7 +255,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		}
 
 		if (st.st_size > (size_t)ka->ka_limits.kl_vallen) {
-			fprintf(stderr, "*** file too long (%lu > %d)\n",
+			fprintf(stderr, "*** file too long (%llu > %d)\n",
 				st.st_size, ka->ka_limits.kl_vallen);
 			return(-1);
 		}

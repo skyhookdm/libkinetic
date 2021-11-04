@@ -54,9 +54,17 @@ STATS =
 # debuglevel: 0=no debug, 1=info, 2=debug; -fmax-errors=10 reduces shown errs
 DEBUG =	-g -DLOGLEVEL=0 $(STATS)
 
-CFLAGS =	$(DEBUG) -I. -I$(BUILDDIR)/include -Wall -fpic -Wl,-export-dynamic
-LDFLAGS =	-L$(BUILDDIR)/lib -L/usr/lib/$(shell gcc -print-multiarch)
-LDLIBS =	-llist -lprotobuf-c -lm
+# for arm
+openssl_inc=/opt/homebrew/opt/openssl/include
+openssl_lib=/opt/homebrew/opt/openssl/lib
+
+# for amd
+# openssl_inc=/usr/local/opt/openssl/include
+# openssl_lib=/usr/local/opt/openssl/lib
+
+CFLAGS =	$(DEBUG) -I. -I$(BUILDDIR)/include -I$(openssl_inc) -Wall -fpic -Wl,-export-dynamic
+LDFLAGS =	-L$(BUILDDIR)/lib -L$(openssl_lib) -L/usr/lib #-L/usr/lib/$(shell gcc -print-multiarch)
+LDLIBS =	-llist -lprotobuf-c -lssl -lcrypto #-lm
 
 CP =		/bin/cp
 LN =		/bin/ln
@@ -75,10 +83,14 @@ $(BUILDLIB_KINETIC): $(KINETICSOVL)
 	$(MKDIR) -p $(BUILDDIR)/include/kinetic
 	$(MKDIR) -p $(BUILDDIR)/include/kinetic/protocol
 	$(MKDIR) -p $(BUILDDIR)/lib
-	$(INSTALL) -D -m 644 $(INC_KPUB) $(BUILDDIR)/include/kinetic
-	$(INSTALL) -D -m 644 $(INC_PPUB) $(BUILDDIR)/include/kinetic/protocol
-	$(INSTALL) -D -m 755 $(KINETIC) $(BUILDDIR)/lib
-	$(INSTALL) -D -m 755 $(KINETICSOVL) $(BUILDDIR)/lib
+	#$(INSTALL) -D -m 644 $(INC_KPUB) $(BUILDDIR)/include/kinetic
+	#$(INSTALL) -D -m 644 $(INC_PPUB) $(BUILDDIR)/include/kinetic/protocol
+	#$(INSTALL) -D -m 755 $(KINETIC) $(BUILDDIR)/lib
+	#$(INSTALL) -D -m 755 $(KINETICSOVL) $(BUILDDIR)/lib
+	$(INSTALL) -m 644 $(INC_KPUB) $(BUILDDIR)/include/kinetic
+	$(INSTALL) -m 644 $(INC_PPUB) $(BUILDDIR)/include/kinetic/protocol
+	$(INSTALL) -m 755 $(KINETIC) $(BUILDDIR)/lib
+	$(INSTALL) -m 755 $(KINETICSOVL) $(BUILDDIR)/lib
 	$(CP) -a $(KINETICSOV) $(BUILDDIR)/lib
 	$(CP) -a $(KINETICSO) $(BUILDDIR)/lib
 
@@ -88,7 +100,8 @@ $(KINETIC):	links $(OBJS)
 	ranlib $@
 
 $(KINETICSOVL): $(KINETIC)
-	gcc -shared -Wl,-soname,$(KINETICSOV) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	#gcc -shared -Wl,-soname,$(KINETICSOV) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
+	gcc -shared -Wl,-install_name,$(KINETICSOV) -o $@ $(OBJS) $(LDFLAGS) $(LDLIBS)
 	$(LN) -fs ./$(KINETICSOVL) $(KINETICSOV)
 	$(LN) -fs ./$(KINETICSOV) $(KINETICSO)
 

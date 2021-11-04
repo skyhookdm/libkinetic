@@ -40,7 +40,7 @@ b_put_usage(struct bargs *ba)
 	fprintf(stderr, "\t-?           Help\n");
 	fprintf(stderr, "\nWhere, KEY and VALUE are quoted strings that can contain arbitrary\n");
 	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
+	fprintf(stderr, "Only \\xHH escape sequences are converted, ex \\xF8.");
 	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
 
 	fprintf(stderr, "\nFor -l, the value length to be stored will not fit into a\n");
@@ -162,7 +162,7 @@ b_put(int argc, char *argv[], int ktd, struct bargs *ba)
 		}
 		
 		if (ba->ba_vallen > maxlen) {
-			fprintf(stderr, "*** value too long (%lu > %lu)\n",
+			fprintf(stderr, "*** value too long (%lu > %llu)\n",
 				ba->ba_vallen, maxlen);
 			return(-1);
 		}
@@ -203,7 +203,7 @@ b_put(int argc, char *argv[], int ktd, struct bargs *ba)
 		}
 
 		if (st.st_size > (size_t)maxlen) {
-			fprintf(stderr, "*** file too long (%lu > %lu)\n",
+			fprintf(stderr, "*** file too long (%llu > %lu)\n",
 				st.st_size, ba->ba_limits.bkvl_vlen);
 			return(-1);
 		}

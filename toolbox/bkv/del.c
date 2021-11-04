@@ -38,7 +38,7 @@ b_del_usage(struct bargs *ba)
 
 	fprintf(stderr, "\nWhere, KEY is a quoted string that can contain arbitrary\n");
 	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
+	fprintf(stderr, "Only \\xHH escape sequences are converted, ex \\xF8.");
 	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
 
 	fprintf(stderr, "\nFor -n <count>, KEY is the base key and <count> keys are deleted\n");
@@ -79,7 +79,7 @@ b_del(int argc, char *argv[], int ktd, struct bargs *ba)
 			
 			if (count > ba->ba_limits.bkvl_maxn) {
 				fprintf(stderr,
-					"*** count too big (%lu > %ld)\n",
+					"*** count too big (%llu > %ld)\n",
 					count,  ba->ba_limits.bkvl_maxn);
 				return(-1);
 			}
@@ -128,9 +128,9 @@ b_del(int argc, char *argv[], int ktd, struct bargs *ba)
 	
 	if (count) {
 		if (ba->ba_yes && !ba->ba_quiet) 
-			printf("***DELETING %ld Key(s): ", count);
+			printf("***DELETING %lld Key(s): ", count);
 		else
-			printf("***DELETE? %ld Key(s): ", count);
+			printf("***DELETE? %lld Key(s): ", count);
 	} else {
 		if (ba->ba_yes && !ba->ba_quiet) 
 			printf("***DELETING Key: ");

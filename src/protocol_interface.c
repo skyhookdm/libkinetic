@@ -417,7 +417,7 @@ kstatus_t extract_cmdstatus_code(kproto_cmd_t *protobuf_command)
 		return (K_EINTERNAL);
 	}
 
-	return (protobuf_command->status->code);
+	return (kstatus_t) protobuf_command->status->code;
 }
 
 kstatus_t
@@ -469,7 +469,7 @@ extract_cmdstatus_dmsg(kproto_cmd_t *protobuf_command, char **msg, size_t *len)
 	}
 
 	memcpy(*msg, response_status->detailedmessage.data, *len);
-	msg[*len-1] = '\0';
+	msg[*len - 1] = NULL;
 
 	return (K_OK);
 }

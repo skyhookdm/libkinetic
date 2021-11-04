@@ -18,10 +18,22 @@
 
 #include <pthread.h>
 
+#if defined(__APPLE__)
+    #include <machine/endian.h>
+#else
+    #include <endian.h>
+#endif
+
 #include "kinetic.h"
 #include "kinetic_types.h"
 #include "session.h"
 #include "list.h"
+
+#if defined(__APPLE__)
+    #define EBADFD EBADF
+    #define ECOMM  ETIMEDOUT
+#endif
+
 
 /* ------------------------------
  * Constants

@@ -130,13 +130,13 @@ kctl_ping(int argc, char *argv[], int ktd, struct kargs *ka)
 			sq  = nsq;
 		}
 
-		printf("kinetic noop %s: seq=%d time=%lu \xC2\xB5S\n",
+		printf("kinetic noop %s: seq=%d time=%llu \xC2\xB5S\n",
 		       ka->ka_host, i+1, t);
 	}		
 	printf("%d noops transmitted, %d received, %2.3f%% missed, ",
 	       i, s, (i-s)/(float)i*100);
-	printf("time=%lu \xC2\xB5S\n", tt);
-	printf("rtt min/avg/max/mdev = %lu/%1.3g/%lu/%1.3g \xC2\xB5S\n",
+	printf("time=%llu \xC2\xB5S\n", tt);
+	printf("rtt min/avg/max/mdev = %llu/%1.3g/%llu/%1.3g \xC2\xB5S\n",
 	       min, m, max, sqrt(sq/(i-1)));
 
 	if (tt)

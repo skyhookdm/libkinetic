@@ -132,7 +132,7 @@ usage()
 		bargs.ba_cinfo.bkvo_port);
 	fprintf(stderr, "\t-s           Use SSL [%s]\n",
 		(bargs.ba_cinfo.bkvo_usetls?"yes":"no"));
-	fprintf(stderr, "\t-u id        User ID [%ld]\n",
+	fprintf(stderr, "\t-u id        User ID [%lld]\n",
 		bargs.ba_cinfo.bkvo_id);
 	fprintf(stderr,	"\t-m pass      User Password [%s]\n",
 		bargs.ba_cinfo.bkvo_pass);
@@ -154,14 +154,14 @@ void
 print_args(struct bargs *ba)
 {
 #define PA_LABEL_WIDTH  "12"
-	printf("%" PA_LABEL_WIDTH "s kinetic%s://%ld:%s@%s:%s/%s\n", "URL:",
+	printf("%" PA_LABEL_WIDTH "s kinetic%s://%lld:%s@%s:%s/%s\n", "URL:",
 	       ba->ba_cinfo.bkvo_usetls?"s":"",
 	       ba->ba_cinfo.bkvo_id, ba->ba_cinfo.bkvo_pass,
 	       ba->ba_cinfo.bkvo_host, ba->ba_cinfo.bkvo_port, ba->ba_cmdstr);
 
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Host:", ba->ba_cinfo.bkvo_host);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "Port:", ba->ba_cinfo.bkvo_port);
-	printf("%" PA_LABEL_WIDTH "s %ld\n","UserID:", ba->ba_cinfo.bkvo_id);
+	printf("%" PA_LABEL_WIDTH "s %lld\n","UserID:", ba->ba_cinfo.bkvo_id);
 	printf("%" PA_LABEL_WIDTH "s %s\n", "UserPass:",
 	       ba->ba_cinfo.bkvo_pass);
 	printf("%" PA_LABEL_WIDTH "s %d\n", "Use TLS:",
@@ -326,7 +326,8 @@ b_start(struct bargs *ba)
 int
 bkv(int argc, char *argv[], struct bargs *ba)
 {
-	int i, rc, ktd;
+	int i, ktd;
+	int rc = -1;
 
 	ktd = b_start(ba);
 	if (ktd < 0) {
@@ -334,7 +335,7 @@ bkv(int argc, char *argv[], struct bargs *ba)
 		return(EINVAL);
 	}
 
-	for(i=0; i<BKV_EOT; i++) {
+	for (i = 0; i < BKV_EOT; i++) {
 		if (btable[i].btab_cmd == bargs.ba_cmd) {
 			/* Found a good command, call it */
 			rc = (*btable[i].btab_handler)(argc, argv, ktd, ba);

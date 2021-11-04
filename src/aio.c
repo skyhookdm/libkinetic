@@ -22,7 +22,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <inttypes.h>
-#include <endian.h>
 #include <errno.h>
 
 #include "kio.h"
@@ -46,46 +45,49 @@ ki_aio_complete(int ktd, kio_t *ckio, void **cctx)
 	kstatus_t ks;
 	
 	switch (kio->kio_cmd) {
-	case KMT_PUT:
-		ks = p_put_aio_complete(ktd, kio, cctx);
-		break;
-	case KMT_DEL:
-		ks = d_del_aio_complete(ktd, kio, cctx);
-		break;
-	case KMT_GET:
-	case KMT_GETNEXT:
-	case KMT_GETPREV:
-	case KMT_GETVERS:
-		ks = g_get_aio_complete(ktd, kio, cctx);
-		break;
-		
-	case KMT_STARTBAT:
-	case KMT_ABORTBAT:
-	case KMT_ENDBAT:
-		ks = b_batch_aio_complete(ktd, kio, cctx);
-		break;
+		case KMT_PUT:
+			ks = p_put_aio_complete(ktd, kio, cctx);
+			break;
 
-	case KMT_NOOP:
-		ks = n_noop_aio_complete(ktd, kio, cctx);
-		break;
+		case KMT_DEL:
+			ks = d_del_aio_complete(ktd, kio, cctx);
+			break;
 
-	case KMT_FLUSH:
-		ks = f_flush_aio_complete(ktd, kio, cctx);
-		break;
+		case KMT_GET:
+		case KMT_GETNEXT:
+		case KMT_GETPREV:
+		case KMT_GETVERS:
+			ks = g_get_aio_complete(ktd, kio, cctx);
+			break;
 
-	case KMT_PUSHP2P:
-		break;
+		case KMT_STARTBAT:
+		case KMT_ABORTBAT:
+		case KMT_ENDBAT:
+			ks = b_batch_aio_complete(ktd, kio, cctx);
+			break;
 
-	case KMT_APPLET:
-		ks = e_exec_aio_complete(ktd, kio, cctx);
-		break;
+		case KMT_NOOP:
+			ks = n_noop_aio_complete(ktd, kio, cctx);
+			break;
 
-	default:
-		debug_printf("aio_complete: bad cmd");
-		return(K_EINVAL);
+		case KMT_FLUSH:
+			ks = f_flush_aio_complete(ktd, kio, cctx);
+			break;
+
+		case KMT_PUSHP2P:
+			ks = (K_EINVAL);
+			break;
+
+        case KMT_APPLET:
+            ks = e_exec_aio_complete(ktd, kio, cctx);
+            break;
+
+		default:
+			debug_printf("aio_complete: bad cmd");
+			return (K_EINVAL);
 	}
 
-	return(ks);
+	return (ks);
 }
 
 int

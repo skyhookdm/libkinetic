@@ -708,7 +708,7 @@ ktli_receive(int kts, struct kio *kio)
 	 * This is a special case, the connection is gone and we need to
 	 * receive all the failed incomplete requests.
 	 */
-	if ((st == KTLI_SSTATE_DRAINING)) {
+	if (st == KTLI_SSTATE_DRAINING) {
 		rc = ktli_drain_match(kts, kio);
 		return(rc);
 	}
@@ -1763,7 +1763,7 @@ ktli_receiver(void *p)
 				debug_printf("KIO Timeout seq: %ld\n",
 					     kio->kio_seq);
 
-				printf("KIO Timeout seq: %ld, toq: %lu - %lu = %lu\n",
+				printf("KIO Timeout seq: %lld, toq: %lu - %lu = %lu\n",
 				       kio->kio_seq,
 				       currtime.tv_sec, kio->kio_timeout.tv_sec,
 				       currtime.tv_sec - kio->kio_timeout.tv_sec

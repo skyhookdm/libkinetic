@@ -22,7 +22,6 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <inttypes.h>
-#include <endian.h>
 #include <errno.h>
 
 #include <openssl/hmac.h>

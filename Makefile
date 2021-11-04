@@ -35,7 +35,7 @@ KCTL	  =	$(BUILDBIN)/kctl
 # LGTEST    =	$(BUILDLIB)/libgtest.a
 
 CC      =	gcc
-CFLAGS  =	-g -I$(BUILDDIR)/include
+CFLAGS  =	-g -I$(BUILDDIR)/include -I/opt/homebrew/opt/protobuf/include
 LDFLAGS =	-L$(BUILDDIR)/lib
 
 DISTFILES = 				\
@@ -66,7 +66,7 @@ $(BUILDDIR):
 	@mkdir -p $(BUILDLIB)
 	@mkdir -p $(BUILDBIN)
 
-$(TBDIR): FORCE
+$(TBDIR): $(LKINETIC)
 	(cd $@; BUILDDIR=$(BUILDDIR) make -e all install)
 
 $(LPROTOBUF): 

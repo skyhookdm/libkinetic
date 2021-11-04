@@ -701,7 +701,7 @@ print_kvs(struct kargs *ka, int kts,
 		}
 
 		i++;
-		printf("analyzing ...%3lu%%\r", (i*100)/(nkeys-nerrs));
+		printf("analyzing ...%3llu%%\r", (i*100)/(nkeys-nerrs));
 
 		addto_histo(hkey, k->kiov_len);
 		addto_histo(hval, kv_val->kiov_len);
@@ -755,17 +755,17 @@ print_kvs(struct kargs *ka, int kts,
 	klen_std = sqrt(klen_meansq/(nkeys - nerrs - 1));
 
 	printf("\n");
-	printf("Total Keys            : %lu\n", nkeys);
-	printf("Analyzed Keys         : %lu\n", nkeys - nerrs);
-	printf("Failed Keys           : %lu\n", nerrs);
+	printf("Total Keys            : %llu\n", nkeys);
+	printf("Analyzed Keys         : %llu\n", nkeys - nerrs);
+	printf("Failed Keys           : %llu\n", nerrs);
 
-	printf("Key Length (min)      : %lu\n", klen_min);
-	printf("Key Length (max)      : %lu\n", klen_max);
+	printf("Key Length (min)      : %llu\n", klen_min);
+	printf("Key Length (max)      : %llu\n", klen_max);
 	printf("Key Length (mean)     : %-4.10g\n", klen_mean);
 	printf("Key Length (stddev)   : %-4.10g\n", klen_std);
 
-	printf("Value Length (min)    : %lu\n", vlen_min);
-	printf("Value Length (max)    : %lu\n", vlen_max);
+	printf("Value Length (min)    : %llu\n", vlen_min);
+	printf("Value Length (max)    : %llu\n", vlen_max);
 	printf("Value Length (mean)   : %-7.10g\n", vlen_mean);
 	printf("Value Length (stddev) : %-7.10g\n", vlen_std);
 

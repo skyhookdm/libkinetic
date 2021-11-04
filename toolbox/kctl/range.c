@@ -52,7 +52,7 @@ kctl_range_usage(struct kargs *ka)
 
 	// R"foo(....)foo" is a non escape char evaluated string literal 
 	fprintf(stderr,
-		R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
+		"Only \\xHH escape sequences are converted, ex \\xF8.");
 	fprintf(stderr,
 		"\nIf a conversion fails the command terminates.\n");
 

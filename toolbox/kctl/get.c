@@ -44,7 +44,7 @@ kctl_get_usage(struct kargs *ka)
 
 	fprintf(stderr, "\nWhere, KEY is a quoted string that can contain arbitrary\n");
 	fprintf(stderr, "hexidecimal escape sequences to encode binary characters.\n");
-	fprintf(stderr, R"foo(Only \xHH escape sequences are converted, ex \xF8.)foo");
+	fprintf(stderr, "Only \\xHH escape sequences are converted, ex \\xF8.");
 	fprintf(stderr, "\nIf a conversion fails the command terminates.\n");
 
 	fprintf(stderr, "\nBy default keys and values are printed as raw strings,\n");
@@ -239,7 +239,7 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		uint64_t t;
 		clock_gettime(CLOCK_MONOTONIC, &stop);
 		ts_sub(&stop, &start, t);
-		printf("KCTL Stats: Get time: %lu \xC2\xB5S\n", t);
+		printf("KCTL Stats: Get time: %llu \xC2\xB5S\n", t);
 	}
 
 	// ------------------------------
