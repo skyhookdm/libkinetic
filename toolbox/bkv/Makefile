@@ -13,7 +13,9 @@
 #
 # IBUILDDIR is necessary for the install target
 # as you can override BUILDDIR with you env
-#CC=clang
+UNAME_SYS  = $(shell uname -s)
+UNAME_PROC = $(shell uname -p)
+
 IBUILDDIR =	../../build
 BUILDDIR =	$(IBUILDDIR)
 BUILDINC =	$(BUILDDIR)/include
@@ -22,13 +24,22 @@ BUILDBIN =	$(BUILDDIR)/bin
 BUILDSRC =	$(BUILDDIR)/src
 BUILDMAN =	$(BUILDDIR)/man
 
-MAC_SYSLIBS=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib
+ifeq ($(UNAME_SYS),Darwin)
+    STATIC  =
+    DYNAMIC =
 
-# for arm
-openssl_lib=/opt/homebrew/opt/openssl/lib
+    ifeq ($(UNAME_PROC),arm)
+        openssl_lib=/opt/homebrew/opt/openssl/lib
+    else
+        openssl_lib=/usr/local/opt/openssl/lib
+    endif
 
-# for amd
-# openssl_lib=/usr/local/opt/openssl/lib
+else
+    STATIC  = -Wl,-static
+    DYNAMIC = -Wl,-dynamic
+
+endif
+
 
 SRCS = 		bkv.c get.c put.c del.c exists.c util.c limits.c
 HDRS =		bkv.h
@@ -41,8 +52,6 @@ BKV=		bkv
 CPPFLAGS = 	-I$(BUILDINC)
 CFLAGS =	-g -Wall
 LDFLAGS =	-L$(BUILDLIB) -L$(openssl_lib)
-STATIC = 	-Wl,-static
-DYNAMIC =	-Wl,-dynamic
 
 # By default this make statically links against libkinetic
 # removing the STATIC var below permits dynamic linking, but
