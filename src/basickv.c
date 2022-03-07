@@ -23,10 +23,10 @@
 
 #include "basickv.h"
 
-#define BKV_N_MAXKEYS 256
-#define BKV_N_MAXKEYS_DIGITS 3	
-/* Include the dot ".256" */
-#define BKV_N_MAXKEYS_FORMAT ".%03d"	
+#define BKV_N_MAXKEYS 1024
+#define BKV_N_MAXKEYS_DIGITS 4
+/* Include the dot ".1024" */
+#define BKV_N_MAXKEYS_FORMAT ".%04d"	
 
 
 int
