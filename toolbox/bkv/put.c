@@ -208,7 +208,7 @@ b_put(int argc, char *argv[], int ktd, struct bargs *ba)
 
 		if (st.st_size > (size_t)maxlen) {
 			fprintf(stderr, "*** file too long (%lu > %lu)\n",
-				st.st_size, ba->ba_limits.bkvl_vlen);
+				st.st_size, (size_t)maxlen);
 			return(-1);
 		}
 		
