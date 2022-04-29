@@ -31,7 +31,7 @@
 void
 kctl_pin_usage(struct kargs *ka)
 {
-	fprintf(stderr,	"Usage: %s [..] %s <-e|-l> -n <str> [CMD OPTIONS]\n",
+	fprintf(stderr,	"Usage: %s -s [..] %s <-e|-l> -n <str> [CMD OPTIONS]\n",
 		ka->ka_progname, ka->ka_cmdstr);
 
 	char msg[] = "\n\
@@ -98,11 +98,11 @@ kctl_pin(int argc, char *argv[], int ktd, struct kargs *ka)
         }
 
 	if (!ka->ka_usetls) {
-		fprintf(stderr, "*** Setting a PIN requires a SSL/TLS\n");
+		fprintf(stderr, "*** Setting a PIN requires SSL/TLS\n");
 		return(-1);
 	}
 
-	// Check for correct operation
+	/* Check for correct arguments */
 	if (argc - optind != 0) {
 		fprintf(stderr, "*** Too many args\n");
 		CMD_USAGE(ka);

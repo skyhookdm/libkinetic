@@ -297,8 +297,13 @@ ProtobufCBinaryData create_command_bytes(kcmdhdr_t *cmd_hdr, void *proto_cmd_dat
 		proto_cmdbdy.security = (kproto_ksecurity_t *) proto_cmd_data;
 		break;
 
+	case KMT_SETUP:
+		proto_cmdbdy.setup = (kproto_ksetup_t *) proto_cmd_data;
+		break;
+
 	default:
 		// TODO: not yet implemented, or an invalid message type
+		debug_printf("Unhandled Message Type\n");
 		break;
 	}
 

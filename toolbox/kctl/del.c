@@ -309,10 +309,11 @@ kctl_del(int argc, char *argv[], int ktd, struct kargs *ka)
 
 		}
 
-		if (ka->ka_yes && !ka->ka_quiet)
+		if (ka->ka_yes) {
 			printf("***DELETING Key: ");
-		else
+		} else {
 			printf("***DELETE? Key: ");
+		}
 
 		asciidump(ka->ka_key, ka->ka_keylen);
 		printf("\n");

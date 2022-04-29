@@ -56,6 +56,7 @@ typedef KCMD(__GetLog__Device)		kgetlog_device_info;
 typedef KCMD(__ManageApplet)		kproto_kapplet_t;
 typedef KCMD(__PinOperation)		kproto_kpinop_t;
 typedef KCMD(__Security)		kproto_ksecurity_t;
+typedef KCMD(__Setup)			kproto_ksetup_t;
 typedef KCMD(__Security__ACL)		kproto_kacl_t;
 typedef KCMD(__Security__ACL__Scope)	kproto_kscope_t;
 
@@ -120,6 +121,13 @@ enum {
 	KPT_HIGHEST = KPT(HIGHEST)     ,	/*  9 */
 };
 
+//Kinetic Setup Operations
+#define KSOP(ksop) COM__SEAGATE__KINETIC__PROTO__COMMAND__SETUP__SETUP_OP_TYPE__##ksop
+enum {
+	KSOP_INVALID	= KSOP(INVALID_SETUPOP),		/* -1 */
+	KSOP_FIRMWARE	= KSOP(FIRMWARE_SETUPOP),		/*  1 */
+	KSOP_CLUSTERVERS= KSOP(CLUSTER_VERSION_SETUPOP),	/*  2 */
+};
 
 // Kinetic Security Operations
 #define KSOT(ksot) COM__SEAGATE__KINETIC__PROTO__COMMAND__SECURITY__SECURITY_OP_TYPE__##ksot

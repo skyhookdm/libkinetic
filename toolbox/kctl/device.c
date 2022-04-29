@@ -31,7 +31,7 @@
 void
 kctl_device_usage(struct kargs *ka)
 {
-	fprintf(stderr, "Usage: %s [..] %s [CMD OPTIONS] OPERATION\n",
+	fprintf(stderr, "Usage: %s -s [..] %s [CMD OPTIONS] OPERATION\n",
 		ka->ka_progname, ka->ka_cmdstr);
 
 	char msg[] = "\n\
@@ -89,7 +89,7 @@ kctl_device(int argc, char *argv[], int ktd, struct kargs *ka)
         }
 
 	if (tlsck && !ka->ka_usetls) {
-		fprintf(stderr, "*** Device operations must use SSL/TLS\n");
+		fprintf(stderr, "*** Device operations requires SSL/TLS\n");
 		return(-1);
 	}
 

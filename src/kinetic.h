@@ -139,6 +139,9 @@ kstatus_t ki_getstats(int ktd, kstats_t *kst);
 kstatus_t ki_putstats(int ktd, kstats_t *kst);
 
 /* Kinetic utility interfaces */
+kstatus_t ki_setclustervers(int ktd, int64_t vers);
+kstatus_t ki_getclustervers(int ktd, int64_t *vers);
+kstatus_t ki_firmware(int ktd, void *fw, size_t fwlen);
 
 /* Kinetic Security interfaces */
 kstatus_t ki_setpin(int ktd,
@@ -147,9 +150,8 @@ kstatus_t ki_setpin(int ktd,
 kstatus_t ki_setacls(int ktd, kacl_t *acl, size_t aclcnt);
 
 /* Kinetic information structures */
-klimits_t      ki_limits(int ktd);
-kstatus_t      ki_setclustervers(int ktd, int64_t vers);
-kstatus_t      ki_version(kversion_t *kver);
+klimits_t ki_limits(int ktd);
+kstatus_t ki_version(kversion_t *kver);
 
 /*  Kinetic key utilities/helpers */
 

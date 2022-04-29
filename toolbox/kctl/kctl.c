@@ -74,10 +74,8 @@ extern int kctl_exec(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_device(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_pin(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_acl(int argc, char *argv[], int kts, struct kargs *ka);
-
-#if 0
+extern int kctl_upgrade(int argc, char *argv[], int kts, struct kargs *ka);
 extern int kctl_cluster(int argc, char *argv[], int kts, struct kargs *ka);
-#endif
 
 int kctl_nohandler(int argc, char *argv[], int kts, struct kargs *ka);
 
@@ -87,28 +85,24 @@ struct ktable {
 	const char *ktab_cmdhelp;
 	int (*ktab_handler)(int, char *[], int, struct kargs *);
 } ktable[] = {
-	{ KCTL_NOOP,    "ping",    "Ping the kinetic device", &kctl_ping},
+	{ KCTL_NOOP,    "ping",    "Ping the Kinetic device", &kctl_ping},
 	{ KCTL_GET,     "get",     "Get key value", &kctl_get},
 	{ KCTL_GETNEXT, "getnext", "Get next key value", &kctl_get},
 	{ KCTL_GETPREV, "getprev", "Get previous key value", &kctl_get},
 	{ KCTL_GETVERS, "getvers", "Get key value version", &kctl_get},
 	{ KCTL_PUT,     "put",     "Put key value", &kctl_put},
 	{ KCTL_DEL,     "del",     "Delete key value(s)", &kctl_del},
-	{ KCTL_GETLOG,  "info",    "Get device information", &kctl_info},
+	{ KCTL_GETLOG,  "info",    "Get Kinetic device information", &kctl_info},
 	{ KCTL_RANGE,   "range",   "Print a range of keys", &kctl_range},
 	{ KCTL_BATCH,   "batch",   "Start or End a batch", &kctl_batch},
 	{ KCTL_STATS,   "stats",   "Enable command statistics", &kctl_stats},
 	{ KCTL_FLUSH,   "flush",   "Flush key values caches", &kctl_flush},
-	{ KCTL_EXEC,    "exec",    "Execute a func on the kinetic device", &kctl_exec},
-	{ KCTL_DEVICE,  "device",  "[Un]Lock, erase the kinetic device", &kctl_device},
+	{ KCTL_EXEC,    "exec",    "Execute a func on the Kinetic device", &kctl_exec},
+	{ KCTL_DEVICE,  "device",  "[Un]Lock, erase the Kinetic device", &kctl_device},
 	{ KCTL_PIN,     "pin",     "Set the erase or lock PINs", &kctl_pin},
 	{ KCTL_ACL,     "acl",     "Set the Kinetic ACLs", &kctl_acl},
-
-#if 0
-	{ KCTL_SETCLUSTERV,
-	                "cluster", "Set device cluster version", &kctl_cluster},
-	{ KCTL_ACL,     "acl",     "Create/Modify ACL", &kctl_acl},
-#endif
+	{ KCTL_UPGRADE, "upgrade", "Upgrade the Kinetic device firmware", &kctl_upgrade},
+	{ KCTL_CLUSTER, "cluster", "Get/Set Kinetic cluster version", &kctl_cluster},
 
 	/* End of Table (EOT) KEEP LAST */
 	{ KCTL_EOT, "nocmd", "nohelp", &kctl_nohandler},

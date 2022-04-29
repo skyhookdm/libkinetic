@@ -69,7 +69,6 @@ enum {
 	KC_FLUSH   = CS(FLUSH)                  ,
 };
 
-
 /*
  * Device Operations are mostly mapped onto Kinetic PIN operations,
  * but other device operations will be supported like media scan
@@ -595,6 +594,7 @@ typedef struct  kstats {
 	kopstat_t 	kst_execs;
 	kopstat_t 	kst_pinops;
 	kopstat_t 	kst_securitys;
+	kopstat_t 	kst_setups;
 
 #if 0
 	kopstat_t 	kst_cbats;	/* Create Batch */
