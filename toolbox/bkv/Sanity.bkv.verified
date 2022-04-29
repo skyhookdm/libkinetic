@@ -119,8 +119,8 @@ bkv> get -n 5 bkv.sanity.large-3MiB
 get: No key found.
 bkv> echo Get error case, key count too high
 Get error case, key count too high
-bkv> get -n 512 bkv.sanity.large-3MiB
-*** count too big (512 > 256)
+bkv> get -n 2048 bkv.sanity.large-3MiB
+*** count too big (2048 > 1024)
 bkv> echo Get error case, key negative
 Get error case, key negative
 bkv> get -n -512 bkv.sanity.large-3MiB
@@ -228,5 +228,5 @@ bkv> limits
 Limits:
 	Max Key Length: 1024
 	Max Val Length: 1048576
-	Max N:          256
+	Max N:          1024
 bkv> quit
