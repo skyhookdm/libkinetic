@@ -53,7 +53,8 @@ p_pinop_aio_generic(int ktd, void *pin, size_t pinlen, kdevop_t op,
 	struct ktli_config *cf;		/* KTLI configuration info */
 	struct kresult_message kmreq;	/* Intermediate resp representation */
 	kpdu_t pdu;			/* Unpacked PDU structure */
-
+	size_t adlen;			/* Goofy ADLENGTH device erase */
+	char *ad;			/* Goofy AD device erase */
 	struct timespec	start;		/* Temp start timestamp */
 
 	/*
@@ -65,6 +66,16 @@ p_pinop_aio_generic(int ktd, void *pin, size_t pinlen, kdevop_t op,
 	 * this fast, Not going to worry about this.
 	 */
 	ktli_gettime(&start);
+
+	ad = NULL;
+	adlen = 0;
+	if (pin && pinlen && (op == KDO_ERASE)) {
+		ad = pin;
+		adlen = pinlen;
+		pin = NULL;
+		pinlen = 0;
+		printf("ADLEN: %s %lu\n", ad, adlen);
+	}
 
 	if (!ckio) {
 		debug_printf("pinop: kio ptr required");
@@ -144,6 +155,10 @@ p_pinop_aio_generic(int ktd, void *pin, size_t pinlen, kdevop_t op,
 	 * See kio.h (previously in message.h) for more details.
 	 */
 	kio->kio_sendmsg.km_cnt = KM_CNT_NOVAL;
+	if (adlen)
+		/* Add a value message for the goofy AD Length erase */
+		kio->kio_sendmsg.km_cnt++;
+
 	n = sizeof(struct kiovec) * kio->kio_sendmsg.km_cnt;
 	kio->kio_sendmsg.km_msg = (struct kiovec *) KI_MALLOC(n);
 
@@ -177,10 +192,23 @@ p_pinop_aio_generic(int ktd, void *pin, size_t pinlen, kdevop_t op,
 		goto pex_kmmsg_pdu;
 	}
 
+	/* add a value for the goofy AD Length Erase */
+	if (adlen) {
+		kio->kio_sendmsg.km_msg[KIOV_VAL].kiov_len  = adlen;
+		kio->kio_sendmsg.km_msg[KIOV_VAL].kiov_base = KI_MALLOC(adlen);
+		if (!kio->kio_sendmsg.km_msg[KIOV_VAL].kiov_base) {
+			debug_printf("pinop: sendmesg VAL alloc");
+			krc = K_ENOMEM;
+			goto pex_kmmsg_pdu;
+		}
+
+		memcpy(kio->kio_sendmsg.km_msg[KIOV_VAL].kiov_base, ad, adlen);
+	}
+
 	/* Now that the message length is known, setup the PDU */
 	pdu.kp_magic  = KP_MAGIC;
 	pdu.kp_msglen = kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_len;
-	pdu.kp_vallen = 0;
+	pdu.kp_vallen = (adlen?adlen:0);
 	PACK_PDU(&pdu,  (uint8_t *)kio->kio_sendmsg.km_msg[KIOV_PDU].kiov_base);
 	debug_printf("pinop: PDU(x%2x, %d, %d)\n",
 		     pdu.kp_magic, pdu.kp_msglen, pdu.kp_vallen);
@@ -218,6 +246,8 @@ p_pinop_aio_generic(int ktd, void *pin, size_t pinlen, kdevop_t op,
 	 */
 
  pex_kmmsg_msg:
+	if (adlen) KI_FREE(kio->kio_sendmsg.km_msg[KIOV_VAL].kiov_base);
+
 	KI_FREE(kio->kio_sendmsg.km_msg[KIOV_MSG].kiov_base);
 
  pex_kmmsg_pdu:
@@ -485,6 +515,17 @@ kstatus_t
 ki_pinop(int ktd, void *pin, size_t pinlen, kdevop_t op)
 {
 	return(p_pinop_generic(ktd, pin, pinlen, op));
+}
+
+/**
+ * ki_pinop_ad(int ktd)
+ *
+ * Perform a device erase with the AD length hack.
+ */
+kstatus_t
+ki_pinop_ad(int ktd, void *ad, size_t adlen, kdevop_t op)
+{
+	return(p_pinop_generic(ktd, ad, adlen, KDO_ERASE));
 }
 
 

@@ -37,6 +37,7 @@ kctl_device_usage(struct kargs *ka)
 	char msg[] = "\n\
 Where, CMD OPTIONS are [default]:\n\
 	-p <string>  Secret PIN for device operation\n\
+        -a <len>     ActiveDrive partition length in sectors\n\
 	-?           Help\n\
 \n\
 Where, OPERATION is one of:\n\
@@ -57,16 +58,22 @@ To see available COMMON OPTIONS: ./kctl -?\n";
 int
 kctl_device(int argc, char *argv[], int ktd, struct kargs *ka)
 {
- 	extern char     *optarg;
-        extern int	optind, opterr, optopt;
-        char		c, *pin = NULL;
+	extern char     *optarg;
+	extern int	optind, opterr, optopt;
+	char		c, *pin = NULL, *ad = NULL;
 	size_t		pinlen = 0; 
+	size_t		adlen = 0;
 	int		tlsck = 1;	/* XXX hidden flag for issue #95 */
 	kstatus_t	krc;
 	kdevop_t	op;
 		
-        while ((c = getopt(argc, argv, "h?p:t")) != (char)EOF) {
+        while ((c = getopt(argc, argv, "h?a:p:t")) != (char)EOF) {
                 switch (c) {
+		case 'a':
+			ad = optarg;
+			adlen = strlen(ad);
+			break;
+
 		case 'p':
 			pin = optarg;
 			pinlen = strlen(pin);
@@ -117,6 +124,17 @@ kctl_device(int argc, char *argv[], int ktd, struct kargs *ka)
 		fprintf(stderr, "*** Missing operation arg\n");
 		CMD_USAGE(ka);
 		return(-1);
+	}
+
+	if (op == KDO_ERASE && adlen) {
+		printf("using ki_pinop_ad with %lu\n", adlen);
+		krc = ki_pinop_ad(ktd, ad, adlen, op);
+		if (krc != K_OK) {
+			printf("kinetic device op failed: status=%d %s\n",
+			       krc, ki_error(krc));
+			return(-1);
+		}
+		return(0);
 	}
 
 	krc = ki_device(ktd, pin, pinlen, op);

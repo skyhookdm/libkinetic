@@ -97,6 +97,7 @@ kstatus_t ki_exec(int ktd, kapplet_t *app);
 
 /* Kinetic device operations [secure]erase, [un]lock, scan, optimize */
 kstatus_t ki_device(int ktd, void *pin, size_t pinlen, kdevop_t op);
+kstatus_t ki_pinop_ad(int ktd, void *ad, size_t adlen, kdevop_t op);
 
 /* Kinetic asynchronous NOOP interface */
 kstatus_t ki_aio_noop(int ktd, void *cctx, kio_t **kio);
