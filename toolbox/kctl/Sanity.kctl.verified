@@ -4,11 +4,11 @@ kctl> del -S kctl.sanity. -E kctl.sanity.z
 ***DELETING Key Range [kctl.,kctl.]:unlimited
 kctl> echo Standard put
 Standard put
-kctl> put kctl.sanity.put.1 Put1.0
+kctl> put -V kctl.sanity.put.1 Put1.0
 kctl> echo Compare and Swap (CAS) puts
 Compare and Swap (CAS) puts
-kctl> put -c kctl.sanity.put.1 Put1.1
-kctl> put -c kctl.sanity.put.1 Put1.2
+kctl> put -Vc kctl.sanity.put.1 Put1.1
+kctl> put -Vc kctl.sanity.put.1 Put1.2
 kctl> echo Should be version 0x00000002
 Should be version 0x00000002
 kctl> get -m kctl.sanity.put.1
@@ -21,26 +21,26 @@ Put using a file as a value
 kctl> put -f /etc/hosts kctl.sanity.put.2
 kctl> echo Put using a 4k zero filled buffer as a value
 Put using a 4k zero filled buffer as a value
-kctl> put -z 4096 kctl.sanity.put.3
+kctl> put -Vz 4096 kctl.sanity.put.3
 kctl> echo Puts with cache policies defined
 Puts with cache policies defined
 kctl> put -p wt kctl.sanity.put.4 Put4-WT.0
 kctl> put -p wb kctl.sanity.put.5 Put5-WB
-kctl> put -p f kctl.sanity.put.6 Put6-F
+kctl> put -Vp f kctl.sanity.put.6 Put6-F
 kctl> echo Set of puts with mixed arguments
 Set of puts with mixed arguments
-kctl> put -p wt kctl.sanity.put.4 Put4-WT.1
+kctl> put -Vp wt kctl.sanity.put.4 Put4-WT.1
 kctl> put -c -p wt kctl.sanity.put.4 Put4-WT.1
-kctl> put -f /etc/hosts -c -p f kctl.sanity.put.6
-kctl> put -f /etc/hosts -c -p wb kctl.sanity.put.6
-kctl> put -z 1024 -p wt kctl.sanity.put.7
-kctl> put -z 1024 -c -p wt kctl.sanity.put.7
+kctl> put -f /etc/hosts -Vc -p f kctl.sanity.put.6
+kctl> put -f /etc/hosts -Vc -p wb kctl.sanity.put.6
+kctl> put -Vz 1024 -p wt kctl.sanity.put.7
+kctl> put -Vz 1024 -c -p wt kctl.sanity.put.7
 kctl> put -z 8192 -p wb kctl.sanity.put.8
-kctl> put -p wb kctl.sanity.put.9 Put9-WB-CAS
-kctl> put -c -p wb kctl.sanity.put.9 Put9-WB-CAS
+kctl> put -Vp wb kctl.sanity.put.9 Put9-WB-CAS
+kctl> put -Vc -p wb kctl.sanity.put.9 Put9-WB-CAS
 kctl> echo Put error case, both put and get should fail
 Put error case, both put and get should fail
-kctl> put -c kctl.sanity.put.10 Put10-WB-CAS
+kctl> put -Vc kctl.sanity.put.10 Put10-WB-CAS
 put: kctl.sanity.put.10: Invalid request
 kctl> get kctl.sanity.put.10
 get: No key found.

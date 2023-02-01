@@ -31,11 +31,11 @@ del -S kctl.sanity. -E kctl.sanity.z
 #
 # Std Put
 echo Standard put
-put kctl.sanity.put.1 "Put1.0"
+put -V kctl.sanity.put.1 "Put1.0"
 # CAS Put
 echo Compare and Swap (CAS) puts
-put -c kctl.sanity.put.1 "Put1.1"
-put -c kctl.sanity.put.1 "Put1.2"
+put -Vc kctl.sanity.put.1 "Put1.1"
+put -Vc kctl.sanity.put.1 "Put1.2"
 echo Should be version 0x00000002
 get -m kctl.sanity.put.1			# Should be version 2
 # Put from a file
@@ -43,26 +43,26 @@ echo Put using a file as a value
 put -f /etc/hosts kctl.sanity.put.2
 # Put zero buffer
 echo Put using a 4k zero filled buffer as a value
-put -z 4096 kctl.sanity.put.3
+put -Vz 4096 kctl.sanity.put.3
 # Put with cache ops
 echo Puts with cache policies defined
 put -p wt kctl.sanity.put.4 "Put4-WT.0"
 put -p wb kctl.sanity.put.5 "Put5-WB"
-put -p f  kctl.sanity.put.6 "Put6-F"
+put -Vp f  kctl.sanity.put.6 "Put6-F"
 # Multiple ops
 echo Set of puts with mixed arguments
-put    -p wt                kctl.sanity.put.4 "Put4-WT.1"	# lay down a key
+put    -Vp wt               kctl.sanity.put.4 "Put4-WT.1"	# lay down a key
 put -c -p wt                kctl.sanity.put.4 "Put4-WT.1"	# CAS it
-put -f /etc/hosts -c -p f   kctl.sanity.put.6
-put -f /etc/hosts -c -p wb  kctl.sanity.put.6
-put -z 1024    -p wt        kctl.sanity.put.7
-put -z 1024 -c -p wt        kctl.sanity.put.7
+put -f /etc/hosts -Vc -p f  kctl.sanity.put.6
+put -f /etc/hosts -Vc -p wb kctl.sanity.put.6
+put -Vz 1024    -p wt       kctl.sanity.put.7
+put -Vz 1024 -c -p wt       kctl.sanity.put.7
 put -z 8192 -p wb           kctl.sanity.put.8 
-put    -p wb                kctl.sanity.put.9 "Put9-WB-CAS"	# lay down a key
-put -c -p wb                kctl.sanity.put.9 "Put9-WB-CAS"	# CAS it
+put    -Vp wb               kctl.sanity.put.9 "Put9-WB-CAS"	# lay down a key
+put -Vc -p wb               kctl.sanity.put.9 "Put9-WB-CAS"	# CAS it
 # Put Errs
 echo Put error case, both put and get should fail
-put -c kctl.sanity.put.10 "Put10-WB-CAS" 	# No previous key, should fail
+put -Vc kctl.sanity.put.10 "Put10-WB-CAS" 	# No previous key, should fail
 get kctl.sanity.put.10  			# Should fail
 # Handful of puts for Range and Delete below
 echo Do many puts in a row

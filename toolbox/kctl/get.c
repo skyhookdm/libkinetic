@@ -272,7 +272,15 @@ kctl_get(int argc, char *argv[], int ktd, struct kargs *ka)
 		if (!ka->ka_quiet) {
 			printf("Version: ");
 		}
-		printf("%s\n", (pkv->kv_ver ? (char *) pkv->kv_ver : "N/A"));
+		if (adump) {
+			asciidump(pkv->kv_ver, pkv->kv_verlen);
+			printf("\n");
+		} else if (hdump) {
+			hexdump(pkv->kv_ver, pkv->kv_verlen);
+		} else {
+		/* raw */
+			printf("%s\n", kv->kv_ver?(char *)kv->kv_ver:"");
+		}
 
 		kctl_status = (-1);
 		goto kctl_gex;

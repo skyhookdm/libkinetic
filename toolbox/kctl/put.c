@@ -32,9 +32,10 @@
 extern char *ki_cpolicy_label[];
 extern char *ki_status_label[];
 int kctl_do_put(int ktd, struct kargs *ka, kv_t *kv,  uint32_t sum,
-	    kcachepolicy_t cpolicy, int bat, int cas);
+		kcachepolicy_t cpolicy, int bat, int cas, int do_vers);
 
 #define CMD_USAGE(_ka) kctl_put_usage(_ka)
+
 
 void
 kctl_put_usage(struct kargs *ka)
@@ -53,6 +54,7 @@ Where, CMD OPTIONS are [default]:\n\
 	             writethrough, writeback, flush [wb]\n\
 	-F           Issue a flush at completion\n\
 	-s sum       Value CRC32 sum (8 hex digits) [0] \n\
+	-V           Use kctl's version scheme, [no] \n\
 	-?           Help\n\
 \n\
 Where, KEY and VALUE are quoted strings that can contain arbitrary\n\
@@ -82,6 +84,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
         extern int	optind, opterr, optopt;
         char		c, *cp, *filename=NULL;
 	int 		count=0, cas=0, zlen=-1, bat=0, flush=0, rc, fd, i;
+	int		do_vers=0;
 	uint32_t	sum=0;
 	struct stat	st;
 	kcachepolicy_t	cpolicy = KC_WB;
@@ -90,7 +93,7 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 	struct kiovec	kv_val[1]  = {{0, 0}};
 	struct timespec start, stop;
 
-        while ((c = getopt(argc, argv, "bcFf:h?n:p:s:z:")) != (char)EOF) {
+        while ((c = getopt(argc, argv, "bcFf:h?n:p:s:Vz:")) != (char)EOF) {
                 switch (c) {
 		case 'b':
 			bat = 1;
@@ -190,6 +193,9 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 				return(-1);
 			}
 			sum = (uint32_t)strtoul(optarg, NULL, 16);
+			break;
+		case 'V':
+			do_vers = 1;
 			break;
 		case 'h':
                 case '?':
@@ -334,14 +340,15 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 		/* Loop through changing the keyname and calling put */
 		for(i=0; i<count; i++) {
 			kv->kv_key[1].kiov_len = sprintf(suffix, ".%09d", i);
-			rc = kctl_do_put(ktd, ka, kv, sum, cpolicy, bat, cas);
+			rc = kctl_do_put(ktd, ka, kv, sum, cpolicy,
+					 bat, cas, do_vers);
 			if (rc < 0) {
 				break;
 			}
 		}
 	} else {
 		/* "One ping only, please. Aye aye Captain." */
-		rc = kctl_do_put(ktd, ka, kv, sum, cpolicy, bat, cas);
+		rc = kctl_do_put(ktd, ka, kv, sum, cpolicy, bat, cas, do_vers);
 		count = 1;
 	}
 
@@ -375,30 +382,43 @@ kctl_put(int argc, char *argv[], int ktd, struct kargs *ka)
 
 int
 kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
-	    kcachepolicy_t cpolicy, int bat, int cas)
+	    kcachepolicy_t cpolicy, int bat, int cas, int do_vers)
 {
-	int	  exists=0, i;
+	int	  i;
 	kstatus_t krc;
 	char	  newver[VERLEN]; 	// holds hex representation of
 					// one int: "0x00000000"
 
-	/* Get the key's version if it exists and then increment the version */
+	/*
+	 * This code is only enabled if -V flag is provided. It
+	 * implements a kctl provided versioning scheme and may not 
+	 * work if the KV is created or manipulated outside of kctl.
+	 * Some guardrails are provided.  
+	 * Get the key's version if it exists and then increment 
+	 * the version
+	 */
 	krc = ki_getversion(ktd, kv);
 
 	if (krc == K_OK) {
 		unsigned long nv;
-		nv = strtoul(kv->kv_ver, NULL, 16) + 1; /* increment the vers */
-		sprintf(newver, "0x%08x", (unsigned int)nv);
-		exists = 1;
+		/* convert and increment the vers */
+		if (do_vers) {
+			if (kv->kv_ver) {
+				nv = strtoul(kv->kv_ver, NULL, 16) + 1; 
+				sprintf(newver, "0x%08x", (unsigned int)nv);
+			} else {
+				/* Key exists but not with a version */
+				sprintf(newver, "0x%08x", 0);
+			}
+		}
+	} else {
+		/* Likely, no existing key; use 0 as default version */
+		if (do_vers)
+			sprintf(newver, "0x%08x", 0);
 	}
 
-	// Likely, no existing key; use 0 as default version
-	else {
-		sprintf(newver, "0x%08x", 0);
-	}
-
-	kv->kv_newver	 = newver;
-	kv->kv_newverlen = VERLEN;
+	kv->kv_newver	 = (do_vers?newver:kv->kv_ver);
+	kv->kv_newverlen = (do_vers?VERLEN:kv->kv_verlen);
 	kv->kv_disum	 = &sum;
 	kv->kv_disumlen	 = sizeof(sum);
 	kv->kv_ditype	 = KDI_CRC32;
@@ -420,8 +440,10 @@ kctl_do_put(int ktd, struct kargs *ka, kv_t *kv, uint32_t sum,
 		printf("\n");
 		printf("Batch:           %p\n", (bat?ka->ka_batch:NULL));
 		printf("Compare & Swap:  %s\n", cas?"Enabled":"Disabled");
-		printf("Version:         %s\n", exists?(char *)kv->kv_ver:"");
-		printf("New Version:     %s\n", (char *)kv->kv_newver);
+		printf("Version:         %s\n",
+		       kv->kv_ver?(char *)kv->kv_ver:"");
+		printf("New Version:     %s\n",
+		       kv->kv_newver?(char *)kv->kv_newver:"");
 		printf("DI Sum:          %08x\n", *(uint32_t *)kv->kv_disum);
 		printf("DI Type:         CRC32\n");
 		printf("Cache Policy:    %s\n\n",
